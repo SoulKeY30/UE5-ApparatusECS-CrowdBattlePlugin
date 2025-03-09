@@ -1,0 +1,28 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "FlowFieldCanvas",
+	"Description": "Flowfield pathfinding plugin that offers you max control over the result",
+	"Category": "FlowFieldCanvas",
+	"CreatedBy": "LeroyWorks",
+	"CreatedByURL": "https://www.fab.com/sellers/Leroy%20Works",
+	"DocsURL": "https://drive.google.com/file/d/1UlINqsywdlVfgbZRhG4gC1B-L6OFyBlf/view?usp=sharing",
+	"FabURL": "com.epicgames.launcher://ue/Fab/product/d62c800a-c46f-4b2b-ad20-664201a6fb9c",
+	"SupportURL": "https://discord.gg/KFjg6NHuwR",
+	"EngineVersion": "5.3",
+	"CanContainContent": true,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": false,
+	"Installed": true,
+	"Modules": [
+		{
+			"Name": "FlowFieldCanvas",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [
+				"Win64"
+			]
+		}
+	]
+}

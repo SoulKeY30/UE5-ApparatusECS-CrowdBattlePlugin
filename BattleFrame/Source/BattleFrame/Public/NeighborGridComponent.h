@@ -1,0 +1,287 @@
+/*
+ * APPARATIST
+ * Created: 2023-02-02 16:26:26
+ * Author: Vladislav Dmitrievich Turbanov (vladislav@turbanov.ru)
+ * Community forums: https://talk.turbanov.ru
+ * Copyright 2019 - 2023, SP Vladislav Dmitrievich Turbanov
+ * Made in Russia, Moscow City, Chekhov City
+ */
+
+ /*
+  * BattleFrame
+  * Refactor: 2025
+  * Author: Leroy Works
+  */
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "MechanicalActorComponent.h"
+#include "Machine.h"
+#include "NeighborGridCell.h"
+#include "Traits/Avoidance.h"
+#include "RvoSimulator.h"
+#include "Vector2.h"
+
+#include "NeighborGridComponent.generated.h"
+
+#define BUBBLE_DEBUG 0
+
+UCLASS(Category = "NeighborGrid")
+class BATTLEFRAME_API UNeighborGridComponent : public UMechanicalActorComponent
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Performance)
+	int32 MaxThreadsAllowed = FMath::Clamp(FPlatformMisc::NumberOfWorkerThreadsToSpawn() - 1, 1, FLT_MAX);
+
+	int32 ThreadsCount = 1;
+	int32 BatchSize = 1;
+
+	#if WITH_EDITORONLY_DATA
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Debugging")
+	bool bDebugDrawCageCells = false;
+	#endif
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Grid")
+	float CellSize = 300.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Grid")
+	FIntVector Size = FIntVector(20, 20, 1);
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Grid")
+	mutable FBox Bounds;
+
+	TArray<FNeighborGridCell> Cells;
+	float InvCellSizeCache = 1/ 300;
+
+
+	UNeighborGridComponent();
+
+	void InitializeComponent() override;
+
+	void BeginPlay() override;
+
+	void BeginDestroy() override;
+
+	void DoInitializeCells()
+	{
+		Cells.Reset(); // Make sure there are no cells.
+
+		if (ensureAlwaysMsgf((int32)Size.X * (int32)Size.Y * (int32)Size.Z < (int32)TNumericLimits<int32>::Max(),
+			TEXT("The '%s' bubble cage has too many cells in it. Please, decrease its corresponding size in cells.")))
+		{
+			Cells.AddDefaulted(Size.X * Size.Y * Size.Z);
+		}
+	}
+
+	UFUNCTION(BlueprintCallable)
+	void SphereTraceForSubjects(const FVector& Location, float Radius, const FFilter& Filter, TArray<FSubjectHandle>& Results) const;
+	
+	UFUNCTION(BlueprintCallable)
+	void SphereSweepForSubjects(const FVector& Start, const FVector& End, float Radius, const FFilter& Filter, TArray<FSubjectHandle>& Results);
+
+	void SphereExpandForSubjects(const FVector& Origin, float Radius, float Height, const FFilter& Filter, TArray<FSubjectHandle>& Results) const;
+
+	void Update();
+
+	void Decouple();
+
+	void Evaluate();
+
+	TArray<FIntVector> GetGridCellsForCapsule(FVector Start, FVector End, float Radius) const;
+
+	void AddSphereCells(FIntVector CenterCell, float Radius, TSet<FIntVector>& GridCells) const;
+
+	bool IsInsideSphere(FIntVector CenterCell, FIntVector TestCell, float Radius) const;
+
+	void ComputeNewVelocity(FAvoidance& Avoidance, float timeStep_);
+
+	bool LinearProgram1(const std::vector<RVO::Line>& lines, size_t lineNo, float radius, const RVO::Vector2& optVelocity, bool directionOpt, RVO::Vector2& result);
+
+	size_t LinearProgram2(const std::vector<RVO::Line>& lines, float radius, const RVO::Vector2& optVelocity, bool directionOpt, RVO::Vector2& result);
+
+	void LinearProgram3(const std::vector<RVO::Line>& lines, size_t numObstLines, size_t beginLine, float radius, RVO::Vector2& result);
+
+	void CalculateThreadsCountAndBatchSize(int32 IterableNum);
+
+	TArray<FIntVector> GetNeighborCells(const FVector& Center, const FVector& Range3D) const;
+
+
+
+
+	/**
+	 * Get the size of a single cell in global units.
+	 */
+	const auto GetCellSize() const
+	{
+		return CellSize;
+	}
+
+	/**
+	 * Get the size of the cage in cells among each axis.
+	 */
+	const FIntVector& GetSize() const
+	{
+		return Size;
+	}
+
+	/**
+	 * Get the global bounds of the cage in world units.
+	 */
+	const FBox& GetBounds() const
+	{
+		const auto Extents = CellSize * FVector(Size) * 0.5f;
+		const auto Actor = GetOwner();
+		const auto Location = (Actor != nullptr) ? Actor->GetActorLocation() : FVector::ZeroVector;
+		Bounds.Min = Location - Extents;
+		Bounds.Max = Location + Extents;
+		return Bounds;
+	}
+
+	/**
+	 * Convert a cage-local 3D location to a global 3D location. No bounding checks are performed.
+	 */
+	FORCEINLINE FVector CageToWorld(const FIntVector& CagePoint) const
+	{
+		// Convert the cage point to a local position within the cage
+		FVector LocalPoint = FVector(CagePoint.X, CagePoint.Y, CagePoint.Z) * CellSize;
+
+		// Convert the local position to a global position by adding the cage's minimum bounds
+		return LocalPoint + Bounds.Min;
+	}
+
+	/**
+	 * Convert a global 3D location to a position within the cage.mNo bounding checks are performed.
+	 */
+	FORCEINLINE FIntVector WorldToCage(FVector Point) const
+	{
+		Point -= Bounds.Min;
+		Point *= InvCellSizeCache;
+		return FIntVector(FMath::FloorToInt(Point.X),
+			FMath::FloorToInt(Point.Y),
+			FMath::FloorToInt(Point.Z));
+	}
+
+	/**
+	 * Convert a global 3D location to a position within the bounds. No bounding checks are performed.
+	 */
+	FORCEINLINE FVector WorldToBounded(const FVector& Point) const
+	{
+		return Point - Bounds.Min;
+	}
+
+	/**
+	 * Convert a cage-local 3D location to a position within the cage. No bounding checks are performed.
+	 */
+	FORCEINLINE FIntVector BoundedToCage(FVector Point) const
+	{
+		Point *= InvCellSizeCache;
+		return FIntVector(FMath::FloorToInt(Point.X),
+			FMath::FloorToInt(Point.Y),
+			FMath::FloorToInt(Point.Z));
+	}
+
+	/* Get the index of the cage cell. */
+	FORCEINLINE int32 GetIndexAt(int32 X, int32 Y, int32 Z) const
+	{
+		X = FMath::Clamp(X, 0, Size.X - 1);
+		Y = FMath::Clamp(Y, 0, Size.Y - 1);
+		Z = FMath::Clamp(Z, 0, Size.Z - 1);
+		return X + Size.X * (Y + Size.Y * Z);
+	}
+
+	/**
+	 * Get a position within the cage by an index of the cell.
+	 */
+	FORCEINLINE FIntVector GetCellPointByIndex(int32 Index) const
+	{
+		int32 z = Index / (Size.X * Size.Y);
+		int32 LayerPadding = Index - (z * Size.X * Size.Y);
+
+		return FIntVector(LayerPadding / Size.X, LayerPadding % Size.X, z);
+	}
+
+	/* Get the index of the cage cell. */
+	FORCEINLINE int32 GetIndexAt(const FIntVector& CellPoint) const
+	{
+		return GetIndexAt(CellPoint.X, CellPoint.Y, CellPoint.Z);
+	}
+
+	/* Get the index of the cell by the world position. */
+	FORCEINLINE int32 GetIndexAt(const FVector& Point) const
+	{
+		return GetIndexAt(WorldToCage(Point));
+	}
+
+	/* Get subjects in a specific cage cell. Const version. */
+	FORCEINLINE const FNeighborGridCell& At(const int32 X, const int32 Y, const int32 Z) const
+	{
+		return Cells[GetIndexAt(X, Y, Z)];
+	}
+
+	/* Get subjects in a specific cage cell. */
+	FORCEINLINE FNeighborGridCell& At(const int32 X, const int32 Y, const int32 Z)
+	{
+		return Cells[GetIndexAt(X, Y, Z)];
+	}
+
+	/* Check if the cage point is inside the cage. */
+	FORCEINLINE bool IsInside(const FIntVector& CellPoint) const
+	{
+		return (CellPoint.X >= 0) && (CellPoint.X < Size.X) &&
+			(CellPoint.Y >= 0) && (CellPoint.Y < Size.Y) &&
+			(CellPoint.Z >= 0) && (CellPoint.Z < Size.Z);
+	}
+
+	/* Check if the world point is inside the cage. */
+	FORCEINLINE bool IsInside(const FVector& WorldPoint) const
+	{
+		return IsInside(WorldToCage(WorldPoint));
+	}
+
+	/* Get subjects in a specific cage cell by position in the cage. */
+	FORCEINLINE FNeighborGridCell& At(const FIntVector& CellPoint)
+	{
+		return At(CellPoint.X, CellPoint.Y, CellPoint.Z);
+	}
+
+	/* Get subjects in a specific cage cell by position in the cage. */
+	FORCEINLINE const FNeighborGridCell& At(const FIntVector& CellPoint) const
+	{
+		return At(CellPoint.X, CellPoint.Y, CellPoint.Z);
+	}
+
+	/* Get subjects in a specific cage cell by world 3d-location. */
+	FORCEINLINE FNeighborGridCell& At(FVector Point)
+	{
+		return At(WorldToCage(Point));
+	}
+
+	/* Get subjects in a specific cage cell by world 3d-location. */
+	FORCEINLINE const FNeighborGridCell& At(FVector Point) const
+	{
+		return At(WorldToCage(Point));
+	}
+
+	/* Get a box shape representing a cell by position in the cage. */
+	FORCEINLINE FBox BoxAt(const FIntVector& CellPoint)
+	{
+		const FVector Min = Bounds.Min + FVector(CellPoint) * CellSize;
+		FBox Box(Min, Min + FVector(CellSize));
+		return MoveTemp(Box);
+	}
+
+	/* Get a box shape representing a cell by world 3d-location. */
+	FORCEINLINE FBox BoxAt(const FVector Point)
+	{
+		return BoxAt(WorldToCage(Point));
+	}
+
+
+
+};
+
