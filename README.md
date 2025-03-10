@@ -9,3 +9,11 @@ This project rely on Anim To Texture plugin, which is an official plugin include
 This project is developed and tested by UE5.3 on Windows.
 
 The performance test result is 60+fps running 10000 agents and 30+fps running 20000 agents on i9-9900k and rts2080ti.
+
+This project uses ecs for logic and niagara+vat as the rendering solution.
+
+This project uses rvo2 for avoidance/collision.
+
+This project uses neighbour grid for collision detection and flow field for navigation.
+
+THis project includes an editor utility widget that allows users to set up a new agent with only 1 click of a button.
