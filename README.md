@@ -4,7 +4,7 @@ The project itself is open sourced. However the project is based on the Apparatu
 
 This project also has dependency on the Flowfield Canvas plugin. The plugin itself is not free also. But this project has included a free lite version of Flowfield Canvas.
 
-This project rely on Anim To Texture plugin, which is an official plugin included in the engine.
+This project relies on Anim To Texture plugin, which is an official plugin included in the engine.
 
 This project is developed and tested by UE5.3 on Windows.
 
