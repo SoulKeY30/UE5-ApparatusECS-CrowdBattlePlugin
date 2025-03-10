@@ -17,3 +17,5 @@ This project uses rvo2 for avoidance/collision.
 This project uses neighbour grid for collision detection and flow field for navigation.
 
 THis project includes an editor utility widget that allows users to set up a new agent with only 1 click of a button.
+
+Open for suggestions! Any bug reports or optimization suggestions are welcomed whole heartedly!
