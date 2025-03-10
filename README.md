@@ -8,7 +8,7 @@ This project relies on Anim To Texture plugin, which is an official plugin inclu
 
 This project is developed and tested by UE5.3 on Windows.
 
-The performance test result is 60+fps running 10000 agents and 30+fps running 20000 agents on i9-9900k and rts2080ti.
+The performance test result is 60+fps running 10000 agents and 30+fps running 20000 agents on i9-9900k and rts2080ti, cpu capped.
 
 This project uses ecs for logic and niagara+vat as the rendering solution.
 
