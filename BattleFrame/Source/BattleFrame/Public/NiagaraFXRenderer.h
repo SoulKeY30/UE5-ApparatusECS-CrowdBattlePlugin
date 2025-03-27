@@ -27,7 +27,7 @@ class BATTLEFRAME_API ANiagaraFXRenderer : public AActor
 {
 	GENERATED_BODY()
 
-public:	
+public:
 	// Sets default values for this actor's properties
 	ANiagaraFXRenderer();
 
@@ -46,13 +46,13 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "FxRenderer")
 	UScriptStruct* SubType = nullptr;
 
+	// Niagara component that will handle the effects
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "FxRenderer", meta = (AllowPrivateAccess = "true"))
+	UNiagaraComponent* NiagaraComponent;
+
 	// Variable to hold the Niagara System Asset
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FxRenderer")
 	UNiagaraSystem* NiagaraAsset;
-
-	// Variable to hold the spawned Niagara System
-	UNiagaraComponent* SpawnedNiagaraSystem;
-
 
 	TArray<FTransform> Transforms;
 	FBitMask ValidTransforms;

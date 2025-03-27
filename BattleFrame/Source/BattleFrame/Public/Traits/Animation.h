@@ -57,7 +57,7 @@ public:
 
     //-------------------------------------------------------------
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "插值速度（用于平滑过渡）"))
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "动画间过度速度"))
     float LerpSpeed = 4;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "出生动画的索引值"))
@@ -75,7 +75,8 @@ public:
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "移动动画的索引值"))
     float IndexOfMoveAnim = 4;
 
-
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "高于此速度时切换到移动动画"))
+    float UseMoveAnimAboveSpeed = 50.f;
 
     //-----------------------------------------------------------
 
@@ -154,6 +155,8 @@ public:
         IndexOfAttackAnim = Anim.IndexOfAttackAnim;
         IndexOfDeathAnim = Anim.IndexOfDeathAnim;
 
+        UseMoveAnimAboveSpeed = Anim.UseMoveAnimAboveSpeed;
+
         SubjectState = Anim.SubjectState;
         PreviousSubjectState = Anim.PreviousSubjectState;
     }
@@ -196,6 +199,8 @@ public:
         IndexOfMoveAnim = Anim.IndexOfMoveAnim;
         IndexOfAttackAnim = Anim.IndexOfAttackAnim;
         IndexOfDeathAnim = Anim.IndexOfDeathAnim;
+
+        UseMoveAnimAboveSpeed = Anim.UseMoveAnimAboveSpeed;
 
         SubjectState = Anim.SubjectState;
         PreviousSubjectState = Anim.PreviousSubjectState;

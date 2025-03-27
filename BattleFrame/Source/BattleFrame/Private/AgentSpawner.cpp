@@ -109,6 +109,10 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     AgentConfig.SetTrait(DataAsset->Sound);
     AgentConfig.SetTrait(DataAsset->SpawnActor);
     AgentConfig.SetTrait(DataAsset->Curves);
+<<<<<<< HEAD
+    //AgentConfig.SetTrait(DataAsset->Statistics);
+=======
+>>>>>>> parent of 0f9a801 (Beta.2)
 
     AgentConfig.SetTrait(FTracing{});
 
@@ -273,7 +277,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
 
         Config.SetTrait(FDirected{ Direction });
 
-        Move.Speed *= Multipliers.SpeedMult;
+        Move.MoveSpeed *= Multipliers.SpeedMult;
 
         Config.SetTrait(FMoving{});
         auto& Moving = Config.GetTraitRef<FMoving>();

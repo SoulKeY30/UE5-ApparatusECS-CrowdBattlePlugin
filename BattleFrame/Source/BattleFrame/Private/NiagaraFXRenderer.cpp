@@ -17,6 +17,11 @@ ANiagaraFXRenderer::ANiagaraFXRenderer()
 {
     PrimaryActorTick.bCanEverTick = true;
     PrimaryActorTick.bStartWithTickEnabled = true;
+
+    // Create and setup the Niagara component
+    NiagaraComponent = CreateDefaultSubobject<UNiagaraComponent>(TEXT("NiagaraComponent"));
+    NiagaraComponent->SetupAttachment(RootComponent);
+    NiagaraComponent->SetAutoActivate(false);
 }
 
 // Called when the game starts or when spawned
@@ -26,19 +31,9 @@ void ANiagaraFXRenderer::BeginPlay()
 
     if (NiagaraAsset)
     {
-        FVector MyLocation = GetActorLocation(); // Get the current Actor's location
-
-        SpawnedNiagaraSystem = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
-            GetWorld(),
-            NiagaraAsset,
-            MyLocation, // Use the current Actor's location
-            FRotator::ZeroRotator, // rotation
-            FVector(1), // scale
-            false, // auto destroy
-            true, // auto activate
-            ENCPoolMethod::None,
-            true
-        );
+        // Set the asset and activate the component
+        NiagaraComponent->SetAsset(NiagaraAsset);
+        NiagaraComponent->Activate();
     }
 }
 
@@ -75,22 +70,22 @@ void ANiagaraFXRenderer::Tick(float DeltaTime)
                     Subject.Despawn();
                 });
 
-            if (SpawnedNiagaraSystem)
+            if (NiagaraComponent && NiagaraComponent->IsActive())
             {
                 UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector(
-                    SpawnedNiagaraSystem,
+                    NiagaraComponent,
                     FName("LocationArray"),
                     NewLocationArray
                 );
 
                 UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector(
-                    SpawnedNiagaraSystem,
+                    NiagaraComponent,
                     FName("DirectionArray"),
                     NewDirectionArray
                 );
 
                 UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector(
-                    SpawnedNiagaraSystem,
+                    NiagaraComponent,
                     FName("ScaleArray"),
                     NewScaleArray
                 );
@@ -230,29 +225,29 @@ void ANiagaraFXRenderer::Tick(float DeltaTime)
                 }
             }
 
-            if (SpawnedNiagaraSystem)
+            if (NiagaraComponent && NiagaraComponent->IsActive())
             {
                 // sync niagara
                 UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector(
-                    SpawnedNiagaraSystem,
+                    NiagaraComponent,
                     FName("LocationArray"),
                     LocationArray
                 );
 
                 UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayQuat(
-                    SpawnedNiagaraSystem,
+                    NiagaraComponent,
                     FName("OrientationArray"),
                     OrientationArray
                 );
 
                 UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector(
-                    SpawnedNiagaraSystem,
+                    NiagaraComponent,
                     FName("ScaleArray"),
                     ScaleArray
                 );
 
                 UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayBool(
-                    SpawnedNiagaraSystem,
+                    NiagaraComponent,
                     FName("LocationEventArray"),
                     LocationEventArray
                 );

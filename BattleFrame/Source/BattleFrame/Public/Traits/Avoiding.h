@@ -16,7 +16,7 @@ public:
     FSubjectHandle SubjectHandle = FSubjectHandle{};
     uint32 SubjectHash = 0;
 
-    bool bValid = false;
+    //bool bValid = false;
 
     // 匹配Handle
     bool operator==(const FAvoiding& Other) const

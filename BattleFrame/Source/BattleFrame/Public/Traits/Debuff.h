@@ -20,18 +20,18 @@ public:
 	float KnockbackSpeed = 0;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "是否可以造成延时伤害"))
-	bool bCanTemporalDmg = false;
+	bool bCanBurn = false;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "延时伤害百分比"))
-	float TemporalDmgPercent = 0.25f;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "延时伤害占直接伤害的百分比"))
+	float BurnDmgRatio = 0.25f;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "是否可以使目标减速"))
-	bool bCanSlow = false;
+	bool bCanFreeze = false;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "减速的持续时间（秒）"))
-	float SlowTime = 4.f;
+	float FreezeTime = 4.f;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "减速的强度"))
-	float SlowStr = 1.f;
+	float FreezeStr = 1.f;
 
 };

@@ -60,7 +60,7 @@ class BATTLEFRAME_API ABattleFrameGameMode
 public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Performance)
-	int32 MaxThreadsAllowed = FMath::Clamp(FPlatformMisc::NumberOfWorkerThreadsToSpawn() - 1, 1, FLT_MAX);
+	int32 MaxThreadsAllowed = FMath::Clamp(FPlatformMisc::NumberOfWorkerThreadsToSpawn() - 1, 1, 20);
 
 	int32 ThreadsCount = 1;
 	int32 BatchSize = 1;
@@ -75,22 +75,7 @@ public:
 	bool bIsGameOver = false;
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Statistics)
-	bool bGenerateSubjectQuantity = false;
-
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Statistics)
 	int32 AgentCount = 0;
-
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Statistics)
-	int32 DyingAgentCount = 0;
-
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Statistics)
-	int32 AppearingAgentCount = 0;
-
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Statistics)
-	int32 AttackingAgentCount = 0;
-
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Statistics)
-	int32 BeingHitAgentCount = 0;
 
 	static ABattleFrameGameMode* Instance;
 	FStreamableManager StreamableManager;
@@ -99,7 +84,12 @@ public:
 	UNeighborGridComponent* NeighborGrid = nullptr;
 	TQueue<TSoftObjectPtr<USoundBase>, EQueueMode::Mpsc> SoundsToPlay;
 	TQueue<float> VolumesToPlay;
+<<<<<<< HEAD
+	EFlagmarkBit ReloadFlowFieldFlag = EFlagmarkBit::R;
+	EFlagmarkBit TracingFlag = EFlagmarkBit::T;
+=======
 
+>>>>>>> parent of 0f9a801 (Beta.2)
 
 public:
 
@@ -140,11 +130,9 @@ public:
 
 	std::pair<bool, float> ProcessCritDamage(float BaseDamage, float damageMult, float Probability);
 
-	void QueueSound(TSoftObjectPtr<USoundBase> Sound, float Probability);
+	void QueueSound(TSoftObjectPtr<USoundBase> Sound);
 
 	void QueueText(FSubjectHandle Subject, float Value, float Style, float Scale, float Radius, FVector Location);
-
-	static float RangeMapProbability(int32 subjectQuantity, FVector4 rangeMapParam);
 
 	void QueueFx(FSubjectHandle Subject, FTransform Transform, ESubType SubType);
 

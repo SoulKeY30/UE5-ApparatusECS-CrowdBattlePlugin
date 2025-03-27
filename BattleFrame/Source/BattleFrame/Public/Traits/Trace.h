@@ -64,6 +64,8 @@ public:
 
 	UNeighborGridComponent* NeighborGrid = nullptr;
 
+	float TimeLeft = 0.f;
+
 	//----------------------------------------
 
 	FTrace() {};

@@ -89,11 +89,7 @@ public:
      * Get overlapping spheres for the specified location.
      */
     UFUNCTION(BlueprintCallable)
-    void SphereTraceForSubjects(
-        const FVector& Location,
-        const float Radius,
-        const FFilter& Filter,
-        TArray<FSubjectHandle>& Results)
+    void SphereTraceForSubjects(const FVector Location, const float Radius, const FFilter Filter, TArray<FSubjectHandle>& Results)
     {
         Results.Reset();
 
@@ -104,13 +100,24 @@ public:
     }
 
     UFUNCTION(BlueprintCallable)
-    void SphereSweepForSubjects(const FVector& Start, const FVector& End, float Radius, const FFilter& Filter, TArray<FSubjectHandle>& Results)
+    void SphereSweepForSubjects(const FVector Start, const FVector End, float Radius, const FFilter Filter, TArray<FSubjectHandle>& Results)
     {
         Results.Reset();
 
         if (LIKELY(Instance != nullptr && Instance->NeighborGridComponent != nullptr))
         {
             Instance->NeighborGridComponent->SphereSweepForSubjects(Start, End, Radius, Filter, Results);
+        }
+    }
+
+    UFUNCTION(BlueprintCallable)
+    void SphereExpandForSubject(const FVector Origin, float Radius, float Height, const FFilter Filter, FSubjectHandle& Result)
+    {
+        Result = FSubjectHandle();
+
+        if (LIKELY(Instance != nullptr && Instance->NeighborGridComponent != nullptr))
+        {
+            Instance->NeighborGridComponent->SphereExpandForSubject(Origin, Radius, Height, Filter, Result);
         }
     }
 

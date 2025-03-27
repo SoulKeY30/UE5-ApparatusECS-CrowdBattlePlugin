@@ -131,8 +131,8 @@ public:
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "曲线属性"))
     FCurves Curves;
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "数据统计"))
-    FStatistics Statistics;
+    //UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "数据统计"))
+    //FStatistics Statistics;
 
     UAgentConfigDataAsset() {}
 

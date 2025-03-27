@@ -36,7 +36,7 @@ class BATTLEFRAME_API UNeighborGridComponent : public UMechanicalActorComponent
 public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Performance)
-	int32 MaxThreadsAllowed = FMath::Clamp(FPlatformMisc::NumberOfWorkerThreadsToSpawn() - 1, 1, FLT_MAX);
+	int32 MaxThreadsAllowed = FMath::Clamp(FPlatformMisc::NumberOfWorkerThreadsToSpawn() - 1, 1, 20);
 
 	int32 ThreadsCount = 1;
 	int32 BatchSize = 1;
@@ -71,20 +71,21 @@ public:
 	{
 		Cells.Reset(); // Make sure there are no cells.
 
-		if (ensureAlwaysMsgf((int32)Size.X * (int32)Size.Y * (int32)Size.Z < (int32)TNumericLimits<int32>::Max(),
-			TEXT("The '%s' bubble cage has too many cells in it. Please, decrease its corresponding size in cells.")))
-		{
+		//if (ensureAlwaysMsgf((int32)Size.X * (int32)Size.Y * (int32)Size.Z < (int32)TNumericLimits<int32>::Max(),
+		//	TEXT("The '%s' bubble cage has too many cells in it. Please, decrease its corresponding size in cells.")))
+		//{
 			Cells.AddDefaulted(Size.X * Size.Y * Size.Z);
-		}
+		//}
 	}
 
 	UFUNCTION(BlueprintCallable)
-	void SphereTraceForSubjects(const FVector& Location, float Radius, const FFilter& Filter, TArray<FSubjectHandle>& Results) const;
+	void SphereTraceForSubjects(const FVector Location, float Radius, const FFilter Filter, TArray<FSubjectHandle>& Results) const;
 	
 	UFUNCTION(BlueprintCallable)
-	void SphereSweepForSubjects(const FVector& Start, const FVector& End, float Radius, const FFilter& Filter, TArray<FSubjectHandle>& Results);
+	void SphereSweepForSubjects(const FVector Start, const FVector End, float Radius, const FFilter Filter, TArray<FSubjectHandle>& Results);
 
-	void SphereExpandForSubjects(const FVector& Origin, float Radius, float Height, const FFilter& Filter, TArray<FSubjectHandle>& Results) const;
+	UFUNCTION(BlueprintCallable)
+	void SphereExpandForSubject(const FVector Origin, float Radius, float Height, const FFilter Filter, FSubjectHandle& Result) const;
 
 	void Update();
 
@@ -98,7 +99,11 @@ public:
 
 	bool IsInsideSphere(FIntVector CenterCell, FIntVector TestCell, float Radius) const;
 
+<<<<<<< HEAD
+	void ComputeNewVelocity(FAvoidance& Avoidance, TArray<FAvoiding>& SubjectNeighbors, TArray<FAvoiding>& ObstacleNeighbors, float timeStep_);
+=======
 	void ComputeNewVelocity(FAvoidance& Avoidance, float timeStep_);
+>>>>>>> parent of 0f9a801 (Beta.2)
 
 	bool LinearProgram1(const std::vector<RVO::Line>& lines, size_t lineNo, float radius, const RVO::Vector2& optVelocity, bool directionOpt, RVO::Vector2& result);
 

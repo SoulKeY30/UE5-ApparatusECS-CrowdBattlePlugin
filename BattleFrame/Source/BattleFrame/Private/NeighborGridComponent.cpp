@@ -14,7 +14,6 @@
   */
 
 #include "NeighborGridComponent.h"
-#include "Algo/RandomShuffle.h"
 #include "Runtime/Core/Public/Async/ParallelFor.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 
@@ -26,7 +25,6 @@
 #include "Traits/RoadBlock.h"
 #include "Traits/Appearing.h"
 #include "Traits/Move.h"
-#include "Traits/Dying.h"
 #include "Traits/Trace.h"
 #include "Traits/Avoiding.h"
 #include "Traits/Static.h"
@@ -62,7 +60,7 @@ void UNeighborGridComponent::InitializeComponent()
 //--------------------------------------------Tracing----------------------------------------------------------------
 
 // Get overlapping subjects
-void UNeighborGridComponent::SphereTraceForSubjects(const FVector& Origin, float Radius, const FFilter& Filter, TArray<FSubjectHandle>& Results) const
+void UNeighborGridComponent::SphereTraceForSubjects(const FVector Origin, float Radius, const FFilter Filter, TArray<FSubjectHandle>& Results) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereTraceForSubjects");
 
@@ -119,17 +117,9 @@ void UNeighborGridComponent::SphereTraceForSubjects(const FVector& Origin, float
 	// 将结果转换为数组
 	Results = OverlappingSubjects.Array();
 
-	// 按照距离圆心的距离排序
-	//Results.Sort([&Origin](const FSubjectHandle& A, const FSubjectHandle& B) {
-	//	const FVector PosA = A.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
-	//	const FVector PosB = B.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
-	//	const float DistSqA = FVector::DistSquared(Origin, PosA);
-	//	const float DistSqB = FVector::DistSquared(Origin, PosB);
-	//	return DistSqA < DistSqB;
-	//	});
 }
 
-void UNeighborGridComponent::SphereSweepForSubjects(const FVector& Start, const FVector& End, float Radius, const FFilter& Filter, TArray<FSubjectHandle>& Results)
+void UNeighborGridComponent::SphereSweepForSubjects(const FVector Start, const FVector End, float Radius, const FFilter Filter, TArray<FSubjectHandle>& Results)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereSweepForSubjects");
 
@@ -182,23 +172,13 @@ void UNeighborGridComponent::SphereSweepForSubjects(const FVector& Start, const 
 
 	// 将结果转换为数组
 	Results = HitSubjects.Array();
-
-	// 按照离起点的距离排序
-	//Results.Sort([&Start](const FSubjectHandle& A, const FSubjectHandle& B) {
-	//	const FVector PosA = A.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
-	//	const FVector PosB = B.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
-	//	const float DistSqA = FVector::DistSquared(Start, PosA);
-	//	const float DistSqB = FVector::DistSquared(Start, PosB);
-	//	return DistSqA < DistSqB;
-	//	});
 }
 
 // for agents to trace nearest targets( cheaper this way)
-void UNeighborGridComponent::SphereExpandForSubjects(const FVector& Origin, float Radius, float Height, const FFilter& Filter, TArray<FSubjectHandle>& Results) const
+void UNeighborGridComponent::SphereExpandForSubject(const FVector Origin, float Radius, float Height, const FFilter Filter, FSubjectHandle& Result) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereExpandForSubjects");
 
-	TSet<FSubjectHandle> OverlappingSubjects;
 	float ClosestDistanceSqr = FLT_MAX;
 	FSubjectHandle ClosestSubject;
 
@@ -251,7 +231,6 @@ void UNeighborGridComponent::SphereExpandForSubjects(const FVector& Origin, floa
 									ClosestDistanceSqr = DistanceSqr;
 									ClosestSubject = OtherSubject;
 								}
-								OverlappingSubjects.Add(OtherSubject);
 							}
 						}
 					}
@@ -260,19 +239,14 @@ void UNeighborGridComponent::SphereExpandForSubjects(const FVector& Origin, floa
 		}
 	}
 
-	// If we found a closest subject, add it to the results
-	if (ClosestSubject.IsValid())
-	{
-		Results.Add(ClosestSubject);
-	}
-	else
-	{
-		Results = OverlappingSubjects.Array();
-	}
+	// Set the output result
+	Result = ClosestSubject.IsValid() ? ClosestSubject : FSubjectHandle();
 }
 
 
-//--------------------------------------------Avoidance----------------------------------------------------------------
+//--------------------------------------------Avoidance---------------------------------------------------------------
+
+// Performance Test Result : 5.5 ms per 10000 agents on AMD Ryzen 5900X.
 
 void UNeighborGridComponent::Update()
 {
@@ -281,7 +255,7 @@ void UNeighborGridComponent::Update()
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("ResetCells");
 
-		ParallelFor(Cells.Num(), [&](int32 Index) //To do : only process occupied cells not all cells
+		ParallelFor(Cells.Num(), [&](int32 Index) // To do : only process occupied cells not all cells
 		{
 			FNeighborGridCell& Cell = Cells[Index];
 			Cell.SubjectFingerprint.Reset();
@@ -402,6 +376,7 @@ void UNeighborGridComponent::Update()
 					}
 				}
 			}
+
 		}, ThreadsCount, BatchSize);
 	}
 
@@ -466,7 +441,7 @@ void UNeighborGridComponent::Update()
 	}
 }
 
-void UNeighborGridComponent::Decouple()// Tried my best. It takes 10ms to process 10000 agents. Anyone has any idea how to optimize it further (on cpu) ?
+void UNeighborGridComponent::Decouple()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("RVO2 Decouple");
 
@@ -477,21 +452,31 @@ void UNeighborGridComponent::Decouple()// Tried my best. It takes 10ms to proces
 	AMechanism* Mechanism = GetMechanism();
 	const FFilter Filter = FFilter::Make<FLocated, FCollider, FMove, FMoving, FAvoidance, FAvoiding>().Exclude<FRoadBlock, FAppearing>();
 
-	// write Avoid trait
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("write Avoidance trait");
-
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum() ,MaxThreadsAllowed, ThreadsCount, BatchSize);
 
-		Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FLocated& Located, FCollider& Collider, FMove& Move, FMoving& Moving, FAvoidance& Avoidance, FAvoiding& Avoiding)
+		Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FMove& Move, FLocated& Located, FCollider& Collider, FMoving& Moving, FAvoidance& Avoidance, FAvoiding& Avoiding)
 		{
 			if (UNLIKELY(!Move.bEnable)) return;
 
 			const auto SelfLocation = Located.Location;
 			const auto SelfRadius = Collider.Radius;
 			const auto NeighborDist = Avoidance.NeighborDist;
+			const float TotalRangeSqr = FMath::Square(SelfRadius + NeighborDist);
+			const int32 MaxNeighbors = Avoidance.MaxNeighbors;
 
+<<<<<<< HEAD
+			TArray<FAvoiding> SubjectNeighbors;
+			TArray<FAvoiding> SphereObstacleNeighbors;
+			TArray<FAvoiding> BoxObstacleNeighbors;
+
+			SubjectNeighbors.Reserve(MaxNeighbors);
+			SphereObstacleNeighbors.Reserve(MaxNeighbors);
+			BoxObstacleNeighbors.Reserve(MaxNeighbors);
+
+			//--------------------------Collect Subject Neighbors And Sphere Obstacles--------------------------------
+=======
 			if (UNLIKELY(Moving.bPushedBack))
 			{
 				Avoidance.MaxSpeed = FMath::Max(Moving.Velocity.Size2D(), Moving.PushBackSpeedOverride);
@@ -520,32 +505,123 @@ void UNeighborGridComponent::Decouple()// Tried my best. It takes 10ms to proces
 			}
 
 			const FFingerprint RequiredSubjectFingerprint = Avoidance.SubjectFilter.GetFingerprint();
+>>>>>>> parent of 0f9a801 (Beta.2)
 
-			const float SubjectRange = NeighborDist + SelfRadius;
-			const FVector SubjectRange3D(SubjectRange, SubjectRange, SelfRadius);
+			FFilter SubjectFilter = FFilter::Make<FLocated, FCollider, FAvoidance, FAvoiding>().Exclude<FSphereObstacle, FCorpse>();
+
+			// 碰撞组
+			if (!Avoidance.IgnoreGroups.IsEmpty())
+			{
+				const int32 ClampedGroups = FMath::Clamp(Avoidance.IgnoreGroups.Num(), 0, 9);
+
+				for (int32 i = 0; i < ClampedGroups; ++i)
+				{
+					UBattleFrameFunctionLibraryRT::ExcludeAvoGroupTraitByIndex(Avoidance.IgnoreGroups[i], SubjectFilter);
+				}
+			}
+
+			const FFingerprint SubjectFingerprint = SubjectFilter.GetFingerprint();
+
+			const FVector SubjectRange3D(NeighborDist + SelfRadius, NeighborDist + SelfRadius, SelfRadius);
 			TArray<FIntVector> NeighbourCellCoords = GetNeighborCells(SelfLocation, SubjectRange3D);
 
-			Algo::RandomShuffle(NeighbourCellCoords);// process cells randomly
+			// 使用最大堆收集最近的SubjectNeighbors
+			auto SubjectCompare = [&](const FAvoiding& A, const FAvoiding& B) {
+				return FVector::DistSquared(SelfLocation, A.Location) > FVector::DistSquared(SelfLocation, B.Location);
+				};
+
+			TSet<uint32> SeenHashes;
+
+			TSet<FAvoiding> ValidSphereObstacleNeighbors;
+			ValidSphereObstacleNeighbors.Reserve(MaxNeighbors);
 
 			for (const FIntVector& Coord : NeighbourCellCoords)
 			{
 				const auto& Cell = At(Coord);
+<<<<<<< HEAD
+
+				if (Cell.SubjectFingerprint.Matches(SubjectFingerprint))
+				{
+					for (const FAvoiding& AvoData : Cell.Subjects)
+					{
+						// 基础过滤条件
+						if (UNLIKELY(!AvoData.SubjectHandle.Matches(SubjectFilter))) continue;
+						if (AvoData.SubjectHash == Avoiding.SubjectHash) continue;
+
+						// 距离检查
+						const float DistSqr = FVector::DistSquared(SelfLocation, AvoData.Location);
+						const float RadiusSqr = FMath::Square(AvoData.Radius) + TotalRangeSqr;
+						if (UNLIKELY(DistSqr > RadiusSqr)) continue;
+
+						// 高效去重（基于栈内存的TSet）
+						if (SeenHashes.Contains(AvoData.SubjectHash)) continue;
+						SeenHashes.Add(AvoData.SubjectHash);
+
+						// 动态维护堆
+						if (SubjectNeighbors.Num() < MaxNeighbors)
+						{
+							SubjectNeighbors.HeapPush(AvoData, SubjectCompare);
+						}
+						else
+						{
+							const float HeapTopDist = FVector::DistSquared(SelfLocation, SubjectNeighbors.HeapTop().Location);
+							if (DistSqr < HeapTopDist)
+							{
+								// 弹出时同步移除哈希记录
+								SeenHashes.Remove(SubjectNeighbors.HeapTop().SubjectHash);
+								SubjectNeighbors.HeapPopDiscard(SubjectCompare);
+								SubjectNeighbors.HeapPush(AvoData, SubjectCompare);
+							}
+						}
+					}
+				}
+
+				// SphereObstacle
+				if (Cell.SphereObstacleFingerprint.Matches(SphereObstacleFingerprint))
+				{
+					for (const FAvoiding& AvoData : Cell.SphereObstacles)
+					{
+						if (UNLIKELY(!AvoData.SubjectHandle.Matches(SphereObstacleFilter))) continue;
+
+						const float DistSqr = FVector::DistSquared(SelfLocation, AvoData.Location);
+						const float RadiusSqr = FMath::Square(AvoData.Radius) + TotalRangeSqr;
+
+						if (UNLIKELY(DistSqr > RadiusSqr)) continue;
+
+						ValidSphereObstacleNeighbors.Add(AvoData);
+					}
+				}
+=======
 				if (!Cell.SubjectFingerprint.Matches(RequiredSubjectFingerprint)) continue;
 				Avoidance.SubjectNeighbors.Append(Cell.Subjects);// append remove repeated using tset
+>>>>>>> parent of 0f9a801 (Beta.2)
 			}
 
-			Avoidance.SubjectNeighbors.RemoveByHash(Avoiding.SubjectHash, Avoiding);// remove self by hash
+			// 按距离升序排序后加入结果
+			SubjectNeighbors.Sort([&](const FAvoiding& A, const FAvoiding& B) { return FVector::DistSquared(SelfLocation, A.Location) < FVector::DistSquared(SelfLocation, B.Location);});
 
+<<<<<<< HEAD
+			SphereObstacleNeighbors.Append(ValidSphereObstacleNeighbors.Array());
+
+=======
 
 			//-------------------------Collect Obstacle Neighbors----------------------------------
+>>>>>>> parent of 0f9a801 (Beta.2)
 
-			const float ObstacleRange = Avoidance.TimeHorizonObst * Avoidance.MaxSpeed + Avoidance.Radius;
+			//---------------------------Collect Box Obstacle Neighbors--------------------------------
+
+			const float ObstacleRange = Avoidance.RVO_TimeHorizon_Obstacle * Avoidance.MaxSpeed + Avoidance.Radius;
 			const FVector ObstacleRange3D(ObstacleRange, ObstacleRange, Avoidance.Radius);
 			TArray<FIntVector> ObstacleCellCoords = GetNeighborCells(SelfLocation, ObstacleRange3D);
 
 			for (const FIntVector& Coord : ObstacleCellCoords)
 			{
 				const auto& Cell = At(Coord);
+<<<<<<< HEAD
+				if (LIKELY(!Cell.BoxObstacleFingerprint.Matches(BoxObstacleFingerprint))) continue;
+
+				for (FAvoiding AvoData : Cell.BoxObstacles)
+=======
 				if (!Cell.ObstacleFingerprint.Matches(ObstacleFilterFingerprint)) continue;
 				Avoidance.ObstacleNeighbors.Append(Cell.Obstacles);// don't remove repeated using an array
 			}
@@ -572,25 +648,78 @@ void UNeighborGridComponent::Decouple()// Tried my best. It takes 10ms to proces
 			for (FAvoiding& Data : Avoidance.SubjectNeighbors)
 			{
 				if (UNLIKELY(!Data.SubjectHandle.Matches(Avoidance.SubjectFilter))) // does not match filter
+>>>>>>> parent of 0f9a801 (Beta.2)
 				{
-					Data.bValid = false;
-					continue;
+					const FSubjectHandle OtherObstacle = AvoData.SubjectHandle;
+
+					if (UNLIKELY(!OtherObstacle.Matches(BoxObstacleFilter))) continue;
+
+					const auto& ObstacleTrait = OtherObstacle.GetTrait<FBoxObstacle>();
+					const FVector ObstaclePoint = ObstacleTrait.point3d_;
+					const FBoxObstacle* NextObstaclePtr = ObstacleTrait.nextObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
+
+					if (UNLIKELY(NextObstaclePtr == nullptr)) continue;
+
+					const FVector NextPoint = NextObstaclePtr->point3d_;
+					const float ObstacleHeight = ObstacleTrait.height_;
+
+<<<<<<< HEAD
+					const float ObstacleZMin = ObstaclePoint.Z;
+					const float ObstacleZMax = ObstaclePoint.Z + ObstacleHeight;
+					const float SubjectZMin = SelfLocation.Z - SelfRadius;
+					const float SubjectZMax = SelfLocation.Z + SelfRadius;
+
+					if (SubjectZMax < ObstacleZMin || SubjectZMin > ObstacleZMax) continue;
+
+					RVO::Vector2 currentPos(Located.Location.X, Located.Location.Y);
+					RVO::Vector2 obstacleStart(ObstaclePoint.X, ObstaclePoint.Y);
+					RVO::Vector2 obstacleEnd(NextPoint.X, NextPoint.Y);
+
+					float leftOfValue = RVO::leftOf(obstacleStart, obstacleEnd, currentPos);
+
+					if (leftOfValue < 0.0f)
+					{
+						BoxObstacleNeighbors.Add(AvoData);
+					}
 				}
-
-				const float DistSqr = FVector::DistSquared(SelfLocation, Data.Location);
-				const float RadiusSqr = FMath::Square(SelfRadius + Avoidance.NeighborDist + Data.Radius );
-
-				if (DistSqr > RadiusSqr) // too far
-				{
-					Data.bValid = false;
-					continue;
-				}
-
-				Data.bValid = true;
-
-				if (++NeighbourCounter >= Avoidance.MaxNeighbors) break; // exceed max neighbour amount
 			}
 
+			Located.preLocation = Located.Location;
+
+			Avoidance.Radius = SelfRadius;
+			Avoidance.Position = RVO::Vector2(SelfLocation.X, SelfLocation.Y);
+
+			//----------------------------Try Avoid SubjectNeighbors---------------------------------
+
+			Avoidance.MaxSpeed = Moving.DesiredVelocity.Size2D() * Moving.SpeedMult;
+			Avoidance.DesiredVelocity = RVO::Vector2(Moving.DesiredVelocity.X, Moving.DesiredVelocity.Y);//copy into rvo trait
+			Avoidance.CurrentVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);//copy into rvo trait
+
+			TArray<FAvoiding> EmptyArray;
+			ComputeNewVelocity(Avoidance, SubjectNeighbors, EmptyArray, DeltaTime);
+
+			if (!Moving.bFalling && !(Moving.LaunchTimer > 0))
+			{
+				FVector AvoidingVelocity(Avoidance.AvoidingVelocity.x(), Avoidance.AvoidingVelocity.y(), 0);
+				FVector CurrentVelocity(Avoidance.CurrentVelocity.x(), Avoidance.CurrentVelocity.y(), 0);
+				FVector InterpedVelocity = FMath::VInterpTo(CurrentVelocity, AvoidingVelocity, DeltaTime, Move.Acceleration / 100);
+				Moving.CurrentVelocity = FVector(InterpedVelocity.X, InterpedVelocity.Y, Moving.CurrentVelocity.Z); // velocity can only change so much because of inertial
+			}
+
+			//-------------------------------Blocked By Obstacles------------------------------------
+
+			Avoidance.MaxSpeed = Moving.bPushedBack ? FMath::Max(Moving.CurrentVelocity.Size2D(), Moving.PushBackSpeedOverride) : Moving.CurrentVelocity.Size2D();
+			Avoidance.DesiredVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);//copy into rvo trait
+			Avoidance.CurrentVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);//copy into rvo trait
+
+			ComputeNewVelocity(Avoidance, SphereObstacleNeighbors, BoxObstacleNeighbors, DeltaTime);
+
+			Moving.CurrentVelocity = FVector(Avoidance.AvoidingVelocity.x(), Avoidance.AvoidingVelocity.y(), Moving.CurrentVelocity.Z);// since obstacles are hard, we set velocity directly without any interpolation
+
+			//----------------------------------Set Location---------------------------------------
+
+			Located.Location += Moving.CurrentVelocity * DeltaTime;
+=======
 			const FVector2D CurrentPos2D(Located.Location.X, Located.Location.Y);
 
 			for (FAvoiding& Data : Avoidance.ObstacleNeighbors)
@@ -650,6 +779,7 @@ void UNeighborGridComponent::Decouple()// Tried my best. It takes 10ms to proces
 
 			Avoidance.SubjectNeighbors.Reset();
 			Avoidance.ObstacleNeighbors.Reset();
+>>>>>>> parent of 0f9a801 (Beta.2)
 
 		}, ThreadsCount, BatchSize);
 	}
@@ -661,7 +791,7 @@ void UNeighborGridComponent::Evaluate()
 	Decouple();
 }
 
-//--------------------------------------------Helpers------------------------------------------------------------------
+//---------------------------------------------Helpers------------------------------------------------------------------
 
 TArray<FIntVector> UNeighborGridComponent::GetGridCellsForCapsule(FVector Start, FVector End, float Radius) const 
 {
@@ -797,7 +927,11 @@ TArray<FIntVector> UNeighborGridComponent::GetNeighborCells(const FVector& Cente
 
 //-------------------------------RVO2D Copyright 2023, EastFoxStudio. All Rights Reserved-------------------------------
 
+<<<<<<< HEAD
+void UNeighborGridComponent::ComputeNewVelocity(FAvoidance& Avoidance, TArray<FAvoiding>& SubjectNeighbors, TArray<FAvoiding>& ObstacleNeighbors, float TimeStep_)
+=======
 void UNeighborGridComponent::ComputeNewVelocity(FAvoidance& Avoidance, float TimeStep_)
+>>>>>>> parent of 0f9a801 (Beta.2)
 {
 	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("computeNewVelocity");
 
@@ -806,6 +940,14 @@ void UNeighborGridComponent::ComputeNewVelocity(FAvoidance& Avoidance, float Tim
 	/* Create obstacle ORCA lines. */
 	if (!Avoidance.ObstacleNeighbors.IsEmpty())
 	{
+<<<<<<< HEAD
+		const float invTimeHorizonObst = 1.0f / Avoidance.RVO_TimeHorizon_Obstacle;
+
+		for (const auto& Data : ObstacleNeighbors) 
+		{
+			FBoxObstacle* obstacle1 = Data.SubjectHandle.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
+			FBoxObstacle* obstacle2 = obstacle1->nextObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
+=======
 		const float invTimeHorizonObst = 1.0f / Avoidance.TimeHorizonObst;
 
 		for (const auto& Data : Avoidance.ObstacleNeighbors) {
@@ -814,6 +956,7 @@ void UNeighborGridComponent::ComputeNewVelocity(FAvoidance& Avoidance, float Tim
 
 			FRVOObstacle* obstacle1 = Data.SubjectHandle.GetTraitPtr<FRVOObstacle, EParadigm::Unsafe>();
 			FRVOObstacle* obstacle2 = obstacle1->nextObstacle_.GetTraitPtr<FRVOObstacle, EParadigm::Unsafe>();
+>>>>>>> parent of 0f9a801 (Beta.2)
 
 			const RVO::Vector2 relativePosition1 = obstacle1->point_ - Avoidance.Position;
 			const RVO::Vector2 relativePosition2 = obstacle2->point_ - Avoidance.Position;
@@ -942,7 +1085,7 @@ void UNeighborGridComponent::ComputeNewVelocity(FAvoidance& Avoidance, float Tim
 			 * "foreign" leg, no constraint is added.
 			 */
 
-			const auto leftNeighbor = obstacle1->prevObstacle_;
+			const FSubjectHandle leftNeighbor = obstacle1->prevObstacle_;
 
 			bool isLeftLegForeign = false;
 			bool isRightLegForeign = false;
@@ -1035,12 +1178,18 @@ void UNeighborGridComponent::ComputeNewVelocity(FAvoidance& Avoidance, float Tim
 	/* Create agent ORCA lines. */
 	if (!Avoidance.SubjectNeighbors.IsEmpty())
 	{
+<<<<<<< HEAD
+		const float invTimeHorizon = 1.0f / Avoidance.RVO_TimeHorizon_Agent;
+=======
 		const float invTimeHorizon = 1.0f / Avoidance.RVO_TimeHorizon;
 
 		for (const auto& Data : Avoidance.SubjectNeighbors) {
 
 			if (!Data.bValid) continue;
+>>>>>>> parent of 0f9a801 (Beta.2)
 
+		for (const auto& Data : SubjectNeighbors) 
+		{
 			const auto& other = Data.SubjectHandle.GetTraitRef<FAvoidance, EParadigm::Unsafe>();
 			const RVO::Vector2 relativePosition = other.Position - Avoidance.Position;
 			const RVO::Vector2 relativeVelocity = Avoidance.CurrentVelocity - other.CurrentVelocity;

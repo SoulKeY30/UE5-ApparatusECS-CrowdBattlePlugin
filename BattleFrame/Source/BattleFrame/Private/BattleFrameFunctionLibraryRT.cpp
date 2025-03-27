@@ -971,3 +971,180 @@ void UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(int32 Iter
 	ThreadsCount = FMath::Clamp(FPlatformMisc::NumberOfWorkerThreadsToSpawn(), 1, MaxThreadsAllowed);
 	BatchSize = FMath::Clamp(IterableNum / ThreadsCount, 1, 10000);
 }
+<<<<<<< HEAD
+
+void UBattleFrameFunctionLibraryRT::SetAvoGroupTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord)
+{
+	switch (Index)
+	{
+	default:
+		SubjectRecord.SetTrait(FAvoGroup0());
+		break;
+	case 0:
+		SubjectRecord.SetTrait(FAvoGroup0());
+		break;
+	case 1:
+		SubjectRecord.SetTrait(FAvoGroup1());
+		break;
+	case 2:
+		SubjectRecord.SetTrait(FAvoGroup2());
+		break;
+	case 3:
+		SubjectRecord.SetTrait(FAvoGroup3());
+		break;
+	case 4:
+		SubjectRecord.SetTrait(FAvoGroup4());
+		break;
+	case 5:
+		SubjectRecord.SetTrait(FAvoGroup5());
+		break;
+	case 6:
+		SubjectRecord.SetTrait(FAvoGroup6());
+		break;
+	case 7:
+		SubjectRecord.SetTrait(FAvoGroup7());
+		break;
+	case 8:
+		SubjectRecord.SetTrait(FAvoGroup8());
+		break;
+	case 9:
+		SubjectRecord.SetTrait(FAvoGroup9());
+		break;
+	}
+}
+
+void UBattleFrameFunctionLibraryRT::SetTeamTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord)
+{
+	switch (Index)
+	{
+	default:
+		SubjectRecord.SetTrait(FTeam0());
+		break;
+	case 0:
+		SubjectRecord.SetTrait(FTeam0());
+		break;
+	case 1:
+		SubjectRecord.SetTrait(FTeam1());
+		break;
+	case 2:
+		SubjectRecord.SetTrait(FTeam2());
+		break;
+	case 3:
+		SubjectRecord.SetTrait(FTeam3());
+		break;
+	case 4:
+		SubjectRecord.SetTrait(FTeam4());
+		break;
+	case 5:
+		SubjectRecord.SetTrait(FTeam5());
+		break;
+	case 6:
+		SubjectRecord.SetTrait(FTeam6());
+		break;
+	case 7:
+		SubjectRecord.SetTrait(FTeam7());
+		break;
+	case 8:
+		SubjectRecord.SetTrait(FTeam8());
+		break;
+	case 9:
+		SubjectRecord.SetTrait(FTeam9());
+		break;
+	}
+}
+
+void UBattleFrameFunctionLibraryRT::IncludeAvoGroupTraitByIndex(int32 Index, FFilter& Filter)
+{
+	switch (Index)
+	{
+	case 0:
+		Filter.Include<FAvoGroup0>();
+		break;
+
+	case 1:
+		Filter.Include<FAvoGroup1>();
+		break;
+
+	case 2:
+		Filter.Include<FAvoGroup2>();
+		break;
+
+	case 3:
+		Filter.Include<FAvoGroup3>();
+		break;
+
+	case 4:
+		Filter.Include<FAvoGroup4>();
+		break;
+
+	case 5:
+		Filter.Include<FAvoGroup5>();
+		break;
+
+	case 6:
+		Filter.Include<FAvoGroup6>();
+		break;
+
+	case 7:
+		Filter.Include<FAvoGroup7>();
+		break;
+
+	case 8:
+		Filter.Include<FAvoGroup8>();
+		break;
+
+	case 9:
+		Filter.Include<FAvoGroup9>();
+		break;
+	}
+}
+
+void UBattleFrameFunctionLibraryRT::ExcludeAvoGroupTraitByIndex(int32 Index, FFilter& Filter)
+{
+	switch (Index)
+	{
+	case 0:
+		Filter.Exclude<FAvoGroup0>();
+		break;
+
+	case 1:
+		Filter.Exclude<FAvoGroup1>();
+		break;
+
+	case 2:
+		Filter.Exclude<FAvoGroup2>();
+		break;
+
+	case 3:
+		Filter.Exclude<FAvoGroup3>();
+		break;
+
+	case 4:
+		Filter.Exclude<FAvoGroup4>();
+		break;
+
+	case 5:
+		Filter.Exclude<FAvoGroup5>();
+		break;
+
+	case 6:
+		Filter.Exclude<FAvoGroup6>();
+		break;
+
+	case 7:
+		Filter.Exclude<FAvoGroup7>();
+		break;
+
+	case 8:
+		Filter.Exclude<FAvoGroup8>();
+		break;
+
+	case 9:
+		Filter.Exclude<FAvoGroup9>();
+		break;
+	}
+}
+
+
+=======
+>>>>>>> parent of 0f9a801 (Beta.2)

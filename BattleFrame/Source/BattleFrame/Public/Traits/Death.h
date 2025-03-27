@@ -37,5 +37,8 @@ public:
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "是否播放死亡音效"))
     bool bCanPlaySound = true;
 
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "死亡后的尸体是否关闭碰撞"))
+    bool bDisableCollision = true;
+
     bool bDeathStarted = false;
 };

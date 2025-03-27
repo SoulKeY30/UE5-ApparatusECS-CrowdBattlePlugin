@@ -47,8 +47,14 @@ public:
 	FFingerprint SubjectFingerprint;
 	FFingerprint ObstacleFingerprint;
 
+<<<<<<< HEAD
+	TArray<FAvoiding> Subjects;
+	TArray<FAvoiding> SphereObstacles;
+	TArray<FAvoiding> BoxObstacles;
+=======
 	TSet<FAvoiding> Subjects;
 	TArray<FAvoiding> Obstacles;
+>>>>>>> parent of 0f9a801 (Beta.2)
 
 
 	FNeighborGridCell(){}

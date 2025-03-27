@@ -38,3 +38,4 @@ void ANeighborGridActor::OnConstruction(const FTransform& Transform)
         NeighborGridComponent->InitializeComponent();
     }
 }
+

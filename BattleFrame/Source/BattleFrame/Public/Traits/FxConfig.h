@@ -12,19 +12,19 @@ struct BATTLEFRAME_API FFxConfig
 
 public:
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "合批特效的子类型", DisplayName = "SubType_Batched"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "鍚堟壒鐗规晥鐨勫瓙绫诲瀷", DisplayName = "SubType_Batched"))
 	ESubType SubType = ESubType::None;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Tooltip = "非合批特效Niagara资产", DisplayName = "NiagaraAsset_UnBatched"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Tooltip = "闈炲悎鎵圭壒鏁圢iagara璧勪骇", DisplayName = "NiagaraAsset_UnBatched"))
 	UNiagaraSystem* NiagaraAsset;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Tooltip = "非合批特效Cascade资产", DisplayName = "CascadeAsset_UnBatched"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Tooltip = "闈炲悎鎵圭壒鏁圕ascade璧勪骇", DisplayName = "CascadeAsset_UnBatched"))
 	UParticleSystem* CascadeAsset;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "偏移相对位置与朝向，全局缩放"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "鍋忕Щ鐩稿浣嶇疆涓庢湞鍚戯紝鍏ㄥ眬缂╂斁"))
 	FTransform Transform = FTransform::Identity;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Tooltip = "是否固定"))
+	//UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Tooltip = "鏄惁鍥哄畾"))
 	bool bAttached = false;
 
 };

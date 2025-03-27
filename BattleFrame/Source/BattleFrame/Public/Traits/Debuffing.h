@@ -10,8 +10,7 @@ struct BATTLEFRAME_API FDebuffing
 
 public:
 
-	// ����ʱ��
-	float SlowTimeout = 4.f;
+	float FreezeTimeout = 4.f;
 
 	float OriginalDecoupleProportion = 1.f;
 

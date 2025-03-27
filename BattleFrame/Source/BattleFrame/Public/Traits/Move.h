@@ -3,12 +3,15 @@
 #include "CoreMinimal.h"
 #include "Move.generated.h"
 
+<<<<<<< HEAD
+=======
 UENUM(BlueprintType)
 enum class ERotationMode : uint8
 {
 	RotationFollowVelocity UMETA(DisplayName = "RotationFollowVelocity", Tooltip = "旋转跟随速度方向"),
 	VelocityFollowRotation UMETA(DisplayName = "VelocityFollowRotation", Tooltip = "速度跟随旋转方向")
 };
+>>>>>>> parent of 0f9a801 (Beta.2)
 
 /**
  * The movement speed factor.
@@ -25,9 +28,30 @@ public:
 
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ClampMin = "0", Tooltip = "移动速度"))
-	float Speed = 600.f;
+	float MoveSpeed = 600.f;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "速度范围映射 (X: 最小距离时速度乘数, Y: 最小距离, Z:最大距离时速度乘数, W:最大距离 )"))
+<<<<<<< HEAD
+	FVector4 MoveSpeedRangeMap = FVector4(0, 200, 1, 400);
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ClampMin = "0", Tooltip = "偏航速度乘数"))
+	float TurnSpeed = 3.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "速度范围映射 (X: 最小转向角时速度乘数, Y: 最小转向角, Z:最大转向角时速度乘数, W:最大转向角 )"))
+	FVector4 TurnSpeedRangeMap = FVector4(1, 90, 1, 180);
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ClampMin = "0", Tooltip = "加速度"))
+	float Acceleration = 1000.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ClampMin = "0", Tooltip = "地面摩擦减速度"))
+	float Deceleration_Ground = 3000.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ClampMin = "0", Tooltip = "空气阻力减速度"))
+	float Deceleration_Air = 100.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ClampMin = "0", Tooltip = "地面弹跳速度损耗"))
+	float BounceVelocityDecay = 0.5f;
+=======
 	FVector4 SpeedDistRangeMap = FVector4(0, 200, 1, 400);
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "速度范围映射 (X: 最小转向角时速度乘数, Y: 最小转向角, Z:最大转向角时速度乘数, W:最大转向角 )"))
@@ -46,6 +70,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ClampMin = "0", Tooltip = "偏航旋转速度"))
 	float RotationSpeed_Yaw = 3.f;
 
+>>>>>>> parent of 0f9a801 (Beta.2)
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "是否可以飞行"))
 	bool bCanFly = false;

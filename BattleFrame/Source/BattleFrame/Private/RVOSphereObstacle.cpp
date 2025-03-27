@@ -64,3 +64,22 @@ void ARVOSphereObstacle::Tick(float DeltaTime)
 		SubjectHandle.GetTraitRef<FAvoidance, EParadigm::Unsafe>().Position = RVO::Vector2(Location.X, Location.Y);
 	}
 }
+
+// Called when the actor is being destroyed or the game is ending
+void ARVOSphereObstacle::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	Super::EndPlay(EndPlayReason);
+
+	// Check if the SubjectHandle is valid
+	if (SubjectHandle.IsValid())
+	{
+		// Obtain the Mechanism instance
+		AMechanism* Mechanism = UMachine::ObtainMechanism(GetWorld());
+		if (Mechanism)
+		{
+			// Despawn the subject using the SubjectHandle
+			SubjectHandle->Despawn();;
+		}
+	}
+}
+

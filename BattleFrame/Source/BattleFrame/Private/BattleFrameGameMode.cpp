@@ -95,89 +95,11 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 	#pragma region
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("CountAgent");
-		if (bGenerateSubjectQuantity)
-		{
-			{
-				std::atomic<int> AgentCounter = 0;
 
-				FFilter Filter = FFilter::Make<FAgent>();
-				auto Chain = Mechanism->EnchainSolid(Filter);
-				UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
-
-				Chain->OperateConcurrently(
-					[&](FAgent& Agent)
-					{
-						AgentCounter.fetch_add(1, std::memory_order_relaxed);
-
-					}, ThreadsCount, BatchSize);
-
-				AgentCount = AgentCounter.load(std::memory_order_relaxed);
-			}
-			{
-				std::atomic<int> AppearingAgentCounter = 0;
-
-				FFilter Filter = FFilter::Make<FAgent, FAppearing>();
-				auto Chain = Mechanism->EnchainSolid(Filter);
-				UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
-
-				Chain->OperateConcurrently(
-					[&](FAgent& Agent)
-					{
-						AppearingAgentCounter.fetch_add(1, std::memory_order_relaxed);
-
-					}, ThreadsCount, BatchSize);
-
-				AppearingAgentCount = AppearingAgentCounter.load(std::memory_order_relaxed);
-			}
-			{
-				std::atomic<int> AttackingAgentCounter = 0;
-
-				FFilter Filter = FFilter::Make<FAgent, FAttacking>();
-				auto Chain = Mechanism->EnchainSolid(Filter);
-				UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
-
-				Chain->OperateConcurrently(
-					[&](FAgent& Agent)
-					{
-						AttackingAgentCounter.fetch_add(1, std::memory_order_relaxed);
-
-					}, ThreadsCount, BatchSize);
-
-				AttackingAgentCount = AttackingAgentCounter.load(std::memory_order_relaxed);
-			}
-			{
-				std::atomic<int> BeingHitAgentCounter = 0;
-
-				FFilter Filter = FFilter::Make<FAgent, FBeingHit>();
-				auto Chain = Mechanism->EnchainSolid(Filter);
-				UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
-
-				Chain->OperateConcurrently(
-					[&](FAgent& Agent)
-					{
-						BeingHitAgentCounter.fetch_add(1, std::memory_order_relaxed);
-
-					}, ThreadsCount, BatchSize);
-
-				BeingHitAgentCount = BeingHitAgentCounter.load(std::memory_order_relaxed);
-			}
-			{
-				std::atomic<int> DyingAgentCounter = 0;
-
-				FFilter Filter = FFilter::Make<FAgent, FDying>();
-				auto Chain = Mechanism->EnchainSolid(Filter);
-				UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
-
-				Chain->OperateConcurrently(
-					[&](FAgent& Agent)
-					{
-						DyingAgentCounter.fetch_add(1, std::memory_order_relaxed);
-
-					}, ThreadsCount, BatchSize);
-
-				DyingAgentCount = DyingAgentCounter.load(std::memory_order_relaxed);
-			}
-		}
+		FFilter Filter = FFilter::Make<FAgent>();
+		auto Chain = Mechanism->Enchain(Filter);
+		AgentCount = Chain->IterableNum();
+		Chain->Reset(true);
 	}
 	#pragma endregion
 
@@ -270,8 +192,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 							// Sound
 							if (Appear.bCanPlaySound && Sound.AppearSound)
 							{
-								float Probability = Sound.bUseProbability ? RangeMapProbability(AppearingAgentCount, Sound.AppearSoundProbability) : 100.1;
-								QueueSound(Sound.AppearSound, Probability);
+								QueueSound(Sound.AppearSound);
 							}
 
 							// Scale In(WIP)
@@ -356,40 +277,50 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 
 	//----------------------攻击逻辑-------------------------
 
-	// 是否索敌
+	// 索敌
 	#pragma region
 	{
+		// 是否索敌（筛选阶段）
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentTrace");
 
-		FFilter Filter = FFilter::Make<FAgent, FTrace, FTracing>();
+		// 用于存储符合条件的Subject句柄
+		TArray<FSolidSubjectHandle, TInlineAllocator<256>> ValidSubjects;
+		FCriticalSection ArrayLock;
+
+		FFilter Filter = FFilter::Make<FAgent, FTrace>();
 		Filter.Exclude<FAppearing, FDying, FAttacking>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, ThreadsCount, BatchSize);
 
-		Chain->OperateConcurrently(
-			[&](FSolidSubjectHandle Subject,
-				FLocated& Located,
-				FTrace& Trace,
-				FTracing& Tracing)
+		// 筛选符合条件的Subjects
+		Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FTrace& Trace)
+		{
+			bool bShouldTrace = false;
+
+			if (Trace.TimeLeft <= 0)
 			{
-				Tracing.TimeLeft -= DeltaTime;
+				Trace.TimeLeft = Trace.CoolDown;
+				bShouldTrace = true;
+			}
+			else
+			{
+				Trace.TimeLeft -= DeltaTime;
+			}
 
-				if (Tracing.TimeLeft <= 0)
-				{
-					Tracing.bShouldTrace = true;
-					Tracing.TimeLeft = Trace.CoolDown;
-				}
+			// 立即设置标记并记录有效句柄
+			if (bShouldTrace)
+			{
+				FScopeLock Lock(&ArrayLock);
+				ValidSubjects.Add(Subject);
+			}
 
-			}, ThreadsCount, BatchSize);
-	}
-	#pragma endregion
+		}, ThreadsCount, BatchSize);
 
-	// 执行索敌
-	#pragma region
-	{
+		// 执行索敌（处理阶段）
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentTracing");
 
+		// 玩家数据准备（同原逻辑）
 		bool bPlayerIsValid = false;
 		FVector PlayerLocation;
 		FSubjectHandle PlayerHandle;
@@ -414,45 +345,39 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 			}
 		}
 
-		FFilter Filter = FFilter::Make<FAgent, FLocated, FCollider, FTrace, FTracing>();
-		Filter.Exclude<FAppearing, FDying, FAttacking>();
+		// 并行处理筛选结果
+		ParallelFor(ValidSubjects.Num(),[&](int32 Index)
+		{
+			FSolidSubjectHandle Subject = ValidSubjects[Index];
+			FLocated& Located = Subject.GetTraitRef<FLocated>();
+			FTrace& Trace = Subject.GetTraitRef<FTrace>();
+			FCollider& Collider = Subject.GetTraitRef<FCollider>();
 
-		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
-
-		Chain->OperateConcurrently(
-			[&](FSolidSubjectHandle Subject,
-				FLocated& Located,
-				FTrace& Trace,
-				FTracing& Tracing,
-				FCollider& Collider)
+			switch (Trace.Mode)
 			{
-				if (!Tracing.bShouldTrace) return;
-
-				switch (Trace.Mode)
+				case ETraceMode::TargetIsPlayer_0:
 				{
-					case ETraceMode::TargetIsPlayer_0:
+					Trace.TraceResult = FSubjectHandle{};
+
+					if (bPlayerIsValid)
 					{
-						Trace.TraceResult = FSubjectHandle{};
+						// Calculate the distance between Location.Location and PlayerLocation
+						float OtherRadius = Trace.TraceResult.HasTrait<FCollider>() ? Trace.TraceResult.GetTrait<FCollider>().Radius : 0;
+						float Distance = FMath::Clamp(FVector::Dist(Located.Location, PlayerLocation) - OtherRadius, 0, FLT_MAX);
 
-						if (bPlayerIsValid)
+						// Check if the distance is within Trace.Range
+						if (Distance <= Trace.Range)
 						{
-							// Calculate the distance between Location.Location and PlayerLocation
-							float Distance = FVector::Dist(Located.Location, PlayerLocation);
-
-							// Check if the distance is within Trace.Range
-							if (Distance <= Trace.Range)
-							{
-								Trace.TraceResult = PlayerHandle;
-							}
+							Trace.TraceResult = PlayerHandle;
 						}
-
-						break;
 					}
 					case ETraceMode::CustomTarget:
 					{
 						Trace.TraceResult = FSubjectHandle{};
 
+<<<<<<< HEAD
+					break;
+=======
 						AActor* CustomTarget = Trace.CustomTarget.LoadSynchronous();//WIP
 
 						if (IsValid(CustomTarget))
@@ -510,8 +435,33 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 
 						break;
 					}
+>>>>>>> parent of 0f9a801 (Beta.2)
 				}
-			}, ThreadsCount, BatchSize);
+				case ETraceMode::SphereTraceByTraits:
+				{
+					Trace.TraceResult = FSubjectHandle();
+
+					if (LIKELY(IsValid(Trace.NeighborGrid)))
+					{
+						FFilter TargetFilter;
+						FSubjectHandle Result;
+
+						TargetFilter.Include(Trace.IncludeTraits);
+						TargetFilter.Exclude(Trace.ExcludeTraits);
+
+						Trace.NeighborGrid->SphereExpandForSubject(Located.Location, Trace.Range, Collider.Radius, TargetFilter, Result);
+
+						if (Result.IsValid())
+						{
+							Trace.TraceResult = Result;
+						}
+					}
+
+					break;
+				}
+			}
+
+		},EParallelForFlags::BackgroundPriority | EParallelForFlags::Unbalanced );
 	}
 	#pragma endregion
 
@@ -520,7 +470,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentAttackMain");
 
-		FFilter Filter = FFilter::Make<FAgent, FAttack, FRendering, FLocated, FDirected, FTrace>();
+		FFilter Filter = FFilter::Make<FAgent, FAttack, FRendering, FLocated, FDirected, FTrace, FCollider>();
 		Filter.Exclude<FAppearing, FDying, FAttacking>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
@@ -531,7 +481,8 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 				const FLocated& Located,
 				FDirected Directed,
 				FAttack& Attack,
-				FTrace& Trace)
+				FTrace& Trace,
+				FCollider& Collider)
 			{
 				if (!Attack.bEnable) { return; }
 
@@ -539,10 +490,13 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 				{
 					if (Trace.TraceResult.HasTrait<FLocated>() && Trace.TraceResult.HasTrait<FHealth>())
 					{
-						float targetHealth = Trace.TraceResult.GetTrait<FHealth>().Current;
-						FVector targetLocation = Trace.TraceResult.GetTrait<FLocated>().Location;
-						float DistToTarget = FVector::Dist(Located.Location, targetLocation);
-						FRotator Delta = Directed.Direction.Rotation() - (targetLocation - Located.Location).Rotation();
+						float TargetHealth = Trace.TraceResult.GetTrait<FHealth>().Current;
+
+						FVector TargetLocation = Trace.TraceResult.GetTrait<FLocated>().Location;
+						float OtherRadius = Trace.TraceResult.HasTrait<FCollider>() ? Trace.TraceResult.GetTrait<FCollider>().Radius : 0;
+						float DistToTarget = FMath::Clamp(FVector::Dist(Located.Location, TargetLocation) - OtherRadius, 0, FLT_MAX);
+
+						FRotator Delta = Directed.Direction.Rotation() - (TargetLocation - Located.Location).Rotation();
 						float DeltaYaw = FMath::Abs(Delta.Yaw);
 						float AllowedYaw = 5;
 
@@ -552,7 +506,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 								AllowedYaw = 30;
 								break;
 							case EAttackMode::Ranged:
-								AllowedYaw = 3;
+								AllowedYaw = 5;
 								break;
 							case EAttackMode::Suicide:
 								AllowedYaw = 90;
@@ -560,7 +514,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 						}
 
 						// 攻击距离内触发攻击
-						if (DistToTarget <= Attack.Range && DistToTarget <= Trace.Range && DeltaYaw <= AllowedYaw && targetHealth > 0)
+						if (DistToTarget <= Attack.Range && DistToTarget <= Trace.Range && DeltaYaw <= AllowedYaw && TargetHealth > 0)
 						{
 							Subject.SetTraitDeferred(FAttacking{ 0.f, EAttackState::PreCast });
 						}
@@ -614,8 +568,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 					// Sound
 					if (Attack.bCanPlaySound && Sound.AttackSound)
 					{
-						float Probability = Sound.bUseProbability ? RangeMapProbability(AttackingAgentCount, Sound.AttackSoundProbability) : 100.1;
-						QueueSound(Sound.AttackSound, Probability);
+						QueueSound(Sound.AttackSound);
 					}
 
 					// Deal Damage
@@ -627,7 +580,6 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 
 					// Die
 					Subject.DespawnDeferred();
-					//Subject.SetTraitDeferred(FDying{ 0,0,FSubjectHandle{} });
 				}
 				else
 				{
@@ -674,8 +626,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 							// 音效
 							if (Attack.bCanPlaySound && Sound.AttackSound)
 							{
-								float Probability = Sound.bUseProbability ? RangeMapProbability(AttackingAgentCount, Sound.AttackSoundProbability) : 100.1;
-								QueueSound(Sound.AttackSound, Probability);
+								QueueSound(Sound.AttackSound);
 							}
 
 							// 近战需要满足距离和角度条件才能造成伤害
@@ -686,7 +637,8 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 								FVector TargetPos = Trace.TraceResult.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
 
 								// 计算距离
-								float Distance = FVector::Distance(AttackerPos, TargetPos);
+								float OtherRadius = Trace.TraceResult.HasTrait<FCollider>() ? Trace.TraceResult.GetTrait<FCollider>().Radius : 0;
+								float Distance = FMath::Clamp(FVector::Distance(AttackerPos, TargetPos) - OtherRadius, 0, FLT_MAX);
 
 								// 计算夹角
 								FVector AttackerForward = Subject.GetTraitRef<FDirected, EParadigm::Unsafe>().Direction.GetSafeNormal();
@@ -789,16 +741,16 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 				const auto EndTime = Curve->GetLastKey().Time;
 
 				// 受击发光
-				Animation.HitGlow = Curve->Eval(HitGlow.glowTime);
+				Animation.HitGlow = Curve->Eval(HitGlow.GlowTime);
 
 				// 更新发光时间
-				if (HitGlow.glowTime < EndTime)
+				if (HitGlow.GlowTime < EndTime)
 				{
-					HitGlow.glowTime += DeltaTime;
+					HitGlow.GlowTime += DeltaTime;
 				}
 
 				// 计时器完成后删除 Trait
-				if (HitGlow.glowTime >= EndTime)
+				if (HitGlow.GlowTime >= EndTime)
 				{
 					Animation.HitGlow = 0; // 重置发光值
 					Subject->RemoveTraitDeferred<FHitGlow>(); // 延迟删除 Trait
@@ -1203,8 +1155,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 					// Sound
 					if (Sound.DeathSound)
 					{
-						float Probability = Sound.bUseProbability ? RangeMapProbability(DyingAgentCount, Sound.DeathSoundProbability) : 100.1;
-						QueueSound(Sound.DeathSound, Probability);
+						QueueSound(Sound.DeathSound);
 					}
 
 					// Scale In(WIP)
@@ -1339,13 +1290,13 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 				FFreezing& Freezing)
 			{
 				// 更新计时器
-				if (Freezing.SlowTimeout > 0.f)
+				if (Freezing.FreezeTimeout > 0.f)
 				{
-					Freezing.SlowTimeout -= DeltaTime;
+					Freezing.FreezeTimeout -= DeltaTime;
 				}
 
 				// 计时器结束
-				if (Freezing.SlowTimeout <= 0.f)
+				if (Freezing.FreezeTimeout <= 0.f)
 				{
 					// 设置DP为0，怪物颜色复原
 					Animation.FreezeFx = 0;
@@ -1427,10 +1378,14 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 	// 水平运动
 	#pragma region
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentXYMovement");
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentMovement");
 
+<<<<<<< HEAD
+		FFilter Filter = FFilter::Make<FAgent, FRendering, FAnimation, FMove, FMoving, FDirected, FLocated, FAttack, FTrace, FNavigation, FAvoidance, FCollider, FDefence>();
+=======
 		// 初始化过滤器
 		FFilter Filter = FFilter::Make<FAgent, FRendering, FAnimation, FMove, FMoving, FDirected, FLocated, FAttack, FTrace, FNavigation,FAvoidance>();
+>>>>>>> parent of 0f9a801 (Beta.2)
 		Filter.Exclude<FAppearing>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
@@ -1451,27 +1406,124 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 				if (!Move.bEnable) return;
 
 				// 位置和方向初始化
+<<<<<<< HEAD
+				FVector& AgentLocation = Located.Location;
+				FVector GoalLocation = AgentLocation;
+
+				FVector DesiredMoveDirection = Directed.Direction;
+				Moving.SpeedMult = 1;
+
+				bool bInside_BaseFF = false;
+				FCellStruct Cell_BaseFF = FCellStruct{};
+
+				bool bInside_TargetFF = false;
+				FCellStruct Cell_TargetFF = FCellStruct{};
+
+				const bool bIsAttacking = Subject.HasTrait<FAttacking>();
+				const bool bIsFreezing = Subject.HasTrait<FFreezing>();
+				const bool bIsDying = Subject.HasTrait<FDying>();
+=======
 				const FVector& AgentLocation = Located.Location;
 				FVector DesiredDirection = Directed.Direction;
 				FVector GoalLocation = AgentLocation;
 				float DesiredSpeed = Move.Speed;
 				ERotationMode RotationMode = Move.RotationMode;
+>>>>>>> parent of 0f9a801 (Beta.2)
 
 				//--------------------------- 目标点 --------------------------//
 
+<<<<<<< HEAD
+				// Lambda to handle direct approach logic WIP add individual navigation in here
+				auto TryApproachDirectly = [&]()
+				{
+					if (Trace.TraceResult.HasTrait<FLocated>())
+					{
+						GoalLocation = Trace.TraceResult.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
+						DesiredMoveDirection = (GoalLocation - AgentLocation).GetSafeNormal2D();
+					}
+					else
+					{
+						Moving.SpeedMult = 0;
+					}
+				};
+
+				if (IsValid(Navigation.FlowField)) // 默认流场, 必须获取因为之后要用到地面高度
+				{
+					Navigation.FlowField->GetCellAtLocation(AgentLocation, bInside_BaseFF, Cell_BaseFF);
+
+					if (bInside_BaseFF)
+					{
+						GoalLocation = Navigation.FlowField->goalLocation;
+						DesiredMoveDirection = Cell_BaseFF.dir.GetSafeNormal2D();
+					}
+					else
+					{
+						Moving.SpeedMult = 0;
+					}
+				}
+
+				if (Trace.TraceResult.IsValid()) // 有目标，目标有指向目标自己的流场
+=======
 				if (LIKELY(Trace.TraceResult.IsValid())) // 追踪目标优先
+>>>>>>> parent of 0f9a801 (Beta.2)
 				{
 					if (LIKELY(Trace.TraceResult.HasTrait<FLocated>()))
 					{
+<<<<<<< HEAD
+						FBindFlowField BindFlowField = Trace.TraceResult.GetTrait<FBindFlowField>();
+
+						if (IsValid(BindFlowField.FlowField)) // 从目标获取指向目标的流场
+						{
+							BindFlowField.FlowField->GetCellAtLocation(AgentLocation, bInside_TargetFF, Cell_TargetFF);
+
+							if (bInside_TargetFF)
+							{
+								GoalLocation = BindFlowField.FlowField->goalLocation;
+								DesiredMoveDirection = Cell_TargetFF.dir.GetSafeNormal2D();
+							}
+							else
+							{
+								TryApproachDirectly();
+							}
+						}
+						else
+						{
+							TryApproachDirectly();
+						}
+=======
 						RotationMode = ERotationMode::VelocityFollowRotation;
 						GoalLocation = Trace.TraceResult.GetTrait<FLocated>().Location;
 						DesiredDirection = (GoalLocation - AgentLocation).GetSafeNormal2D();
+>>>>>>> parent of 0f9a801 (Beta.2)
 					}
 					else
 					{
 						DesiredSpeed = 0; // 获取不到目标位置，这是误操作，不移动
 					}
 				}
+<<<<<<< HEAD
+
+				//--------------------------- 计算水平速度 ----------------------------//
+
+				// 助推力
+				if (Moving.bLaunching)
+				{
+					Moving.CurrentVelocity += Moving.LaunchForce;
+
+					FVector XYDir = Moving.CurrentVelocity.GetSafeNormal2D();
+					float XYSpeed = Moving.CurrentVelocity.Size2D();
+					XYSpeed = FMath::Clamp(XYSpeed, 0, Move.MoveSpeed + Defence.KineticMaxImpulse);
+					FVector XYVelocity = XYSpeed * XYDir;
+
+					float ZSpeed = Moving.CurrentVelocity.Z;
+					ZSpeed = FMath::Clamp(ZSpeed, -Defence.KineticMaxImpulse, Defence.KineticMaxImpulse);
+
+					Moving.CurrentVelocity = FVector(XYVelocity.X, XYVelocity.Y, ZSpeed);
+					Moving.LaunchTimer = Moving.CurrentVelocity.Size2D() / Move.Deceleration_Ground;
+
+					Moving.LaunchForce = FVector::ZeroVector;
+					Moving.bLaunching = false;
+=======
 				else if (LIKELY(IsValid(Navigation.FlowField))) // 有流场就按流场走
 				{
 					bool bInside;
@@ -1487,12 +1539,30 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 					{
 						DesiredSpeed = 0;// 在流场外面，流场不够大，是误操作，不移动
 					}
+>>>>>>> parent of 0f9a801 (Beta.2)
 				}
 				else // 既没有目标，又没有流场，不移动
 				{
 					DesiredSpeed = 0;
 				}
 
+<<<<<<< HEAD
+				// 夹角
+				const FVector CurrentDir2D = Moving.CurrentVelocity.GetSafeNormal2D();
+				const FVector DesiredDir2D = Moving.DesiredVelocity.GetSafeNormal2D();
+				const float DotProduct = FVector::DotProduct(CurrentDir2D, DesiredDir2D);
+				const float AngleDegrees = FMath::RadiansToDegrees(FMath::Acos(DotProduct));
+
+				// 速度-夹角曲线
+				const TRange<float> TurnInputRange(Move.TurnSpeedRangeMap.Y, Move.TurnSpeedRangeMap.W);
+				const TRange<float> TurnOutputRange(Move.TurnSpeedRangeMap.X, Move.TurnSpeedRangeMap.Z);
+				Moving.SpeedMult *= FMath::GetMappedRangeValueClamped(TurnInputRange, TurnOutputRange, AngleDegrees);
+				
+				// 朝向
+				if (UNLIKELY(bIsDying) || UNLIKELY(Moving.bFalling))
+				{
+					// 保持当前方向
+=======
 				//--------------------------- 移动方向计算 ------------------------//
 
 				const bool bIsAttacking = Subject.HasTrait<FAttacking>();
@@ -1503,15 +1573,17 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 				{
 					// 被击退或死亡时保持方向
 					Moving.Direction = Directed.Direction;
+>>>>>>> parent of 0f9a801 (Beta.2)
 				}
 				else if (UNLIKELY(bIsAttacking))
 				{
-					// 攻击过程保持当前方向
-					const EAttackState AttackState = Subject.GetTrait<FAttacking>().State;
-
-					if (AttackState != EAttackState::Cooling)
+					if (Subject.GetTrait<FAttacking>().State != EAttackState::Cooling)
 					{
+<<<<<<< HEAD
+						// 保持当前方向
+=======
 						Moving.Direction = Directed.Direction;
+>>>>>>> parent of 0f9a801 (Beta.2)
 					}
 				}
 				else // 常规转向逻辑
@@ -1522,19 +1594,39 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 					{
 						// 减速转向
 						const auto& Freezing = Subject.GetTraitRef<FFreezing, EParadigm::Unsafe>();
-						SlowFactor = 1.0f - Freezing.SlowStr;
+						SlowFactor = 1.0f - Freezing.FreezeStr;
 					}
 
-					switch (RotationMode)
+					float DeltaV = FMath::Abs(Moving.DesiredVelocity.Size2D() - Moving.CurrentVelocity.Size2D());
+
+					if (AngleDegrees < 90.f && DeltaV > 100.f)//一致，朝向实际移动的方向
 					{
+<<<<<<< HEAD
+						const FRotator CurrentRot = Directed.Direction.ToOrientationRotator();
+						const FRotator DesiredRot = Moving.CurrentVelocity.GetSafeNormal2D().ToOrientationRotator();//the current velocity direction
+						const FRotator InterpolatedRot = FMath::RInterpTo(CurrentRot, DesiredRot, DeltaTime, Move.TurnSpeed * SlowFactor);
+=======
 						case ERotationMode::RotationFollowVelocity:
 						{
 							Moving.Direction = DesiredDirection;
+>>>>>>> parent of 0f9a801 (Beta.2)
 
-							// 同样使用角度插值确保方向过渡平滑
-							const FRotator CurrentRot = Directed.Direction.ToOrientationRotator();
-							const FRotator DesiredRot = ((Located.Location - Located.preLocation) / DeltaTime).GetSafeNormal2D().ToOrientationRotator();
+						Directed.Direction = InterpolatedRot.Vector();
+					}
+					else//不一致，朝向想要移动的方向
+					{
+						const FRotator CurrentRot = Directed.Direction.ToOrientationRotator();
+						const FRotator DesiredRot = DesiredMoveDirection.GetSafeNormal2D().ToOrientationRotator();
+						const FRotator InterpolatedRot = FMath::RInterpTo(CurrentRot, DesiredRot, DeltaTime, Move.TurnSpeed * SlowFactor);
 
+<<<<<<< HEAD
+						Directed.Direction = InterpolatedRot.Vector();
+						DesiredMoveDirection = Directed.Direction;
+					}
+				}
+
+				// 减速
+=======
 							const FRotator InterpolatedRot = FMath::RInterpTo(
 								CurrentRot,
 								DesiredRot,
@@ -1581,20 +1673,29 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 					DesiredSpeed *= FMath::GetMappedRangeValueClamped(InputRange, OutputRange, DistanceToGoal);
 				}
 
+>>>>>>> parent of 0f9a801 (Beta.2)
 				if (UNLIKELY(bIsAttacking || bIsDying))
 				{
-					DesiredSpeed = 0.0f; // 攻击或死亡时停止
+					Moving.SpeedMult = 0.0f; // 攻击或死亡时停止
 				}
 				else if (UNLIKELY(bIsFreezing))
 				{
 					const auto& Freezing = Subject.GetTraitRef<FFreezing, EParadigm::Unsafe>();
 
-					if (Freezing.SlowTimeout > 0.0f)
+					if (Freezing.FreezeTimeout > 0.0f)
 					{
-						DesiredSpeed *= (1.0f - Freezing.SlowStr); //冰冻时减速
+						Moving.SpeedMult *= (1.0f - Freezing.FreezeStr); //冰冻时减速
 					}
 				}
 
+<<<<<<< HEAD
+				// 速度-距离曲线
+				float OtherRadius = Trace.TraceResult.HasTrait<FCollider>() ? Trace.TraceResult.GetTrait<FCollider>().Radius : 0;
+				const float DistanceToGoal = FMath::Clamp(FVector::Dist2D(AgentLocation, GoalLocation) - OtherRadius, 0, FLT_MAX);
+				const TRange<float> MoveInputRange(Move.MoveSpeedRangeMap.Y, Move.MoveSpeedRangeMap.W);
+				const TRange<float> MoveOutputRange(Move.MoveSpeedRangeMap.X, Move.MoveSpeedRangeMap.Z);
+				Moving.SpeedMult *= FMath::GetMappedRangeValueClamped(MoveInputRange, MoveOutputRange, DistanceToGoal);
+=======
 				// 计算当前方向与目标方向的夹角
 				float Angle = FMath::Acos(FVector::DotProduct(Directed.Direction, DesiredDirection));
 				float AngleDegrees = FMath::RadiansToDegrees(Angle);
@@ -1607,11 +1708,59 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 
 				// 速度插值，平滑速度变化
 				Moving.Speed = FMath::FInterpTo(Moving.Speed, DesiredSpeed, DeltaTime, (DesiredSpeed > Moving.Speed) ? Move.Acceleration : Move.BrakeDeceleration);
+>>>>>>> parent of 0f9a801 (Beta.2)
 
+				// 想要达到的理想速度
+				FVector DesiredVelocity = Moving.SpeedMult * Move.MoveSpeed * DesiredMoveDirection;
+				Moving.DesiredVelocity = FVector(DesiredVelocity.X, DesiredVelocity.Y, 0);
 
 				//--------------------------- 物理效果 --------------------------//
 				constexpr float BASE_TICK_TIME = 0.01667f; // 60Hz基准时间
 
+<<<<<<< HEAD
+				if (IsValid(Navigation.FlowField))// 没有流场则跳过，因为不知道地面高度，所以不考虑垂直运动
+				{
+					// 寻找最高地面
+					bool bIsSet = false;
+					FVector HighestGroundLocation = FVector::ZeroVector;
+					FVector HighestGroundNormal = FVector::UpVector;
+
+					// Center Point
+					if (bInside_BaseFF)
+					{
+						bIsSet = true;
+						HighestGroundLocation = Cell_BaseFF.worldLoc;
+						HighestGroundNormal = Cell_BaseFF.normal;
+					}
+
+					// 8 Directions
+					for (int32 i = 0; i < 8; ++i)
+					{
+						FVector BoundSamplePoint = Located.Location + FVector(Collider.Radius, 0, 0).RotateAngleAxis(i * 45.f, FVector::UpVector);
+
+						bool bInside = false;
+						FCellStruct Cell = FCellStruct{};
+						Navigation.FlowField->GetCellAtLocation(BoundSamplePoint, bInside, Cell);
+
+						if (bInside)
+						{
+							if (Cell.worldLoc.Z > HighestGroundLocation.Z)
+							{
+								bIsSet = true;
+								HighestGroundLocation = Cell.worldLoc;
+								HighestGroundNormal = Cell.normal;
+							}
+						}
+					}
+
+					//--------------------------- 运动状态 --------------------------//
+
+					if (bIsSet)
+					{
+						// 计算投影高度
+						const float PlaneD = -FVector::DotProduct(HighestGroundNormal, HighestGroundLocation);
+						const float GroundHeight = (-PlaneD - HighestGroundNormal.X * AgentLocation.X - HighestGroundNormal.Y * AgentLocation.Y) / HighestGroundNormal.Z;
+=======
 				if (LIKELY(!Moving.bFalling))
 				{
 					Moving.Velocity = Moving.Direction * Moving.Speed;
@@ -1640,15 +1789,92 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 
 						Moving.Velocity += FVector(Moving.KnockBackForce.X, Moving.KnockBackForce.Y, 0.0f);
 						Moving.KnockBackForce *= DecayFactor;
+>>>>>>> parent of 0f9a801 (Beta.2)
 
 						if (Moving.KnockBackForce.SizeSquared() < FMath::Square(100.0f))
 						{
+<<<<<<< HEAD
+							Moving.CurrentVelocity.Z += FMath::Clamp(Moving.FlyingHeight + GroundHeight - AgentLocation.Z, -100, 100);//fly at a certain height above ground
+							Moving.CurrentVelocity.Z *= 0.9f;
+						}
+						else
+						{
+							const float CollisionThreshold = GroundHeight + Collider.Radius;
+
+							// 高度状态判断
+							if (AgentLocation.Z - CollisionThreshold > Collider.Radius * 0.1f)// need a bit of tolerance or it will be hard to decide is it is on ground or in the air
+							{
+								// 应用重力
+								Moving.CurrentVelocity.Z += Move.Gravity * DeltaTime;
+
+								// 进入/保持下落状态
+								if (!Moving.bFalling)
+								{
+									Moving.bFalling = true;
+								}
+							}
+							else
+							{
+								// 地面接触处理
+								const float GroundContactThreshold = GroundHeight - Collider.Radius;
+
+								// 着陆状态切换
+								if (Moving.bFalling)
+								{
+									Moving.bFalling = false;
+									Moving.CurrentVelocity = Moving.CurrentVelocity * Move.BounceVelocityDecay * FVector(1, 1, (FMath::Abs(Moving.CurrentVelocity.Z) > 100.f) ? -1 : 0);// zero out small number
+								}
+
+								// 平滑移动到地面
+								AgentLocation.Z = FMath::FInterpTo(AgentLocation.Z, CollisionThreshold, DeltaTime, 25.0f);
+							}
+						}
+					}
+					else
+					{
+						if (Move.bCanFly)
+						{
+							Moving.CurrentVelocity.Z *= 0.9f;
+						}
+						else
+						{
+							// 应用重力
+							Moving.CurrentVelocity.Z += Move.Gravity * DeltaTime;
+
+							if (!Moving.bFalling)
+							{
+								Moving.bFalling = true;
+							}
+=======
 							Moving.bKnockedBack = false;
 							Moving.KnockBackForce = FVector::ZeroVector;
+>>>>>>> parent of 0f9a801 (Beta.2)
 						}
 					}
 				}
 				else
+<<<<<<< HEAD
+				{
+					Moving.CurrentVelocity.Z = 0;
+				}
+
+				//---------------------------- 物理效果 --------------------------//
+
+				if(!Moving.bFalling && Moving.LaunchTimer > 0)// 地面摩擦力
+				{
+					FVector XYDir = Moving.CurrentVelocity.GetSafeNormal2D();
+					float XYSpeed = Moving.CurrentVelocity.Size2D();
+					XYSpeed = FMath::Clamp(XYSpeed - Move.Deceleration_Ground * DeltaTime, 0, XYSpeed);
+					Moving.CurrentVelocity = XYDir * XYSpeed + FVector(0, 0, Moving.CurrentVelocity.Z);
+					XYSpeed < 10.f ? Moving.LaunchTimer = 0 : Moving.LaunchTimer -= DeltaTime;
+				}
+				else if (Moving.bFalling && !Move.bCanFly)// 空气阻力
+				{
+					FVector XYDir = Moving.CurrentVelocity.GetSafeNormal();
+					float XYSpeed = Moving.CurrentVelocity.Size();
+					XYSpeed = FMath::Clamp(XYSpeed - Move.Deceleration_Air * DeltaTime, 0, XYSpeed);
+					Moving.CurrentVelocity = XYDir * XYSpeed;
+=======
 				{
 					// 空气阻力
 					constexpr float AIR_DECAY_RATE = 0.99f;
@@ -1668,6 +1894,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 				else if (bIsDying && Speed < 100.f && !Subject.HasTrait<FStatic>())
 				{
 					Subject.SetTraitDeferred(FStatic{});
+>>>>>>> parent of 0f9a801 (Beta.2)
 				}
 
 			}, ThreadsCount, BatchSize);
@@ -1677,7 +1904,11 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 	// 碰撞与避障
 	#pragma region
 	{
+<<<<<<< HEAD
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("Avoidance");// agent only do avoidance in xy, not z
+=======
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("RVO2");
+>>>>>>> parent of 0f9a801 (Beta.2)
 		NeighborGrid->Evaluate();
 	}
 	#pragma endregion
@@ -1685,10 +1916,17 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 	// 垂直运动
 	#pragma region
 	{
+<<<<<<< HEAD
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("IdleToMoveAnim");
+
+		// 初始化过滤器
+		FFilter Filter = FFilter::Make<FAgent, FAnimation, FMoving, FDeath>();
+=======
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentZMovement");
 
 		// 初始化过滤器
 		FFilter Filter = FFilter::Make<FAgent, FRendering, FMove, FMoving, FDirected, FLocated, FCollider, FNavigation>();
+>>>>>>> parent of 0f9a801 (Beta.2)
 		Filter.Exclude<FAppearing>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
@@ -1696,12 +1934,18 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
+<<<<<<< HEAD
+				FAnimation& Animation,
+				FMoving& Moving,
+				FDeath& Death)
+=======
 				FMove& Move,
 				FMoving& Moving,
 				FDirected& Directed,
 				FLocated& Located,
 				FCollider& Collider,
 				FNavigation& Navigation)
+>>>>>>> parent of 0f9a801 (Beta.2)
 			{
 				if (!Move.bEnable) return;
 
@@ -1721,6 +1965,11 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 
 				if (!IsValid(Navigation.FlowField))
 				{
+<<<<<<< HEAD
+					Animation.SubjectState = (RealSpeed2D > Animation.UseMoveAnimAboveSpeed) ? ESubjectState::Moving : ESubjectState::Idle;// switch between idle and move based on speed(ignore small value)
+				}
+				else if (bIsDying && RealSpeed2D < 100.f && Death.bDisableCollision && !Subject.HasTrait<FCorpse>())
+=======
 					if (Navigation.FlowFieldActor)
 					{
 						Navigation.FlowField = Navigation.FlowFieldActor.LoadSynchronous();
@@ -1755,6 +2004,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 				FVector HighestGroundNormal = FVector::UpVector;
 
 				for (int32 X = MinX; X <= MaxX; ++X)
+>>>>>>> parent of 0f9a801 (Beta.2)
 				{
 					for (int32 Y = MinY; Y <= MaxY; ++Y)
 					{
@@ -1973,7 +2223,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 
 							if (Subject.HasTrait<FFreezing>())
 							{
-								Anim.AnimPlayRate1 = 1 - Subject.GetTraitRef<FFreezing, EParadigm::Unsafe>().SlowStr;
+								Anim.AnimPlayRate1 = 1 - Subject.GetTraitRef<FFreezing, EParadigm::Unsafe>().FreezeStr;
 							}
 							else
 							{
@@ -1992,7 +2242,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 
 							if (Subject.HasTrait<FFreezing>())
 							{
-								Anim.AnimPlayRate1 = 1 - Subject.GetTraitRef<FFreezing, EParadigm::Unsafe>().SlowStr;
+								Anim.AnimPlayRate1 = 1 - Subject.GetTraitRef<FFreezing, EParadigm::Unsafe>().FreezeStr;
 							}
 							else
 							{
@@ -2449,24 +2699,24 @@ FResult ABattleFrameGameMode::ApplyDamageToSubjects(const TArray<FSubjectHandle>
 			}
 
 			// 冰冻
-			if (Debuff.bCanSlow)
+			if (Debuff.bCanFreeze)
 			{
 				if (Overlapper.HasTrait<FFreezing>())
 				{
 					auto& CurrentFreezing = Overlapper.GetTraitRef<FFreezing, EParadigm::Unsafe>();
 
-					if (Debuff.SlowTime > CurrentFreezing.SlowTimeout)
+					if (Debuff.FreezeTime > CurrentFreezing.FreezeTimeout)
 					{
-						CurrentFreezing.SlowTimeout = Debuff.SlowTime;
+						CurrentFreezing.FreezeTimeout = Debuff.FreezeTime;
 					}
 				}
 				else
 				{
 					FFreezing NewFreezing;
-					NewFreezing.SlowTimeout = Debuff.SlowTime * IceDebuffMult;
-					NewFreezing.SlowStr = Debuff.SlowStr * IceDebuffMult;
+					NewFreezing.FreezeTimeout = Debuff.FreezeTime * IceDebuffMult;
+					NewFreezing.FreezeStr = Debuff.FreezeStr * IceDebuffMult;
 
-					if (NewFreezing.SlowTimeout > 0 && NewFreezing.SlowStr > 0)
+					if (NewFreezing.FreezeTimeout > 0 && NewFreezing.FreezeStr > 0)
 					{
 						if (Overlapper.HasTrait<FAnimation>())
 						{
@@ -2480,9 +2730,9 @@ FResult ABattleFrameGameMode::ApplyDamageToSubjects(const TArray<FSubjectHandle>
 			}
 
 			// 灼烧
-			if (Debuff.bCanTemporalDmg)
+			if (Debuff.bCanBurn)
 			{
-				TemporalDamaging.TotalTemporalDamage = BaseDamage * Debuff.TemporalDmgPercent * FireDebuffMult;
+				TemporalDamaging.TotalTemporalDamage = BaseDamage * Debuff.BurnDmgRatio * FireDebuffMult;
 
 				if (TemporalDamaging.TotalTemporalDamage > 0)
 				{
@@ -2509,16 +2759,16 @@ FResult ABattleFrameGameMode::ApplyDamageToSubjects(const TArray<FSubjectHandle>
 			{
 				const auto& Hit = Overlapper.GetTraitRef<FHit, EParadigm::Unsafe>();
 
-				// 闪白
+				// Glow
 				if (Hit.bCanGlow)
 				{
-					Overlapper.SetTraitDeferred(FHitGlow{});
+					Overlapper.ObtainTraitDeferred<FHitGlow>();// we not glowing we add the trait. if is glowing, do nothing.
 				}
 
-				// 形变
+				// Jiggle
 				if (Hit.SqueezeSquashStr != 0.f)
 				{
-					Overlapper.SetTraitDeferred(FSqueezeSquash{});
+					Overlapper.ObtainTraitDeferred<FSqueezeSquash>();
 				}
 
 				// Fx
@@ -2540,8 +2790,7 @@ FResult ABattleFrameGameMode::ApplyDamageToSubjects(const TArray<FSubjectHandle>
 
 					if (Hit.bCanPlaySound && Sound.HitSound)
 					{
-						float Probability = Sound.bUseProbability ? RangeMapProbability(BeingHitAgentCount, Sound.HitSoundProbability) : 100.1;
-						QueueSound(Sound.HitSound, Probability);
+						QueueSound(Sound.HitSound);
 					}
 				}
 			}
@@ -2571,31 +2820,11 @@ FORCEINLINE std::pair<bool, float> ABattleFrameGameMode::ProcessCritDamage(float
 	return { IsCritical, ActualDamage };  // 返回pair
 }
 
-// 根据subject数量来计算出一个逐渐降低的概率（给音效使用）
-FORCEINLINE float ABattleFrameGameMode::RangeMapProbability(int32 SubjectQuantity, FVector4 RangeMapParam)
+// 生成音效播放Subject
+FORCEINLINE void ABattleFrameGameMode::QueueSound(TSoftObjectPtr<USoundBase> Sound)
 {
-	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("SoundRangeMapProbability");
-	float minQuantity = RangeMapParam.X;
-	float maxQuantity = RangeMapParam.Y;
-	float probabilityAtMin = RangeMapParam.Z;
-	float probabilityAtMax = RangeMapParam.W;
-
-	float mappedValue = FMath::GetMappedRangeValueClamped(FVector2D(minQuantity, maxQuantity), FVector2D(probabilityAtMin, probabilityAtMax), SubjectQuantity);
-
-	return mappedValue;
-}
-
-// 根据概率大小生成音效播放Subject
-FORCEINLINE void ABattleFrameGameMode::QueueSound(TSoftObjectPtr<USoundBase> Sound, float Probability)
-{
-	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("QueueSound");
-
 	float RandomValue = FMath::FRand();
-
-	if (RandomValue <= Probability)
-	{
-		SoundsToPlay.Enqueue(Sound);
-	}
+	SoundsToPlay.Enqueue(Sound);
 }
 
 // 把受击数字添加到播放序列
