@@ -10,9 +10,9 @@ This project relies on Anim To Texture plugin, which is an official plugin inclu
 
 This project is developed and tested by UE5.3 5.4 5.5 on Windows.
 
-The performance test result is 60fps running 10000 agents and 30fps running 20000 agents on i9-9900k and rts2080ti, cpu capped.
+The performance test result is 60+fps running 10000 agents and 30+fps running 30000 agents on AMD Ryzen 5900X and rts4080S, cpu capped.
 
-This project uses ecs for logic and niagara+vat as the rendering solution.
+This project uses ecs for logic and niagara + vat as the rendering solution.
 
 This project uses rvo2 for avoidance/collision.
 
@@ -34,7 +34,7 @@ Open for suggestions! Any bug reports or optimization suggestions are welcomed w
 
 本项目是在Windows上使用UE5.3，5.4，5.5版本开发和测试的。
 
-性能测试结果显示，在i9-9900k和rts2080ti上，运行10000个代理时帧率可达60fps，运行20000个代理时帧率可达30fps，CPU瓶颈。
+性能测试结果显示，在AMD Ryzen 5900X rts4080S上，运行10000个代理时帧率高于60fps，运行30000个代理时帧率高于30fps，CPU瓶颈。
 
 本项目使用ECS处理逻辑，并使用Niagara+VAT作为渲染解决方案。
 
