@@ -1,4 +1,4 @@
-Please use the release version beta.3, which is up to date.
+Please use the release version beta.4, which is up to date.
 
 This project is the beta version, so bugs may occur.
 
@@ -22,7 +22,7 @@ THis project includes an editor utility widget that allows users to set up a new
 
 Open for suggestions! Any bug reports or optimization suggestions are welcomed whole heartedly!
 
-请使用Release版本beta.3, 该版本是最新的。
+请使用Release版本beta.4, 该版本是最新的。
 
 本项目为测试版本，因此可能会出现一些错误。
 
