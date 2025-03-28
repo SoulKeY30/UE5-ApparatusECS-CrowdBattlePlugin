@@ -51,7 +51,7 @@ void ARVOSquareObstacle::BeginPlay()
     FLocated Located3{ Point3Location };
     FLocated Located4{ Point4Location };
 
-    FRVOObstacle RVOObstacle1{
+    FBoxObstacle BoxObstacle1{
         true,
         FSubjectHandle(),
         RVO::Vector2(Point1Location.X, Point1Location.Y),
@@ -61,7 +61,7 @@ void ARVOSquareObstacle::BeginPlay()
         HeightValue
     };
 
-    FRVOObstacle RVOObstacle2{
+    FBoxObstacle BoxObstacle2{
         true,
         FSubjectHandle(),
         RVO::Vector2(Point2Location.X, Point2Location.Y),
@@ -71,7 +71,7 @@ void ARVOSquareObstacle::BeginPlay()
         HeightValue
     };
 
-    FRVOObstacle RVOObstacle3{
+    FBoxObstacle BoxObstacle3{
         true,
         FSubjectHandle(),
         RVO::Vector2(Point3Location.X, Point3Location.Y),
@@ -81,7 +81,7 @@ void ARVOSquareObstacle::BeginPlay()
         HeightValue
     };
 
-    FRVOObstacle RVOObstacle4{
+    FBoxObstacle BoxObstacle4{
         true,
         FSubjectHandle(),
         RVO::Vector2(Point4Location.X, Point4Location.Y),
@@ -102,10 +102,10 @@ void ARVOSquareObstacle::BeginPlay()
     Record3.SetTrait(Located3);
     Record4.SetTrait(Located4);
 
-    Record1.SetTrait(RVOObstacle1);
-    Record2.SetTrait(RVOObstacle2);
-    Record3.SetTrait(RVOObstacle3);
-    Record4.SetTrait(RVOObstacle4);
+    Record1.SetTrait(BoxObstacle1);
+    Record2.SetTrait(BoxObstacle2);
+    Record3.SetTrait(BoxObstacle3);
+    Record4.SetTrait(BoxObstacle4);
 
     // Spawn Subjects
     AMechanism* Mechanism = UMachine::ObtainMechanism(GetWorld());
@@ -114,17 +114,17 @@ void ARVOSquareObstacle::BeginPlay()
     Obstacle3 = Mechanism->SpawnSubject(Record3);
     Obstacle4 = Mechanism->SpawnSubject(Record4);
 
-    Obstacle1.GetTraitPtr<FRVOObstacle, EParadigm::Unsafe>()->prevObstacle_ = Obstacle4;
-    Obstacle1.GetTraitPtr<FRVOObstacle, EParadigm::Unsafe>()->nextObstacle_ = Obstacle2;
+    Obstacle1.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>()->prevObstacle_ = Obstacle4;
+    Obstacle1.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>()->nextObstacle_ = Obstacle2;
 
-    Obstacle2.GetTraitPtr<FRVOObstacle, EParadigm::Unsafe>()->prevObstacle_ = Obstacle1;
-    Obstacle2.GetTraitPtr<FRVOObstacle, EParadigm::Unsafe>()->nextObstacle_ = Obstacle3;
+    Obstacle2.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>()->prevObstacle_ = Obstacle1;
+    Obstacle2.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>()->nextObstacle_ = Obstacle3;
 
-    Obstacle3.GetTraitPtr<FRVOObstacle, EParadigm::Unsafe>()->prevObstacle_ = Obstacle2;
-    Obstacle3.GetTraitPtr<FRVOObstacle, EParadigm::Unsafe>()->nextObstacle_ = Obstacle4;
+    Obstacle3.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>()->prevObstacle_ = Obstacle2;
+    Obstacle3.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>()->nextObstacle_ = Obstacle4;
 
-    Obstacle4.GetTraitPtr<FRVOObstacle, EParadigm::Unsafe>()->prevObstacle_ = Obstacle3;
-    Obstacle4.GetTraitPtr<FRVOObstacle, EParadigm::Unsafe>()->nextObstacle_ = Obstacle1;
+    Obstacle4.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>()->prevObstacle_ = Obstacle3;
+    Obstacle4.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>()->nextObstacle_ = Obstacle1;
 
     Obstacle1.SetTrait(FAvoiding{ Point1Location, 0, Obstacle1, Obstacle1.CalcHash() });
     Obstacle2.SetTrait(FAvoiding{ Point2Location, 0, Obstacle2, Obstacle2.CalcHash() });
@@ -163,7 +163,7 @@ void ARVOSquareObstacle::Tick(float DeltaTime)
         Obstacle4.GetTraitPtr<FLocated, EParadigm::Unsafe>()->Location = Point4Location;
 
         auto UpdateObstacle = [&](FSubjectHandle& Obstacle, const FVector& Location, const FVector& NextLocation) {
-            FRVOObstacle* ObstacleData = Obstacle.GetTraitPtr<FRVOObstacle, EParadigm::Unsafe>();
+            FBoxObstacle* ObstacleData = Obstacle.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
             ObstacleData->point3d_ = Location;
             ObstacleData->point_ = RVO::Vector2(Location.X, Location.Y);
             ObstacleData->unitDir_ = RVO::Vector2(

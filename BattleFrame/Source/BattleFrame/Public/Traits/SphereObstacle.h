@@ -1,0 +1,58 @@
+#pragma once
+ 
+#include "CoreMinimal.h"
+#include "SphereObstacle.generated.h"
+
+class UNeighborGridComponent;
+
+USTRUCT(BlueprintType)
+struct BATTLEFRAME_API FSphereObstacle
+{
+	GENERATED_BODY()
+
+private:
+
+	mutable std::atomic<bool> LockFlag{ false };
+
+public:
+
+	void Lock() const
+	{
+		while (LockFlag.exchange(true, std::memory_order_acquire));
+	}
+
+	void Unlock() const
+	{
+		LockFlag.store(false, std::memory_order_release);
+	}
+
+public:
+
+	bool bOverrideSpeedLimit = true;
+	float NewSpeedLimit = 0;
+	TSet<FSubjectHandle> OverridingAgents;
+	UNeighborGridComponent* NeighborGrid = nullptr;
+
+	FSphereObstacle() {};
+
+	FSphereObstacle(const FSphereObstacle& SphereObstacle)
+	{
+		LockFlag.store(SphereObstacle.LockFlag.load());
+		NeighborGrid = SphereObstacle.NeighborGrid;
+		bOverrideSpeedLimit = SphereObstacle.bOverrideSpeedLimit;
+		NewSpeedLimit = SphereObstacle.NewSpeedLimit;
+		OverridingAgents = SphereObstacle.OverridingAgents;
+	}
+
+	FSphereObstacle& operator=(const FSphereObstacle& SphereObstacle)
+	{
+		LockFlag.store(SphereObstacle.LockFlag.load());
+		NeighborGrid = SphereObstacle.NeighborGrid;
+		bOverrideSpeedLimit = SphereObstacle.bOverrideSpeedLimit;
+		NewSpeedLimit = SphereObstacle.NewSpeedLimit;
+		OverridingAgents = SphereObstacle.OverridingAgents;
+
+		return *this;
+	}
+
+};

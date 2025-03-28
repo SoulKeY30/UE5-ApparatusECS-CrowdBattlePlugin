@@ -3,7 +3,8 @@
 
 #include "BattleFrameFunctionLibraryRT.h"
 #include "Traits/Located.h"
-#include "Traits/SubType.h"
+#include "Traits/AvoGroup.h"
+#include "Traits/Team.h"
 #include "SubjectHandle.h"
 #include "SubjectRecord.h"
 
@@ -26,7 +27,6 @@ void UBattleFrameFunctionLibraryRT::SortSubjectsByDistance(UPARAM(ref) TArray<FS
         });
 }
 
-// 按SubType序号添加Trait
 void UBattleFrameFunctionLibraryRT::SetSubTypeTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SetSubTypeTraitByIndex");
@@ -325,7 +325,6 @@ void UBattleFrameFunctionLibraryRT::SetSubTypeTraitByIndex(int32 Index, FSubject
 	}
 }
 
-// 按SubType枚举添加Trait
 void UBattleFrameFunctionLibraryRT::SetSubTypeTraitByEnum(ESubType SubType, FSubjectRecord& SubjectRecord)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SetSubTypeTraitByEnum");
@@ -627,7 +626,6 @@ void UBattleFrameFunctionLibraryRT::SetSubTypeTraitByEnum(ESubType SubType, FSub
 	}
 }
 
-// 按SubType序号Include Trait
 void UBattleFrameFunctionLibraryRT::IncludeSubTypeTraitByIndex(int32 Index, FFilter& Filter)
 {
 	switch (Index)
@@ -971,7 +969,6 @@ void UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(int32 Iter
 	ThreadsCount = FMath::Clamp(FPlatformMisc::NumberOfWorkerThreadsToSpawn(), 1, MaxThreadsAllowed);
 	BatchSize = FMath::Clamp(IterableNum / ThreadsCount, 1, 10000);
 }
-<<<<<<< HEAD
 
 void UBattleFrameFunctionLibraryRT::SetAvoGroupTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord)
 {
@@ -1146,5 +1143,3 @@ void UBattleFrameFunctionLibraryRT::ExcludeAvoGroupTraitByIndex(int32 Index, FFi
 }
 
 
-=======
->>>>>>> parent of 0f9a801 (Beta.2)

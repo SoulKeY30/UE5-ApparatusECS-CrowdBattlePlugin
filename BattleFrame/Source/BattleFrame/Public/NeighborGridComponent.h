@@ -99,19 +99,13 @@ public:
 
 	bool IsInsideSphere(FIntVector CenterCell, FIntVector TestCell, float Radius) const;
 
-<<<<<<< HEAD
 	void ComputeNewVelocity(FAvoidance& Avoidance, TArray<FAvoiding>& SubjectNeighbors, TArray<FAvoiding>& ObstacleNeighbors, float timeStep_);
-=======
-	void ComputeNewVelocity(FAvoidance& Avoidance, float timeStep_);
->>>>>>> parent of 0f9a801 (Beta.2)
 
 	bool LinearProgram1(const std::vector<RVO::Line>& lines, size_t lineNo, float radius, const RVO::Vector2& optVelocity, bool directionOpt, RVO::Vector2& result);
 
 	size_t LinearProgram2(const std::vector<RVO::Line>& lines, float radius, const RVO::Vector2& optVelocity, bool directionOpt, RVO::Vector2& result);
 
 	void LinearProgram3(const std::vector<RVO::Line>& lines, size_t numObstLines, size_t beginLine, float radius, RVO::Vector2& result);
-
-	void CalculateThreadsCountAndBatchSize(int32 IterableNum);
 
 	TArray<FIntVector> GetNeighborCells(const FVector& Center, const FVector& Range3D) const;
 

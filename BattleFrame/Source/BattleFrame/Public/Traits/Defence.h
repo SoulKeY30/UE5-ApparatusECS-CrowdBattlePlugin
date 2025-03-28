@@ -22,12 +22,9 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "对动能Debuff的免疫比例（0-1）"))
 	float KineticDebuffImmune = 0.f;
 
-<<<<<<< HEAD
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Tooltip = "最大击退力"))
 	float KineticMaxImpulse = 10000.f;
 
-=======
->>>>>>> parent of 0f9a801 (Beta.2)
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "对火焰伤害的免疫比例（0-1）"))
 	float FireDmgImmune = 0.f;
 

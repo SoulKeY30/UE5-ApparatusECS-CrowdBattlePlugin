@@ -45,16 +45,12 @@ public:
 	}
 
 	FFingerprint SubjectFingerprint;
-	FFingerprint ObstacleFingerprint;
+	FFingerprint SphereObstacleFingerprint;
+	FFingerprint BoxObstacleFingerprint;
 
-<<<<<<< HEAD
 	TArray<FAvoiding> Subjects;
 	TArray<FAvoiding> SphereObstacles;
 	TArray<FAvoiding> BoxObstacles;
-=======
-	TSet<FAvoiding> Subjects;
-	TArray<FAvoiding> Obstacles;
->>>>>>> parent of 0f9a801 (Beta.2)
 
 
 	FNeighborGridCell(){}
@@ -62,19 +58,24 @@ public:
 	FNeighborGridCell(const FNeighborGridCell& Cell)
 	{
 		LockFlag.store(Cell.LockFlag.load());
+
 		SubjectFingerprint = Cell.SubjectFingerprint;
-		ObstacleFingerprint = Cell.ObstacleFingerprint;
+		SphereObstacleFingerprint = Cell.SphereObstacleFingerprint;
+		BoxObstacleFingerprint = Cell.BoxObstacleFingerprint;
 		Subjects = Cell.Subjects;
-		Obstacles = Cell.Obstacles;
+		SphereObstacles = Cell.SphereObstacles;
+		BoxObstacles = Cell.BoxObstacles;
 	}
 
 	FNeighborGridCell& operator=(const FNeighborGridCell& Cell)
 	{
-		LockFlag.store(Cell.LockFlag.load());
 		SubjectFingerprint = Cell.SubjectFingerprint;
-		ObstacleFingerprint = Cell.ObstacleFingerprint;
+		SphereObstacleFingerprint = Cell.SphereObstacleFingerprint;
+		BoxObstacleFingerprint = Cell.BoxObstacleFingerprint;
 		Subjects = Cell.Subjects;
-		Obstacles = Cell.Obstacles;
+		SphereObstacles = Cell.SphereObstacles;
+		BoxObstacles = Cell.BoxObstacles;
+
 		return *this;
 	}
 };

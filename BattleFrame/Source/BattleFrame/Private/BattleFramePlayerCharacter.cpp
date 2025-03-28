@@ -11,6 +11,7 @@
 #include "Traits/Located.h"
 #include "Traits/Collider.h"
 #include "Traits/Statistics.h"
+#include "Traits/BindFlowField.h"
 
 // Sets default values
 ABattleFramePlayerCharacter::ABattleFramePlayerCharacter()
@@ -21,6 +22,7 @@ ABattleFramePlayerCharacter::ABattleFramePlayerCharacter()
 	Subjective->SetTrait(FHealth{});
 	Subjective->SetTrait(FCollider{});
 	Subjective->SetTrait(FStatistics{});
+	Subjective->SetTrait(FBindFlowField{});
 
 	PrimaryActorTick.bCanEverTick = true;
 }

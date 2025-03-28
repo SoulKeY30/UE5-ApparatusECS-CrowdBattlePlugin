@@ -57,16 +57,16 @@
 #include "Traits/SpawningFx.h"
 #include "Traits/Defence.h"
 #include "Traits/Agent.h"
-#include "Traits/RoadBlock.h"
+#include "Traits/SphereObstacle.h"
 #include "Traits/Scaled.h"
 #include "Traits/Directed.h"
 #include "Traits/Located.h"
 #include "Traits/Avoidance.h"
 #include "Traits/Collider.h"
 #include "Traits/Curves.h"
-#include "Traits/Static.h"
+#include "Traits/Corpse.h"
 #include "Traits/Statistics.h"
-
+#include "Traits/BindFlowField.h"
 
 ABattleFrameGameMode* ABattleFrameGameMode::Instance = nullptr;
 
@@ -371,71 +371,8 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 							Trace.TraceResult = PlayerHandle;
 						}
 					}
-					case ETraceMode::CustomTarget:
-					{
-						Trace.TraceResult = FSubjectHandle{};
 
-<<<<<<< HEAD
 					break;
-=======
-						AActor* CustomTarget = Trace.CustomTarget.LoadSynchronous();//WIP
-
-						if (IsValid(CustomTarget))
-						{
-							USubjectiveActorComponent* SubjectiveComponent = CustomTarget->FindComponentByClass<USubjectiveActorComponent>();
-
-							if (IsValid(SubjectiveComponent))
-							{
-								FSubjectHandle SubjectHandle = SubjectiveComponent->GetHandle();
-
-								if (SubjectHandle.IsValid())
-								{
-									if (SubjectHandle.HasTrait<FLocated>() && SubjectHandle.HasTrait<FHealth>() && !SubjectHandle.HasTrait<FDying>())
-									{
-										// Get the location of the custom target
-										FVector CustomTargetLocation = CustomTarget->GetActorLocation();
-
-										// Calculate the distance between Location.Location and CustomTargetLocation
-										float Distance = FVector::Dist(Located.Location, CustomTargetLocation);
-
-										// Check if the distance is within Trace.Range
-										if (Distance <= Trace.Range)
-										{
-											Trace.TraceResult = SubjectHandle;
-										}
-									}
-								}
-							}
-						}
-
-						break;
-					}
-					case ETraceMode::SphereTraceByTraits:
-					{
-						Trace.TraceResult = FSubjectHandle();
-
-						if (LIKELY(IsValid(Trace.NeighborGrid)))
-						{
-							FFilter TargetFilter;
-							TArray<FSubjectHandle> Results;
-
-							TargetFilter.Include(Trace.IncludeTraits);
-							TargetFilter.Exclude(Trace.ExcludeTraits);
-
-							Trace.NeighborGrid->SphereExpandForSubjects(Located.Location, Trace.Range, Collider.Radius, TargetFilter, Results);
-
-							if (!Results.IsEmpty())
-							{
-								if (Results[0].IsValid())
-								{
-									Trace.TraceResult = Results[0];
-								}
-							}
-						}
-
-						break;
-					}
->>>>>>> parent of 0f9a801 (Beta.2)
 				}
 				case ETraceMode::SphereTraceByTraits:
 				{
@@ -685,7 +622,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 					else if (Attacking.Time >= Attack.DurationPerRound + Attack.CoolDown)
 					{
 						Subject.RemoveTraitDeferred<FAttacking>();// 移除攻击状态
-						Moving.KnockBackForce = FVector::ZeroVector; // 击退力清零
+						Moving.LaunchForce = FVector::ZeroVector; // 击退力清零
 					}
 
 					Attacking.Time += DeltaTime;
@@ -970,8 +907,8 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 					// 如果怪物死了，跳出循环
 					if (Health.Current <= 0) { break; }
 
-					FSubjectHandle Instigator;
-					float damageToTake;
+					FSubjectHandle Instigator = FSubjectHandle();
+					float damageToTake = 0.f;
 
 					// Queue为Mpsc不需要锁
 					Health.DamageInstigator.Dequeue(Instigator);
@@ -1117,7 +1054,6 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 			{
 				if (Dying.Time == 0)
 				{
-					Moving.Speed = 0;
 					Dying.Duration = Death.DespawnDelay;
 
 					// Stop attacking
@@ -1312,12 +1248,12 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 	}
 	#pragma endregion
 
-	// Speed Limit Override
+	// 速度覆盖
 	#pragma region
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("SpeedLimitOverride");
 
-		FFilter Filter = FFilter::Make<FCollider, FLocated, FRoadBlock>();
+		FFilter Filter = FFilter::Make<FCollider, FLocated, FSphereObstacle>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
@@ -1325,32 +1261,32 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 		Chain->OperateConcurrently(
 			[&](FCollider Collider,
 				FLocated Located,
-				FRoadBlock& RoadBlock)
+				FSphereObstacle& SphereObstacle)
 			{
 				TArray<FSubjectHandle> Results;
 
-				if (UNLIKELY(!IsValid(RoadBlock.NeighborGrid))) return;
+				if (UNLIKELY(!IsValid(SphereObstacle.NeighborGrid))) return;
 
-				if (!RoadBlock.bOverrideSpeedLimit) return;
+				if (!SphereObstacle.bOverrideSpeedLimit) return;
 
-				RoadBlock.NeighborGrid->SphereTraceForSubjects(Located.Location, Collider.Radius, FFilter::Make<FAgent, FLocated, FCollider, FMoving>(), Results);
+				SphereObstacle.NeighborGrid->SphereTraceForSubjects(Located.Location, Collider.Radius, FFilter::Make<FAgent, FLocated, FCollider, FMoving>(), Results);
 
 				if (!Results.IsEmpty())
 				{
-					RoadBlock.OverridingAgents.Append(Results);
+					SphereObstacle.OverridingAgents.Append(Results);
 				}
 
-				if (RoadBlock.OverridingAgents.IsEmpty()) return;
+				if (SphereObstacle.OverridingAgents.IsEmpty()) return;
 
-				TSet<FSubjectHandle> Agents = RoadBlock.OverridingAgents;
+				TSet<FSubjectHandle> Agents = SphereObstacle.OverridingAgents;
 
 				for (const auto& Agent : Agents)
 				{
 					if (UNLIKELY(!Agent.IsValid())) continue;
 
 					float AgentRadius = Agent.GetTrait<FCollider>().Radius;
-					float RoadBlockRadius = Collider.Radius;
-					float CombinedRadius = AgentRadius + RoadBlockRadius;
+					float SphereObstacleRadius = Collider.Radius;
+					float CombinedRadius = AgentRadius + SphereObstacleRadius;
 					FVector AgentLocation = Agent.GetTrait<FLocated>().Location;
 					float Distance = FVector::Distance(Located.Location, AgentLocation);
 
@@ -1360,7 +1296,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 					{
 						AgentMoving.Lock();
 						AgentMoving.bPushedBack = true;
-						AgentMoving.PushBackSpeedOverride = RoadBlock.NewSpeedLimit;
+						AgentMoving.PushBackSpeedOverride = SphereObstacle.NewSpeedLimit;
 						AgentMoving.Unlock();
 					}
 					else if(Distance > CombinedRadius * 1.25f)
@@ -1368,24 +1304,86 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 						AgentMoving.Lock();
 						AgentMoving.bPushedBack = false;
 						AgentMoving.Unlock();
-						RoadBlock.OverridingAgents.Remove(Agent);
+						SphereObstacle.OverridingAgents.Remove(Agent);
 					}
 				}
 			}, ThreadsCount, BatchSize);
 	}
 	#pragma endregion
 
-	// 水平运动
+	// 加载流场
+	#pragma region
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("LoadFlowfield");
+
+		FFilter Filter1 = FFilter::Make<FNavigation>();
+		auto Chain1 = Mechanism->EnchainSolid(Filter1);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain1->IterableNum(), MaxThreadsAllowed, ThreadsCount, BatchSize);
+
+		// filter out those need reload and mark them
+		Chain1->OperateConcurrently(
+			[&](FSolidSubjectHandle Subject,
+				FNavigation& Navigation)
+			{
+				Subject.SetFlag(ReloadFlowFieldFlag, false);
+
+				if (UNLIKELY(Navigation.FlowFieldToUse != Navigation.PreviousFlowFieldToUse))
+				{
+					Navigation.PreviousFlowFieldToUse = Navigation.FlowFieldToUse;
+
+					if (Navigation.FlowFieldToUse.IsValid())
+					{
+						Subject.SetFlag(ReloadFlowFieldFlag, true);
+					}
+				}
+
+			}, ThreadsCount, BatchSize);
+
+		// do reload, this only works on game thread
+		Mechanism->Operate<FUnsafeChain>(Filter1.IncludeFlag(ReloadFlowFieldFlag),
+			[&](FNavigation& Navigation)
+			{
+				Navigation.FlowField = Navigation.FlowFieldToUse.LoadSynchronous();
+			});
+
+
+		FFilter Filter2 = FFilter::Make<FBindFlowField>();
+		auto Chain2 = Mechanism->EnchainSolid(Filter2);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain2->IterableNum(), MaxThreadsAllowed, ThreadsCount, BatchSize);
+
+		Chain2->OperateConcurrently(
+			[&](FSolidSubjectHandle Subject,
+				FBindFlowField& BindFlowField)
+			{
+				Subject.SetFlag(ReloadFlowFieldFlag, false);
+
+				if (UNLIKELY(BindFlowField.FlowFieldToBind != BindFlowField.PreviousFlowFieldToBind))
+				{
+					BindFlowField.PreviousFlowFieldToBind = BindFlowField.FlowFieldToBind;
+
+					if (BindFlowField.FlowFieldToBind.IsValid())
+					{
+						Subject.SetFlag(ReloadFlowFieldFlag, true);
+					}
+				}
+
+			}, ThreadsCount, BatchSize);
+
+
+		Mechanism->Operate<FUnsafeChain>(Filter2.IncludeFlag(ReloadFlowFieldFlag),
+			[&](FBindFlowField& BindFlowField)
+			{
+				BindFlowField.FlowField = BindFlowField.FlowFieldToBind.LoadSynchronous();
+			});
+	}
+	#pragma endregion
+
+	// 移动
 	#pragma region
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentMovement");
 
-<<<<<<< HEAD
 		FFilter Filter = FFilter::Make<FAgent, FRendering, FAnimation, FMove, FMoving, FDirected, FLocated, FAttack, FTrace, FNavigation, FAvoidance, FCollider, FDefence>();
-=======
-		// 初始化过滤器
-		FFilter Filter = FFilter::Make<FAgent, FRendering, FAnimation, FMove, FMoving, FDirected, FLocated, FAttack, FTrace, FNavigation,FAvoidance>();
->>>>>>> parent of 0f9a801 (Beta.2)
 		Filter.Exclude<FAppearing>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
@@ -1401,12 +1399,20 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 				FAttack& Attack,
 				FTrace& Trace,
 				FNavigation& Navigation,
-				FAvoidance& Avoidance)
+				FAvoidance& Avoidance,
+				FCollider& Collider,
+				FDefence& Defence)
 			{
 				if (!Move.bEnable) return;
 
+				// 死亡区域检测
+				if (Located.Location.Z < Move.KillZ)
+				{
+					Subject.DespawnDeferred();
+					return;
+				}
+
 				// 位置和方向初始化
-<<<<<<< HEAD
 				FVector& AgentLocation = Located.Location;
 				FVector GoalLocation = AgentLocation;
 
@@ -1422,17 +1428,9 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 				const bool bIsAttacking = Subject.HasTrait<FAttacking>();
 				const bool bIsFreezing = Subject.HasTrait<FFreezing>();
 				const bool bIsDying = Subject.HasTrait<FDying>();
-=======
-				const FVector& AgentLocation = Located.Location;
-				FVector DesiredDirection = Directed.Direction;
-				FVector GoalLocation = AgentLocation;
-				float DesiredSpeed = Move.Speed;
-				ERotationMode RotationMode = Move.RotationMode;
->>>>>>> parent of 0f9a801 (Beta.2)
 
-				//--------------------------- 目标点 --------------------------//
+				//----------------------------- 寻路 ----------------------------//
 
-<<<<<<< HEAD
 				// Lambda to handle direct approach logic WIP add individual navigation in here
 				auto TryApproachDirectly = [&]()
 				{
@@ -1463,13 +1461,9 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 				}
 
 				if (Trace.TraceResult.IsValid()) // 有目标，目标有指向目标自己的流场
-=======
-				if (LIKELY(Trace.TraceResult.IsValid())) // 追踪目标优先
->>>>>>> parent of 0f9a801 (Beta.2)
 				{
-					if (LIKELY(Trace.TraceResult.HasTrait<FLocated>()))
+					if (Trace.TraceResult.HasTrait<FBindFlowField>())
 					{
-<<<<<<< HEAD
 						FBindFlowField BindFlowField = Trace.TraceResult.GetTrait<FBindFlowField>();
 
 						if (IsValid(BindFlowField.FlowField)) // 从目标获取指向目标的流场
@@ -1490,18 +1484,12 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 						{
 							TryApproachDirectly();
 						}
-=======
-						RotationMode = ERotationMode::VelocityFollowRotation;
-						GoalLocation = Trace.TraceResult.GetTrait<FLocated>().Location;
-						DesiredDirection = (GoalLocation - AgentLocation).GetSafeNormal2D();
->>>>>>> parent of 0f9a801 (Beta.2)
 					}
 					else
 					{
-						DesiredSpeed = 0; // 获取不到目标位置，这是误操作，不移动
+						TryApproachDirectly();
 					}
 				}
-<<<<<<< HEAD
 
 				//--------------------------- 计算水平速度 ----------------------------//
 
@@ -1523,30 +1511,8 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 
 					Moving.LaunchForce = FVector::ZeroVector;
 					Moving.bLaunching = false;
-=======
-				else if (LIKELY(IsValid(Navigation.FlowField))) // 有流场就按流场走
-				{
-					bool bInside;
-					FCellStruct Cell;
-					Navigation.FlowField->GetCellAtLocation(AgentLocation, bInside, Cell);
-
-					if (LIKELY(bInside))
-					{
-						GoalLocation = Navigation.FlowField->goalLocation;
-						DesiredDirection = Cell.dir.GetSafeNormal2D();
-					}
-					else
-					{
-						DesiredSpeed = 0;// 在流场外面，流场不够大，是误操作，不移动
-					}
->>>>>>> parent of 0f9a801 (Beta.2)
-				}
-				else // 既没有目标，又没有流场，不移动
-				{
-					DesiredSpeed = 0;
 				}
 
-<<<<<<< HEAD
 				// 夹角
 				const FVector CurrentDir2D = Moving.CurrentVelocity.GetSafeNormal2D();
 				const FVector DesiredDir2D = Moving.DesiredVelocity.GetSafeNormal2D();
@@ -1562,28 +1528,12 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 				if (UNLIKELY(bIsDying) || UNLIKELY(Moving.bFalling))
 				{
 					// 保持当前方向
-=======
-				//--------------------------- 移动方向计算 ------------------------//
-
-				const bool bIsAttacking = Subject.HasTrait<FAttacking>();
-				const bool bIsFreezing = Subject.HasTrait<FFreezing>();
-				const bool bIsDying = Subject.HasTrait<FDying>();
-
-				if (UNLIKELY(Moving.bKnockedBack || bIsDying))
-				{
-					// 被击退或死亡时保持方向
-					Moving.Direction = Directed.Direction;
->>>>>>> parent of 0f9a801 (Beta.2)
 				}
 				else if (UNLIKELY(bIsAttacking))
 				{
 					if (Subject.GetTrait<FAttacking>().State != EAttackState::Cooling)
 					{
-<<<<<<< HEAD
 						// 保持当前方向
-=======
-						Moving.Direction = Directed.Direction;
->>>>>>> parent of 0f9a801 (Beta.2)
 					}
 				}
 				else // 常规转向逻辑
@@ -1601,15 +1551,9 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 
 					if (AngleDegrees < 90.f && DeltaV > 100.f)//一致，朝向实际移动的方向
 					{
-<<<<<<< HEAD
 						const FRotator CurrentRot = Directed.Direction.ToOrientationRotator();
 						const FRotator DesiredRot = Moving.CurrentVelocity.GetSafeNormal2D().ToOrientationRotator();//the current velocity direction
 						const FRotator InterpolatedRot = FMath::RInterpTo(CurrentRot, DesiredRot, DeltaTime, Move.TurnSpeed * SlowFactor);
-=======
-						case ERotationMode::RotationFollowVelocity:
-						{
-							Moving.Direction = DesiredDirection;
->>>>>>> parent of 0f9a801 (Beta.2)
 
 						Directed.Direction = InterpolatedRot.Vector();
 					}
@@ -1619,61 +1563,12 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 						const FRotator DesiredRot = DesiredMoveDirection.GetSafeNormal2D().ToOrientationRotator();
 						const FRotator InterpolatedRot = FMath::RInterpTo(CurrentRot, DesiredRot, DeltaTime, Move.TurnSpeed * SlowFactor);
 
-<<<<<<< HEAD
 						Directed.Direction = InterpolatedRot.Vector();
 						DesiredMoveDirection = Directed.Direction;
 					}
 				}
 
 				// 减速
-=======
-							const FRotator InterpolatedRot = FMath::RInterpTo(
-								CurrentRot,
-								DesiredRot,
-								DeltaTime,
-								Move.RotationSpeed_Yaw * SlowFactor
-							);
-
-							Directed.Direction = InterpolatedRot.Vector();
-							break;
-						}
-
-						case ERotationMode::VelocityFollowRotation:
-						{
-							// 将方向转换为Yaw角度进行插值
-							const FRotator CurrentRot = Directed.Direction.ToOrientationRotator();
-							const FRotator DesiredRot = DesiredDirection.ToOrientationRotator();
-
-							// 使用角度插值（自动处理360度环绕）
-							const FRotator InterpolatedRot = FMath::RInterpTo(
-								CurrentRot,
-								DesiredRot,
-								DeltaTime,
-								Move.RotationSpeed_Yaw * SlowFactor
-							);
-
-							// 将插值后的角度转换回方向向量
-							Directed.Direction = InterpolatedRot.Vector();
-							Moving.Direction = Directed.Direction;
-							break;
-						}
-					}
-				}
-
-				//--------------------------- 速度计算 --------------------------//
-
-				// 根据离目标距离不同加减速
-				const float DistanceToGoal = FVector::Dist2D(AgentLocation, GoalLocation);
-
-				if (LIKELY(DistanceToGoal > Attack.Range))
-				{
-					const TRange<float> InputRange(Move.SpeedDistRangeMap.Y, Move.SpeedDistRangeMap.W);
-					const TRange<float> OutputRange(Move.SpeedDistRangeMap.X, Move.SpeedDistRangeMap.Z);
-
-					DesiredSpeed *= FMath::GetMappedRangeValueClamped(InputRange, OutputRange, DistanceToGoal);
-				}
-
->>>>>>> parent of 0f9a801 (Beta.2)
 				if (UNLIKELY(bIsAttacking || bIsDying))
 				{
 					Moving.SpeedMult = 0.0f; // 攻击或死亡时停止
@@ -1688,36 +1583,19 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 					}
 				}
 
-<<<<<<< HEAD
 				// 速度-距离曲线
 				float OtherRadius = Trace.TraceResult.HasTrait<FCollider>() ? Trace.TraceResult.GetTrait<FCollider>().Radius : 0;
 				const float DistanceToGoal = FMath::Clamp(FVector::Dist2D(AgentLocation, GoalLocation) - OtherRadius, 0, FLT_MAX);
 				const TRange<float> MoveInputRange(Move.MoveSpeedRangeMap.Y, Move.MoveSpeedRangeMap.W);
 				const TRange<float> MoveOutputRange(Move.MoveSpeedRangeMap.X, Move.MoveSpeedRangeMap.Z);
 				Moving.SpeedMult *= FMath::GetMappedRangeValueClamped(MoveInputRange, MoveOutputRange, DistanceToGoal);
-=======
-				// 计算当前方向与目标方向的夹角
-				float Angle = FMath::Acos(FVector::DotProduct(Directed.Direction, DesiredDirection));
-				float AngleDegrees = FMath::RadiansToDegrees(Angle);
-
-				// 根据方向角调整速度，急转弯可以掉速度
-				const TRange<float> InputRange(Move.SpeedTurnRangeMap.Y, Move.SpeedTurnRangeMap.W);
-				const TRange<float> OutputRange(Move.SpeedTurnRangeMap.X, Move.SpeedTurnRangeMap.Z);
-
-				DesiredSpeed *= FMath::GetMappedRangeValueClamped(InputRange, OutputRange, AngleDegrees);
-
-				// 速度插值，平滑速度变化
-				Moving.Speed = FMath::FInterpTo(Moving.Speed, DesiredSpeed, DeltaTime, (DesiredSpeed > Moving.Speed) ? Move.Acceleration : Move.BrakeDeceleration);
->>>>>>> parent of 0f9a801 (Beta.2)
 
 				// 想要达到的理想速度
 				FVector DesiredVelocity = Moving.SpeedMult * Move.MoveSpeed * DesiredMoveDirection;
 				Moving.DesiredVelocity = FVector(DesiredVelocity.X, DesiredVelocity.Y, 0);
 
-				//--------------------------- 物理效果 --------------------------//
-				constexpr float BASE_TICK_TIME = 0.01667f; // 60Hz基准时间
+				//---------------------------计算垂直速度-------------------------//
 
-<<<<<<< HEAD
 				if (IsValid(Navigation.FlowField))// 没有流场则跳过，因为不知道地面高度，所以不考虑垂直运动
 				{
 					// 寻找最高地面
@@ -1760,40 +1638,9 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 						// 计算投影高度
 						const float PlaneD = -FVector::DotProduct(HighestGroundNormal, HighestGroundLocation);
 						const float GroundHeight = (-PlaneD - HighestGroundNormal.X * AgentLocation.X - HighestGroundNormal.Y * AgentLocation.Y) / HighestGroundNormal.Z;
-=======
-				if (LIKELY(!Moving.bFalling))
-				{
-					Moving.Velocity = Moving.Direction * Moving.Speed;
 
-					// 助推力衰减
-					if (Moving.bLaunching)
-					{
-						constexpr float LAUNCH_DECAY_RATE = 0.9f;
-						const float DecayFactor = FMath::Pow(LAUNCH_DECAY_RATE, DeltaTime / BASE_TICK_TIME);
-
-						Moving.Velocity += Moving.LaunchForce;
-						Moving.LaunchForce *= DecayFactor;
-
-						if (Moving.LaunchForce.SizeSquared() < FMath::Square(100.0f))
+						if (Move.bCanFly)
 						{
-							Moving.bLaunching = false;;
-							Moving.LaunchForce = FVector::ZeroVector;
-						}
-					}
-
-					// 击退力衰减
-					if (Moving.bKnockedBack)
-					{
-						constexpr float KNOCKBACK_DECAY_RATE = 0.9f;
-						const float DecayFactor = FMath::Pow(KNOCKBACK_DECAY_RATE, DeltaTime / BASE_TICK_TIME);
-
-						Moving.Velocity += FVector(Moving.KnockBackForce.X, Moving.KnockBackForce.Y, 0.0f);
-						Moving.KnockBackForce *= DecayFactor;
->>>>>>> parent of 0f9a801 (Beta.2)
-
-						if (Moving.KnockBackForce.SizeSquared() < FMath::Square(100.0f))
-						{
-<<<<<<< HEAD
 							Moving.CurrentVelocity.Z += FMath::Clamp(Moving.FlyingHeight + GroundHeight - AgentLocation.Z, -100, 100);//fly at a certain height above ground
 							Moving.CurrentVelocity.Z *= 0.9f;
 						}
@@ -1845,15 +1692,10 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 							{
 								Moving.bFalling = true;
 							}
-=======
-							Moving.bKnockedBack = false;
-							Moving.KnockBackForce = FVector::ZeroVector;
->>>>>>> parent of 0f9a801 (Beta.2)
 						}
 					}
 				}
 				else
-<<<<<<< HEAD
 				{
 					Moving.CurrentVelocity.Z = 0;
 				}
@@ -1874,27 +1716,6 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 					float XYSpeed = Moving.CurrentVelocity.Size();
 					XYSpeed = FMath::Clamp(XYSpeed - Move.Deceleration_Air * DeltaTime, 0, XYSpeed);
 					Moving.CurrentVelocity = XYDir * XYSpeed;
-=======
-				{
-					// 空气阻力
-					constexpr float AIR_DECAY_RATE = 0.99f;
-					const float DecayFactor = FMath::Pow(AIR_DECAY_RATE, DeltaTime / BASE_TICK_TIME);
-					Moving.Velocity.X *= DecayFactor;
-					Moving.Velocity.Y *= DecayFactor;
-				}
-
-				//--------------------------- 动画控制 --------------------------//
-
-				float Speed = (Located.Location - Located.preLocation).Size2D() / DeltaTime;
-
-				if (LIKELY(!bIsAttacking && !bIsDying))
-				{
-					Animation.SubjectState = (Speed > 10.f) ? ESubjectState::Moving : ESubjectState::Idle;// switch between idle and move based on speed(ignore small value)
-				}
-				else if (bIsDying && Speed < 100.f && !Subject.HasTrait<FStatic>())
-				{
-					Subject.SetTraitDeferred(FStatic{});
->>>>>>> parent of 0f9a801 (Beta.2)
 				}
 
 			}, ThreadsCount, BatchSize);
@@ -1904,192 +1725,44 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 	// 碰撞与避障
 	#pragma region
 	{
-<<<<<<< HEAD
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("Avoidance");// agent only do avoidance in xy, not z
-=======
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("RVO2");
->>>>>>> parent of 0f9a801 (Beta.2)
 		NeighborGrid->Evaluate();
 	}
 	#pragma endregion
 
-	// 垂直运动
+	// 移动动画
 	#pragma region
 	{
-<<<<<<< HEAD
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("IdleToMoveAnim");
 
 		// 初始化过滤器
 		FFilter Filter = FFilter::Make<FAgent, FAnimation, FMoving, FDeath>();
-=======
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentZMovement");
-
-		// 初始化过滤器
-		FFilter Filter = FFilter::Make<FAgent, FRendering, FMove, FMoving, FDirected, FLocated, FCollider, FNavigation>();
->>>>>>> parent of 0f9a801 (Beta.2)
 		Filter.Exclude<FAppearing>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
-<<<<<<< HEAD
 				FAnimation& Animation,
 				FMoving& Moving,
 				FDeath& Death)
-=======
-				FMove& Move,
-				FMoving& Moving,
-				FDirected& Directed,
-				FLocated& Located,
-				FCollider& Collider,
-				FNavigation& Navigation)
->>>>>>> parent of 0f9a801 (Beta.2)
 			{
-				if (!Move.bEnable) return;
+				const bool bIsAttacking = Subject.HasTrait<FAttacking>();
+				const bool bIsDying = Subject.HasTrait<FDying>();
 
-				//--------------------------- 基础检查 --------------------------//
-				
-				// 死亡区域检测
-				if (Located.Location.Z < Move.KillZ)
+				float RealSpeed2D = Moving.CurrentVelocity.Size2D();
+
+				if (LIKELY(!bIsAttacking && !bIsDying))
 				{
-					Subject.DespawnDeferred();
-					return;
-				}
-
-				// 飞行单位跳过处理
-				if (Move.bCanFly) return;
-
-				//--------------------------- 流场数据准备 ------------------------//
-
-				if (!IsValid(Navigation.FlowField))
-				{
-<<<<<<< HEAD
 					Animation.SubjectState = (RealSpeed2D > Animation.UseMoveAnimAboveSpeed) ? ESubjectState::Moving : ESubjectState::Idle;// switch between idle and move based on speed(ignore small value)
 				}
 				else if (bIsDying && RealSpeed2D < 100.f && Death.bDisableCollision && !Subject.HasTrait<FCorpse>())
-=======
-					if (Navigation.FlowFieldActor)
-					{
-						Navigation.FlowField = Navigation.FlowFieldActor.LoadSynchronous();
-						return;
-					}
-					else
-					{
-						return;
-					}
-				}
-
-				// 计算流场基准位置
-				const FVector FlowFieldOrigin = Navigation.FlowField->GetActorLocation() - FVector(Navigation.FlowField->flowFieldSize.X / 2, Navigation.FlowField->flowFieldSize.Y / 2, 0);
-
-				// 碰撞参数
-				const float CellSize = Navigation.FlowField->cellSize;
-				const float ColliderRadius = Collider.Radius;
-				const FVector CurrentLocation = Located.Location;
-
-				//--------------------------- 地面检测 --------------------------//
-
-				// 计算检测范围
-				const FVector LocalOffset = CurrentLocation - FlowFieldOrigin;
-
-				const int32 MinX = FMath::Clamp(FMath::RoundToInt((LocalOffset.X - CellSize / 2 - ColliderRadius) / CellSize), 0, Navigation.FlowField->xNum - 1);
-				const int32 MaxX = FMath::Clamp(FMath::RoundToInt((LocalOffset.X - CellSize / 2 + ColliderRadius) / CellSize), 0, Navigation.FlowField->xNum - 1);
-				const int32 MinY = FMath::Clamp(FMath::RoundToInt((LocalOffset.Y - CellSize / 2 - ColliderRadius) / CellSize), 0, Navigation.FlowField->yNum - 1);
-				const int32 MaxY = FMath::Clamp(FMath::RoundToInt((LocalOffset.Y - CellSize / 2 + ColliderRadius) / CellSize), 0, Navigation.FlowField->yNum - 1);
-
-				// 寻找最高地面
-				TOptional<FVector> HighestGroundLocation;
-				FVector HighestGroundNormal = FVector::UpVector;
-
-				for (int32 X = MinX; X <= MaxX; ++X)
->>>>>>> parent of 0f9a801 (Beta.2)
 				{
-					for (int32 Y = MinY; Y <= MaxY; ++Y)
-					{
-						const FCellStruct& Cell = Navigation.FlowField->InitialCellsMap[FVector2D(X, Y)];
-						if (!HighestGroundLocation.IsSet() || Cell.worldLoc.Z > HighestGroundLocation->Z)
-						{
-							HighestGroundLocation = Cell.worldLoc;
-							HighestGroundNormal = Cell.normal;
-						}
-					}
+					Subject.SetTraitDeferred(FCorpse{});
 				}
-
-				//--------------------------- 运动计算 --------------------------//
-
-				const FVector Velocity = (CurrentLocation - Located.preLocation) / DeltaTime;
-				FVector NewLocation = CurrentLocation;
-
-				if (HighestGroundLocation.IsSet())
-				{
-					const FVector& GroundLocation = HighestGroundLocation.GetValue();
-					const FVector& GroundNormal = HighestGroundNormal;
-
-					// 计算投影高度
-					const FVector ProjectionPlanePoint(GroundLocation.X, GroundLocation.Y, 0);
-					const float PlaneD = -FVector::DotProduct(GroundNormal, ProjectionPlanePoint);
-					const float GroundHeight = (-PlaneD - GroundNormal.X * CurrentLocation.X - GroundNormal.Y * CurrentLocation.Y) / GroundNormal.Z;
-					const float CollisionThreshold = GroundHeight + ColliderRadius;
-
-					// 高度状态判断
-					if (CurrentLocation.Z > CollisionThreshold)
-					{
-						// 进入/保持下落状态
-						if (!Moving.bFalling)
-						{
-							Moving.bFalling = true;
-							Moving.Velocity = Velocity;
-						}
-
-						// 应用重力
-						Moving.Velocity.Z += Move.Gravity * DeltaTime;
-						NewLocation.Z += Moving.Velocity.Z * DeltaTime;
-					}
-					else
-					{
-						// 地面接触处理
-						const float GroundContactThreshold = GroundHeight - ColliderRadius;
-						const bool bIsInContactRange = CurrentLocation.Z > GroundContactThreshold;
-
-						if (bIsInContactRange)
-						{
-							// 平滑着陆
-							NewLocation.Z = FMath::FInterpTo(CurrentLocation.Z, CollisionThreshold, DeltaTime, 35.0f);
-
-							// 着陆状态切换
-							if (Moving.bFalling)
-							{
-								Moving.bFalling = false;
-								Moving.Velocity.Z = 0;
-							}
-						}
-						else
-						{
-							Subject.DespawnDeferred();
-						}
-					}
-				}
-				else
-				{
-					// 无地面参照时的自由下落
-					if (!Moving.bFalling)
-					{
-						Moving.bFalling = true;
-						Moving.Velocity = Velocity;
-					}
-
-					Moving.Velocity.Z += Move.Gravity * DeltaTime;
-					NewLocation.Z += Moving.Velocity.Z * DeltaTime;
-				}
-
-				// 更新最终位置
-				Located.Location = NewLocation;
 
 			}, ThreadsCount, BatchSize);
-
-		Mechanism->ApplyDeferreds();
 	}
 	#pragma endregion
 
@@ -2162,7 +1835,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 	#pragma region
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentStateMachine");
-		static const auto Filter = FFilter::Make<FAgent, FAnimation, FRendering, FAppear, FAttack, FDeath>();
+		static const auto Filter = FFilter::Make<FAgent, FAnimation, FRendering, FAppear, FAttack, FDeath,FMoving>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
@@ -2172,7 +1845,8 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 				FAnimation& Anim,
 				FAppear& Appear,
 				FAttack& Attack,
-				FDeath& Death)
+				FDeath& Death,
+				FMoving& Moving)
 			{
 				if (Anim.SubjectState != Anim.PreviousSubjectState && Anim.AnimLerp == 1)
 				{
@@ -2682,18 +2356,16 @@ FResult ABattleFrameGameMode::ApplyDamageToSubjects(const TArray<FSubjectHandle>
 				{
 					auto& Moving = Overlapper.GetTraitRef<FMoving, EParadigm::Unsafe>();
 					const auto& Move = Overlapper.GetTraitRef<FMove, EParadigm::Unsafe>();
-					FVector KnockbackForce = Debuff.KnockbackSpeed * HitDirection * KineticDebuffMult;
-					FVector CombinedForce = Moving.KnockBackForce + KnockbackForce;
-					FVector CombinedDirection = CombinedForce.GetSafeNormal2D();
-					float CombinedSize = FMath::Clamp(CombinedForce.Size2D(), 0, Move.MaxImpulse);
+					FVector KnockbackForce = (FVector(Debuff.KnockbackSpeed.X, Debuff.KnockbackSpeed.X, 1) * HitDirection + FVector(0,0, Debuff.KnockbackSpeed.Y)) * KineticDebuffMult;
+					FVector CombinedForce = Moving.LaunchForce + KnockbackForce;
 
 					Moving.Lock();
-					Moving.KnockBackForce = CombinedDirection * CombinedSize; // 累加击退力
+					Moving.LaunchForce += KnockbackForce; // 累加击退力
 					Moving.Unlock();
 
-					if (Moving.KnockBackForce.Size2D() > 100.f)
+					if (Moving.LaunchForce.Size() > 0.f)
 					{
-						Moving.bKnockedBack = true;
+						Moving.bLaunching = true;
 					}
 				}
 			}

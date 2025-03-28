@@ -120,7 +120,7 @@ public:
 		int32 team = 0,
 		FVector origin = FVector::ZeroVector,
 		FVector2D region = FVector2D(0.f, 0.f),
-		float LaunchForce = 0.f,
+		FVector2D LaunchForce = FVector2D(0,0),
 		EInitialDirection initialDirection = EInitialDirection::FacePlayer,
 		FVector FaceCustomLocation = FVector::ZeroVector,
 		FSpawnerMult Multipliers = FSpawnerMult()

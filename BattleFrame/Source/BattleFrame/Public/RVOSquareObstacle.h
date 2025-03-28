@@ -12,7 +12,7 @@
 #include "Components/BoxComponent.h"
 #include "SubjectiveActorComponent.h"
 #include "Traits/Avoidance.h"
-#include "Traits/RVOObstacle.h"
+#include "Traits/BoxObstacle.h"
 #include "Traits/Located.h"
 #include "RVOSquareObstacle.generated.h"
  

@@ -23,7 +23,7 @@ void ARVOSphereObstacle::BeginPlay()
 	FSubjectRecord Template;
 	Template.SetTrait(FLocated{});
 	Template.SetTrait(FCollider{});
-	Template.SetTrait(FRoadBlock{});
+	Template.SetTrait(FSphereObstacle{});
 	Template.SetTrait(FAvoidance{});
 	Template.SetTrait(FRegisterMultiple{});
 
@@ -33,8 +33,8 @@ void ARVOSphereObstacle::BeginPlay()
 	Template.GetTraitRef<FLocated>().Location = Location;
 	Template.GetTraitRef<FLocated>().preLocation = Location;
 	Template.GetTraitRef<FCollider>().Radius = Radius;
-	Template.GetTraitRef<FRoadBlock>().bOverrideSpeedLimit = bOverrideSpeedLimit;
-	Template.GetTraitRef<FRoadBlock>().NewSpeedLimit = NewSpeedLimit;
+	Template.GetTraitRef<FSphereObstacle>().bOverrideSpeedLimit = bOverrideSpeedLimit;
+	Template.GetTraitRef<FSphereObstacle>().NewSpeedLimit = NewSpeedLimit;
 	Template.GetTraitRef<FAvoidance>().Radius = Radius;
 	Template.GetTraitRef<FAvoidance>().Position = RVO::Vector2(Location.X, Location.Y);
 
@@ -58,8 +58,8 @@ void ARVOSphereObstacle::Tick(float DeltaTime)
 		SubjectHandle.GetTraitRef<FLocated, EParadigm::Unsafe>().Location = Location;
 		SubjectHandle.GetTraitRef<FLocated, EParadigm::Unsafe>().preLocation = Location;
 		SubjectHandle.GetTraitRef<FCollider, EParadigm::Unsafe>().Radius = Radius;
-		SubjectHandle.GetTraitRef<FRoadBlock, EParadigm::Unsafe>().bOverrideSpeedLimit = bOverrideSpeedLimit;
-		SubjectHandle.GetTraitRef<FRoadBlock, EParadigm::Unsafe>().NewSpeedLimit = NewSpeedLimit;
+		SubjectHandle.GetTraitRef<FSphereObstacle, EParadigm::Unsafe>().bOverrideSpeedLimit = bOverrideSpeedLimit;
+		SubjectHandle.GetTraitRef<FSphereObstacle, EParadigm::Unsafe>().NewSpeedLimit = NewSpeedLimit;
 		SubjectHandle.GetTraitRef<FAvoidance, EParadigm::Unsafe>().Radius = Radius;
 		SubjectHandle.GetTraitRef<FAvoidance, EParadigm::Unsafe>().Position = RVO::Vector2(Location.X, Location.Y);
 	}

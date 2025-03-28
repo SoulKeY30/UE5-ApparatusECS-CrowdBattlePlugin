@@ -84,12 +84,8 @@ public:
 	UNeighborGridComponent* NeighborGrid = nullptr;
 	TQueue<TSoftObjectPtr<USoundBase>, EQueueMode::Mpsc> SoundsToPlay;
 	TQueue<float> VolumesToPlay;
-<<<<<<< HEAD
 	EFlagmarkBit ReloadFlowFieldFlag = EFlagmarkBit::R;
 	EFlagmarkBit TracingFlag = EFlagmarkBit::T;
-=======
-
->>>>>>> parent of 0f9a801 (Beta.2)
 
 public:
 

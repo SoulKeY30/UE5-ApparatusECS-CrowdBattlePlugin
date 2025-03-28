@@ -11,8 +11,10 @@ struct BATTLEFRAME_API FNavigation
 
 public:
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Navigation", meta = (Tooltip = "流场Actor的软引用，用于导航"))
-	TSoftObjectPtr<AFlowField> FlowFieldActor;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Navigation", meta = (Tooltip = "没有目标时按该流场移动"))
+	TSoftObjectPtr<AFlowField> FlowFieldToUse;
+
+	TSoftObjectPtr<AFlowField> PreviousFlowFieldToUse;
 
 	AFlowField* FlowField = nullptr;
 };

@@ -7,7 +7,6 @@
 #include "AgentSpawner.h"
 #include "Traits/Directed.h"
 #include "Traits/Damage.h"
-#include "Traits/Navigation.h"
 #include "Traits/Collider.h"
 #include "Traits/Located.h"
 #include "Traits/SubType.h"
@@ -20,7 +19,6 @@
 #include "Traits/TextPopUp.h"
 #include "Traits/Animation.h"
 #include "Traits/Appear.h"
-#include "Traits/Team.h"
 #include "Traits/Tracing.h"
 #include "Traits/RegisterMultiple.h"
 #include "AnimToTextureDataAsset.h"
@@ -47,7 +45,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     int32 Team,
     FVector Origin,
     FVector2D Region,
-    float LaunchForce,
+    FVector2D LaunchForce,
     EInitialDirection InitialDirection,
     FVector FaceCustomLocation,
     FSpawnerMult Multipliers
@@ -109,17 +107,11 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     AgentConfig.SetTrait(DataAsset->Sound);
     AgentConfig.SetTrait(DataAsset->SpawnActor);
     AgentConfig.SetTrait(DataAsset->Curves);
-<<<<<<< HEAD
     //AgentConfig.SetTrait(DataAsset->Statistics);
-=======
->>>>>>> parent of 0f9a801 (Beta.2)
 
     AgentConfig.SetTrait(FTracing{});
 
     UBattleFrameFunctionLibraryRT::SetSubTypeTraitByIndex(DataAsset->SubType.Index, AgentConfig);
-
-    auto& SourceNavigation = AgentConfig.GetTraitRef<FNavigation>();
-    SourceNavigation.FlowField = AgentConfig.GetTraitRef<FNavigation>().FlowFieldActor.LoadSynchronous(); // FlowField Solid Pointer
 
     auto& SourceAnimation = AgentConfig.GetTraitRef<FAnimation>();
     SourceAnimation.AnimToTextureData = SourceAnimation.AnimToTextureDataAsset.LoadSynchronous(); // DataAsset Solid Pointer
@@ -154,7 +146,6 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
 
     auto& Damage = AgentConfig.GetTraitRef<FDamage>();
     Damage.Damage *= Multipliers.DamageMult;
-    //UE_LOG(LogTemp, Log, TEXT("Damage %d"), Damage.Damage);
 
     auto& ScaledTrait = AgentConfig.GetTraitRef<FScaled>();
     ScaledTrait.Factors *= Multipliers.ScaleMult;
@@ -172,39 +163,9 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
         Animation.Dissolve = 0;
     }
 
-    switch (FMath::Clamp(Team, 0, 9))
-    {
-        case 0:
-            AgentConfig.SetTrait(FTeam0{});
-            break;
-        case 1:
-            AgentConfig.SetTrait(FTeam1{});
-            break;
-        case 2:
-            AgentConfig.SetTrait(FTeam2{});
-            break;
-        case 3:
-            AgentConfig.SetTrait(FTeam3{});
-            break;
-        case 4:
-            AgentConfig.SetTrait(FTeam4{});
-            break;
-        case 5:
-            AgentConfig.SetTrait(FTeam5{});
-            break;
-        case 6:
-            AgentConfig.SetTrait(FTeam6{});
-            break;
-        case 7:
-            AgentConfig.SetTrait(FTeam7{});
-            break;
-        case 8:
-            AgentConfig.SetTrait(FTeam8{});
-            break;
-        case 9:
-            AgentConfig.SetTrait(FTeam9{});
-            break;
-    }
+    UBattleFrameFunctionLibraryRT::SetTeamTraitByIndex(FMath::Clamp(Team, 0, 9), AgentConfig);
+
+    UBattleFrameFunctionLibraryRT::SetAvoGroupTraitByIndex(FMath::Clamp(DataAsset->Avoidance.Group, 0, 9), AgentConfig);
 
     while (SpawnedAgents.Num() < Quantity)// the following traits varies from agent to agent
     {
@@ -227,9 +188,13 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
         FVector SpawnPoint3D;
         auto& Move = Config.GetTraitRef<FMove>();
 
+        Config.SetTrait(FMoving{});
+        auto& Moving = Config.GetTraitRef<FMoving>();
+
         if (Move.bCanFly)
         {
-            SpawnPoint3D = FVector(SpawnPoint2D.X, SpawnPoint2D.Y, FMath::RandRange(Move.FlyHeightRange.X, Move.FlyHeightRange.Y));
+            Moving.FlyingHeight = FMath::RandRange(Move.FlyHeightRange.X, Move.FlyHeightRange.Y);
+            SpawnPoint3D = FVector(SpawnPoint2D.X, SpawnPoint2D.Y, Moving.FlyingHeight + GetActorLocation().Z);
         }
         else
         {
@@ -279,13 +244,9 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
 
         Move.MoveSpeed *= Multipliers.SpeedMult;
 
-        Config.SetTrait(FMoving{});
-        auto& Moving = Config.GetTraitRef<FMoving>();
-
-        if (LaunchForce > 0)
-        {
-            Moving.LaunchForce = Direction * LaunchForce;
-            Moving.Velocity += Moving.LaunchForce;
+        if (LaunchForce.Size() > 0)
+        {         
+            Moving.LaunchForce = Direction * LaunchForce.X + Direction.UpVector * LaunchForce.Y;
             Moving.bLaunching = true;
         }
 

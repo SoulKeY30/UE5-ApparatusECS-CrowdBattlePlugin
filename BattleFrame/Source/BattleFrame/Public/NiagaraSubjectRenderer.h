@@ -61,8 +61,10 @@ class BATTLEFRAME_API ANiagaraSubjectRenderer : public AActor
 public:	
     // Constructors and Lifecycle
     ANiagaraSubjectRenderer();
+
     virtual void Tick(float DeltaTime) override;
     virtual void BeginPlay() override;
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
     
     // Public Methods
     void Register();
@@ -96,17 +98,10 @@ public:
     bool TickEnabled = false;
     bool isActive = false;
 
-    // Performance Settings
-    //UPROPERTY(EditAnywhere, Category = Performance)
-    //int32 CurrentThreadsCount = 8;
-
-    //UPROPERTY(EditAnywhere, Category = Performance)
-    //int32 CurrentBatchSize = 1;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Performance)
     int32 NumRenderBatch = 4;
 
-    //UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Performance)
     int32 RAMReserve = 5000;
 
     UNiagaraComponent* SpawnedNiagaraSystem;
@@ -122,5 +117,5 @@ public:
 
     int64 BatchSelector = 0;
 
-
+    float IdleCheckTimer = 3;
 };

@@ -16,8 +16,8 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "是否可以将目标击退"))
 	bool bCanKnockback = false;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "击退的速度与方向"))
-	float KnockbackSpeed = 0;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "击退的速度,分为XY与Z"))
+	FVector2D KnockbackSpeed = FVector2D(0,0);
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "是否可以造成延时伤害"))
 	bool bCanBurn = false;

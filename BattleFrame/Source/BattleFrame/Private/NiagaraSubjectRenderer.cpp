@@ -23,6 +23,19 @@ void ANiagaraSubjectRenderer::BeginPlay()
 	Super::BeginPlay();
 }
 
+void ANiagaraSubjectRenderer::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	for (FSubjectHandle Subject : SpawnedRendererSubjects)
+	{
+		Subject->Despawn();
+	}
+
+	for (UNiagaraComponent* System : SpawnedNiagaraSystems)
+	{
+		System->DestroyComponent();
+	}
+}
+
 // Called every frame
 void ANiagaraSubjectRenderer::Tick(float DeltaTime)
 {
@@ -41,6 +54,19 @@ void ANiagaraSubjectRenderer::Tick(float DeltaTime)
 		else
 		{
 			Register();
+
+			// remove if no agent to render.
+			if (IdleCheckTimer -= DeltaTime <= 0)
+			{
+				if (IdleCheck())
+				{
+					Destroy();
+				}
+				else
+				{
+					IdleCheckTimer = 1;
+				}
+			}
 		}
 	}
 }
