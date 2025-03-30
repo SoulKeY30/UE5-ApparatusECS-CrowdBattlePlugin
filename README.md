@@ -22,6 +22,13 @@ THis plugin includes an editor utility widget that allows users to set up a new 
 
 Open for suggestions! Any bug reports or optimization suggestions are welcomed whole heartedly!
 
+-------------------------------------
+Coming Next...
+1.2d atlas renderer and converter
+2.agent individual navigation
+
+
+
 请使用Release版本beta.4, 该版本是最新的。
 
 本项目为测试版本，因此可能会出现一些错误。
