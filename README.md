@@ -2,7 +2,7 @@ Please use the release version beta.4, which is up to date.
 
 This project is the beta version, so bugs may occur.
 
-The project itself is open sourced. However the project is based on the Apparatus ECS framework on FAB, which is not free.
+The project itself is open sourced. However the project is based on the Apparatus ECS framework on FAB, which is not cheap.
 
 This project also has dependency on the Flowfield Canvas plugin, which is also for sale on FAB. However this project has included a lite version of Flowfield Canvas for free, with all the basic functionalities.
 
