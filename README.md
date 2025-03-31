@@ -18,7 +18,7 @@ This plugin uses rvo2 for avoidance/collision.
 
 This plugin uses neighbour grid for collision detection and flow field for navigation.
 
-THis plugin includes an editor utility widget that allows users to set up a new agent with only 1 click of a button.
+This plugin includes an editor utility widget that allows users to set up a new agent with only 1 click of a button.
 
 Coming Next...
 
