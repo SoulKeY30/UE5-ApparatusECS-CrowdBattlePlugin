@@ -21,6 +21,7 @@ This plugin uses neighbour grid for collision detection and flow field for navig
 THis plugin includes an editor utility widget that allows users to set up a new agent with only 1 click of a button.
 
 Coming Next...
+
 1.2d atlas renderer and converter
 
 2.agent individual navigation
