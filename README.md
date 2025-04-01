@@ -32,6 +32,13 @@ This plugin uses neighbour grid for collision detection and flow field for navig
 This plugin includes an editor utility widget that allows users to set up a new agent with only 1 click of a button.
 
 
+Features：
+
+Quite comprehensive, including most of the commonly used features needed in a crowd battle.
+
+There are demo maps showcasing main features in the plugin's content folder.
+
+
 Coming Next:
 
 1.2d atlas renderer and converter
