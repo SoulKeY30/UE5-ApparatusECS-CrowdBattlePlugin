@@ -1,46 +1,51 @@
-Join QA Discord Server:
-https://discord.gg/8AUMxq3SgV
+# Project Name
 
+[![Join Discord](https://img.shields.io/badge/Discord-Join%20Chat-blue?logo=discord)](https://discord.gg/8AUMxq3SgV)
 
-Dependencies:
+## Dependencies
 
-The plugin itself is open sourced. However the plugin is based on the Apparatus ECS framework on FAB, which is not free.
+This plugin is open source, but has the following dependencies:
 
-https://www.fab.com/listings/23ddc9c0-a218-44ed-8c0c-ebef362f08d5
+- **Apparatus ECS Framework** (Paid on FAB)  
+  https://www.fab.com/listings/23ddc9c0-a218-44ed-8c0c-ebef362f08d5
 
-This plugin also depends on my pathfinding plugin Flowfield Canvas, which is also for sale on FAB. But i have included a lite version for free, with basic functionalities included. You can support my work by purchasing it down here:
+- **Flowfield Canvas** (Pathfinding plugin)  
+  A lite version is included with basic functionality. Full version available for purchase:  
+  https://www.fab.com/listings/e306cd3d-9855-45bf-a978-d9ac6ae2ee33
 
-https://www.fab.com/listings/e306cd3d-9855-45bf-a978-d9ac6ae2ee33
+- **Anim To Texture** (Official Unreal Engine plugin)  
+  Included with the engine
 
-This plugin needs the Anim To Texture plugin, which is an official plugin included in the engine.
+## Technical Details
 
+- **Status**: Beta version (may contain bugs)
+- **Tested Platforms**: 
+  - Windows
+  - UE5.3, UE5.4, UE5.5
+- **Performance**: 
+  - 60fps with 10,000 agents
+  - 30fps with 30,000 agents
+  - (Tested on AMD Ryzen 5900X + RTX 4080S, CPU capped)
+- **Technology Stack**:
+  - ECS for logic
+  - Niagara + VAT for rendering
+  - RVO2 for avoidance/collision
+  - Neighbour grid for collision detection
+  - Flow field for navigation
+- **Editor Features**:
+  - Includes utility widget for one-click agent setup
 
-Technical Details:
+## Features
 
-This plugin is the beta version, so bugs may occur.
+Comprehensive crowd battle system including most commonly needed features.  
+Demo maps are included in the plugin's content folder.
 
-This plugin is developed and tested in UE5.3 5.4 5.5 on Windows.
+## Roadmap
 
-The performance test result is 60fps-10000 agents and 30fps-30000 agents on AMD Ryzen 5900X and rts4080S, cpu capped.
+Coming in future updates:
+1. 2D atlas renderer and converter
+2. Agent individual navigation
 
-This plugin uses ecs for logic and niagara + vat as the rendering solution.
+## Support
 
-This plugin uses rvo2 for avoidance/collision.
-
-This plugin uses neighbour grid for collision detection and flow field for navigation.
-
-This plugin includes an editor utility widget that allows users to set up a new agent with only 1 click of a button.
-
-
-Features：
-
-Quite comprehensive, including most of the commonly used features needed in a crowd battle.
-
-There are demo maps showcasing main features in the plugin's content folder.
-
-
-Coming Next:
-
-1.2d atlas renderer and converter
-
-2.agent individual navigation
+Consider supporting development by purchasing the full version of dependencies!
