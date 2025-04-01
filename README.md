@@ -45,7 +45,3 @@ Demo maps are included in the plugin's content folder.
 Coming in future updates:
 1. 2D atlas renderer and converter
 2. Agent individual navigation
-
-## Support
-
-Consider supporting development by purchasing the full version of dependencies!
