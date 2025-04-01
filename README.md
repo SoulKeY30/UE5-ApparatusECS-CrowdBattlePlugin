@@ -4,7 +4,7 @@ https://discord.gg/8AUMxq3SgV
 
 Dependencies:
 
-The plugin itself is open sourced. However the plugin is based on the Apparatus ECS framework on FAB, which is not cheap.
+The plugin itself is open sourced. However the plugin is based on the Apparatus ECS framework on FAB, which is not free.
 
 https://www.fab.com/listings/23ddc9c0-a218-44ed-8c0c-ebef362f08d5
 
