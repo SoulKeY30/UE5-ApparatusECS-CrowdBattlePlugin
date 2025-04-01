@@ -8,7 +8,7 @@ The plugin itself is open sourced. However the plugin is based on the Apparatus 
 
 https://www.fab.com/listings/23ddc9c0-a218-44ed-8c0c-ebef362f08d5
 
-This plugin also depends on my plugin Flowfield Canvas, which is also for sale on FAB. But i have included a lite version for free, with basic functionalities included.
+This plugin also depends on my plugin Flowfield Canvas, which is also for sale on FAB. But i have included a lite version for free, with basic functionalities included. You can support my work by purchasing it down here:
 
 https://www.fab.com/listings/e306cd3d-9855-45bf-a978-d9ac6ae2ee33
 
