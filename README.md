@@ -1,4 +1,4 @@
-# ApparatusECS-CrowdBattleFramePlugin
+# UE5-ApparatusECS-CrowdBattleFramePlugin
 
 [![Join Discord](https://img.shields.io/badge/Discord-Join%20Chat-blue?logo=discord)](https://discord.gg/8AUMxq3SgV)
 
