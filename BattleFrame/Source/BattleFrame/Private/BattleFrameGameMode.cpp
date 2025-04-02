@@ -316,11 +316,10 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 		auto Chain = Mechanism->EnchainSolid(Filter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, ThreadsCount, BatchSize);
 
-		// 用于存储符合条件的Subject
 		TArray<FValidSubjects> ValidSubjectsArray;
 		ValidSubjectsArray.SetNum(ThreadsCount);
 
-		// 筛选符合条件的Subjects
+		// A workaround. Apparatus does not expose the array of iterables, so we have to gather manually
 		Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FTrace& Trace)
 		{
 			bool bShouldTrace = false;
@@ -335,12 +334,12 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 				Trace.TimeLeft -= DeltaTime;
 			}
 
-			if (bShouldTrace)
+			if (bShouldTrace)// we add iterables into separate arrays and then apend them.
 			{
 				uint32 ThreadId = FPlatformTLS::GetCurrentThreadId();
 				uint32 index = ThreadId % ThreadsCount;// this may not evenly distribute, but well enough
 
-				if (ValidSubjectsArray.IsValidIndex(index))
+				if (LIKELY(ValidSubjectsArray.IsValidIndex(index)))
 				{
 					ValidSubjectsArray[index].Lock();// we lock child arrays individually
 					ValidSubjectsArray[index].Subjects.Add(Subject);
@@ -350,7 +349,6 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 
 		}, ThreadsCount, BatchSize);
 
-		// append
 		TArray<FSolidSubjectHandle> ValidSubjects;
 		for (auto& CurrentArray : ValidSubjectsArray)
 		{
@@ -2221,24 +2219,33 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 
 FResult ABattleFrameGameMode::ApplyDamageToSubjects(const TArray<FSubjectHandle> Subjects, const TArray<FSubjectHandle> IgnoreSubjects, FSubjectHandle DmgInstigator, FVector HitFromLocation, const FDmgSphere DmgSphere, const FDebuff Debuff)
 {
-	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("ApplyDamageToSubjects");
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("ApplyDamageToSubjects");
 
 	// Record for deferred spawning of TemporalDamager
 	FTemporalDamaging TemporalDamaging;
 
 	// 添加一个数组来存储唯一的敌人句柄
 	TSet<FSubjectHandle> UniqueHandles;
+	FCriticalSection UniqueHandlesCriticalSection;
 
 	FResult Result;
+	FCriticalSection ResultCriticalSection;
 
-	for (const auto& Overlapper : Subjects)
+	ParallelFor(Subjects.Num(), [&](int32 Index)
 	{
-		if (IgnoreSubjects.Contains(Overlapper)) continue;
+		const auto& Overlapper = Subjects[Index];
 
-		int32 previousNum = UniqueHandles.Num();
-		UniqueHandles.Add(Overlapper);
+		if (IgnoreSubjects.Contains(Overlapper)) return;
 
-		if (UniqueHandles.Num() == previousNum) continue;
+		// Thread-safe unique handle check
+		bool bAlreadyInSet = false;
+		{
+			FScopeLock Lock(&UniqueHandlesCriticalSection);
+			int32 previousNum = UniqueHandles.Num();
+			UniqueHandles.Add(Overlapper);
+			bAlreadyInSet = (UniqueHandles.Num() == previousNum);
+		}
+		if (bAlreadyInSet) return;
 
 		if (Overlapper.HasTrait<FHealth>())
 		{
@@ -2291,15 +2298,19 @@ FResult ABattleFrameGameMode::ApplyDamageToSubjects(const TArray<FSubjectHandle>
 			// 限制伤害以不大于剩余血量
 			float ClampedDamage = FMath::Min(PostCritDamage, Health.Current);
 
-			Result.DamagedSubjects.Add(Overlapper);
-			Result.IsCritical.Add(bIsCrit);
-			Result.IsKill.Add(Health.Current == ClampedDamage);
-			Result.DmgDealt.Add(ClampedDamage);
+			// Thread-safe result update
+			{
+				FScopeLock Lock(&ResultCriticalSection);
+				Result.DamagedSubjects.Add(Overlapper);
+				Result.IsCritical.Add(bIsCrit);
+				Result.IsKill.Add(Health.Current == ClampedDamage);
+				Result.DmgDealt.Add(ClampedDamage);
+			}
 
-			// 应用伤害
+			// 应用伤害 (assuming Health.DamageToTake is thread-safe)
 			Health.DamageToTake.Enqueue(ClampedDamage);
 
-			// 记录伤害施加者
+			// 记录伤害施加者 (assuming Health.DamageInstigator is thread-safe)
 			if (DmgInstigator.IsValid())
 			{
 				Health.DamageInstigator.Enqueue(DmgInstigator);
@@ -2310,7 +2321,6 @@ FResult ABattleFrameGameMode::ApplyDamageToSubjects(const TArray<FSubjectHandle>
 			}
 
 			// ------------生成文字--------------
-
 			if (Overlapper.HasTrait<FTextPopUp>() && bHasLocated)
 			{
 				const auto TextPopUp = Overlapper.GetTrait<FTextPopUp>();
@@ -2348,12 +2358,12 @@ FResult ABattleFrameGameMode::ApplyDamageToSubjects(const TArray<FSubjectHandle>
 
 					Location += FVector(0, 0, Radius);
 
+					// Assuming QueueText is thread-safe or called from game thread
 					QueueText(Overlapper, PostCritDamage, Style, TextPopUp.TextScale, Radius * 1.1, Location);
 				}
 			}
 
 			//--------------Debuff--------------
-
 			FVector HitDirection = FVector::ZeroVector;
 
 			if (bHasLocated)
@@ -2368,9 +2378,9 @@ FResult ABattleFrameGameMode::ApplyDamageToSubjects(const TArray<FSubjectHandle>
 				{
 					auto& Moving = Overlapper.GetTraitRef<FMoving, EParadigm::Unsafe>();
 					const auto& Move = Overlapper.GetTraitRef<FMove, EParadigm::Unsafe>();
-					FVector KnockbackForce = (FVector(Debuff.KnockbackSpeed.X, Debuff.KnockbackSpeed.X, 1) * HitDirection + FVector(0,0, Debuff.KnockbackSpeed.Y)) * KineticDebuffMult;
-					FVector CombinedForce = Moving.LaunchForce + KnockbackForce;
+					FVector KnockbackForce = (FVector(Debuff.KnockbackSpeed.X, Debuff.KnockbackSpeed.X, 1) * HitDirection + FVector(0, 0, Debuff.KnockbackSpeed.Y)) * KineticDebuffMult;
 
+					// Thread-safe modification of Moving
 					Moving.Lock();
 					Moving.LaunchForce += KnockbackForce; // 累加击退力
 					Moving.Unlock();
@@ -2416,29 +2426,30 @@ FResult ABattleFrameGameMode::ApplyDamageToSubjects(const TArray<FSubjectHandle>
 			// 灼烧
 			if (Debuff.bCanBurn)
 			{
-				TemporalDamaging.TotalTemporalDamage = BaseDamage * Debuff.BurnDmgRatio * FireDebuffMult;
+				FTemporalDamaging LocalTemporalDamaging;
+				LocalTemporalDamaging.TotalTemporalDamage = BaseDamage * Debuff.BurnDmgRatio * FireDebuffMult;
 
-				if (TemporalDamaging.TotalTemporalDamage > 0)
+				if (LocalTemporalDamaging.TotalTemporalDamage > 0)
 				{
-					TemporalDamaging.RemainingTemporalDamage = TemporalDamaging.TotalTemporalDamage;
+					LocalTemporalDamaging.RemainingTemporalDamage = LocalTemporalDamaging.TotalTemporalDamage;
 
 					if (DmgInstigator.IsValid())
 					{
-						TemporalDamaging.TemporalDamageInstigator = DmgInstigator;
+						LocalTemporalDamaging.TemporalDamageInstigator = DmgInstigator;
 					}
 					else
 					{
-						TemporalDamaging.TemporalDamageInstigator = FSubjectHandle();
+						LocalTemporalDamaging.TemporalDamageInstigator = FSubjectHandle();
 					}
 
-					TemporalDamaging.TemporalDamageTarget = Overlapper;
+					LocalTemporalDamaging.TemporalDamageTarget = Overlapper;
 
-					Mechanism->SpawnSubject(TemporalDamaging);
+					// Assuming Mechanism->SpawnSubject is thread-safe or called from game thread
+					Mechanism->SpawnSubject(LocalTemporalDamaging);
 				}
 			}
 
 			//-----------其它效果------------
-
 			if (Overlapper.HasTrait<FHit>())
 			{
 				const auto& Hit = Overlapper.GetTraitRef<FHit, EParadigm::Unsafe>();
@@ -2479,10 +2490,275 @@ FResult ABattleFrameGameMode::ApplyDamageToSubjects(const TArray<FSubjectHandle>
 				}
 			}
 		}
-	}
+	});
 
 	return Result;
 }
+
+//FResult ABattleFrameGameMode::ApplyDamageToSubjects(const TArray<FSubjectHandle> Subjects, const TArray<FSubjectHandle> IgnoreSubjects, FSubjectHandle DmgInstigator, FVector HitFromLocation, const FDmgSphere DmgSphere, const FDebuff Debuff)
+//{
+//	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("ApplyDamageToSubjects");
+//
+//	// Record for deferred spawning of TemporalDamager
+//	FTemporalDamaging TemporalDamaging;
+//
+//	// 添加一个数组来存储唯一的敌人句柄
+//	TSet<FSubjectHandle> UniqueHandles;
+//
+//	FResult Result;
+//
+//	for (const auto& Overlapper : Subjects)
+//	{
+//		if (IgnoreSubjects.Contains(Overlapper)) continue;
+//
+//		int32 previousNum = UniqueHandles.Num();
+//		UniqueHandles.Add(Overlapper);
+//
+//		if (UniqueHandles.Num() == previousNum) continue;
+//
+//		if (Overlapper.HasTrait<FHealth>())
+//		{
+//			bool bHasLocated = Overlapper.HasTrait<FLocated>();
+//
+//			//-------------伤害和抗性------------
+//
+//			float NormalDmgMult = 1;
+//			float KineticDmgMult = 1;
+//			float KineticDebuffMult = 1;
+//			float FireDmgMult = 1;
+//			float FireDebuffMult = 1;
+//			float IceDmgMult = 1;
+//			float IceDebuffMult = 1;
+//			float PercentDmgMult = 1;
+//
+//			// 抗性 如果有的话
+//			if (Overlapper.HasTrait<FDefence>())
+//			{
+//				const auto& Defence = Overlapper.GetTraitRef<FDefence, EParadigm::Unsafe>();
+//
+//				NormalDmgMult = 1 - Defence.NormalDmgImmune;
+//				KineticDmgMult = 1 - Defence.KineticDmgImmune;
+//				KineticDebuffMult = 1 - Defence.KineticDebuffImmune;
+//				FireDmgMult = 1 - Defence.FireDmgImmune;
+//				FireDebuffMult = 1 - Defence.FireDebuffImmune;
+//				IceDmgMult = 1 - Defence.IceDmgImmune;
+//				IceDebuffMult = 1 - Defence.IceDebuffImmune;
+//				PercentDmgMult = 1.f - Defence.PercentDmgImmune;
+//			}
+//
+//			float NormalDamage = DmgSphere.Damage * NormalDmgMult;
+//			float KineticDamage = DmgSphere.KineticDmg * KineticDmgMult;
+//			float FireDamage = DmgSphere.FireDmg * FireDmgMult;
+//			float IceDamage = DmgSphere.IceDmg * IceDmgMult;
+//
+//			// 总基础伤害
+//			float BaseDamage = NormalDamage + KineticDamage + FireDamage + IceDamage;
+//
+//			// 百分比伤害
+//			auto& Health = Overlapper.GetTraitRef<FHealth, EParadigm::Unsafe>();
+//			float PercentageDamage = Health.Maximum * DmgSphere.PercentDmg * PercentDmgMult;
+//
+//			// 总伤害
+//			float CombinedDamage = BaseDamage + PercentageDamage;
+//
+//			// 考虑暴击后伤害
+//			auto [bIsCrit, PostCritDamage] = ProcessCritDamage(CombinedDamage, DmgSphere.CritMult, DmgSphere.CritProbability);
+//
+//			// 限制伤害以不大于剩余血量
+//			float ClampedDamage = FMath::Min(PostCritDamage, Health.Current);
+//
+//			Result.DamagedSubjects.Add(Overlapper);
+//			Result.IsCritical.Add(bIsCrit);
+//			Result.IsKill.Add(Health.Current == ClampedDamage);
+//			Result.DmgDealt.Add(ClampedDamage);
+//
+//			// 应用伤害
+//			Health.DamageToTake.Enqueue(ClampedDamage);
+//
+//			// 记录伤害施加者
+//			if (DmgInstigator.IsValid())
+//			{
+//				Health.DamageInstigator.Enqueue(DmgInstigator);
+//			}
+//			else
+//			{
+//				Health.DamageInstigator.Enqueue(FSubjectHandle());
+//			}
+//
+//			// ------------生成文字--------------
+//
+//			if (Overlapper.HasTrait<FTextPopUp>() && bHasLocated)
+//			{
+//				const auto TextPopUp = Overlapper.GetTrait<FTextPopUp>();
+//
+//				if (TextPopUp.Enable)
+//				{
+//					float Style = 0;
+//					float Radius = 0.f;
+//					FVector Location = Overlapper.GetTrait<FLocated>().Location;
+//
+//					if (!bIsCrit)
+//					{
+//						if (PostCritDamage < TextPopUp.WhiteTextBelowPercent)
+//						{
+//							Style = 0;
+//						}
+//						else if (PostCritDamage < TextPopUp.OrangeTextAbovePercent)
+//						{
+//							Style = 1;
+//						}
+//						else
+//						{
+//							Style = 2;
+//						}
+//					}
+//					else
+//					{
+//						Style = 3;
+//					}
+//
+//					if (Overlapper.HasTrait<FCollider>())
+//					{
+//						Radius = Overlapper.GetTrait<FCollider>().Radius;
+//					}
+//
+//					Location += FVector(0, 0, Radius);
+//
+//					QueueText(Overlapper, PostCritDamage, Style, TextPopUp.TextScale, Radius * 1.1, Location);
+//				}
+//			}
+//
+//			//--------------Debuff--------------
+//
+//			FVector HitDirection = FVector::ZeroVector;
+//
+//			if (bHasLocated)
+//			{
+//				HitDirection = (Overlapper.GetTrait<FLocated>().Location - HitFromLocation).GetSafeNormal2D();
+//			}
+//
+//			// 击退
+//			if (Debuff.bCanKnockback)
+//			{
+//				if (Overlapper.HasTrait<FMove>() && Overlapper.HasTrait<FMoving>())
+//				{
+//					auto& Moving = Overlapper.GetTraitRef<FMoving, EParadigm::Unsafe>();
+//					const auto& Move = Overlapper.GetTraitRef<FMove, EParadigm::Unsafe>();
+//					FVector KnockbackForce = (FVector(Debuff.KnockbackSpeed.X, Debuff.KnockbackSpeed.X, 1) * HitDirection + FVector(0,0, Debuff.KnockbackSpeed.Y)) * KineticDebuffMult;
+//					FVector CombinedForce = Moving.LaunchForce + KnockbackForce;
+//
+//					Moving.Lock();
+//					Moving.LaunchForce += KnockbackForce; // 累加击退力
+//					Moving.Unlock();
+//
+//					if (Moving.LaunchForce.Size() > 0.f)
+//					{
+//						Moving.bLaunching = true;
+//					}
+//				}
+//			}
+//
+//			// 冰冻
+//			if (Debuff.bCanFreeze)
+//			{
+//				if (Overlapper.HasTrait<FFreezing>())
+//				{
+//					auto& CurrentFreezing = Overlapper.GetTraitRef<FFreezing, EParadigm::Unsafe>();
+//
+//					if (Debuff.FreezeTime > CurrentFreezing.FreezeTimeout)
+//					{
+//						CurrentFreezing.FreezeTimeout = Debuff.FreezeTime;
+//					}
+//				}
+//				else
+//				{
+//					FFreezing NewFreezing;
+//					NewFreezing.FreezeTimeout = Debuff.FreezeTime * IceDebuffMult;
+//					NewFreezing.FreezeStr = Debuff.FreezeStr * IceDebuffMult;
+//
+//					if (NewFreezing.FreezeTimeout > 0 && NewFreezing.FreezeStr > 0)
+//					{
+//						if (Overlapper.HasTrait<FAnimation>())
+//						{
+//							auto& Animation = Overlapper.GetTraitRef<FAnimation, EParadigm::Unsafe>();
+//							Animation.PreviousSubjectState = ESubjectState::Dirty; // 强制刷新动画状态机
+//							Animation.FreezeFx = 1;
+//						}
+//						Overlapper.SetTraitDeferred(NewFreezing);
+//					}
+//				}
+//			}
+//
+//			// 灼烧
+//			if (Debuff.bCanBurn)
+//			{
+//				TemporalDamaging.TotalTemporalDamage = BaseDamage * Debuff.BurnDmgRatio * FireDebuffMult;
+//
+//				if (TemporalDamaging.TotalTemporalDamage > 0)
+//				{
+//					TemporalDamaging.RemainingTemporalDamage = TemporalDamaging.TotalTemporalDamage;
+//
+//					if (DmgInstigator.IsValid())
+//					{
+//						TemporalDamaging.TemporalDamageInstigator = DmgInstigator;
+//					}
+//					else
+//					{
+//						TemporalDamaging.TemporalDamageInstigator = FSubjectHandle();
+//					}
+//
+//					TemporalDamaging.TemporalDamageTarget = Overlapper;
+//
+//					Mechanism->SpawnSubject(TemporalDamaging);
+//				}
+//			}
+//
+//			//-----------其它效果------------
+//
+//			if (Overlapper.HasTrait<FHit>())
+//			{
+//				const auto& Hit = Overlapper.GetTraitRef<FHit, EParadigm::Unsafe>();
+//
+//				// Glow
+//				if (Hit.bCanGlow)
+//				{
+//					Overlapper.ObtainTraitDeferred<FHitGlow>();// we not glowing we add the trait. if is glowing, do nothing.
+//				}
+//
+//				// Jiggle
+//				if (Hit.SqueezeSquashStr != 0.f)
+//				{
+//					Overlapper.ObtainTraitDeferred<FSqueezeSquash>();
+//				}
+//
+//				// Fx
+//				if (Overlapper.HasTrait<FFX>())
+//				{
+//					const auto& FX = Overlapper.GetTraitRef<FFX, EParadigm::Unsafe>();
+//
+//					if (Hit.bCanSpawnFx && FX.HitFx.SubType != ESubType::None)
+//					{
+//						FRotator CombinedRotator = (FQuat(FX.HitFx.Transform.GetRotation()) * FQuat(HitDirection.Rotation())).Rotator();
+//						QueueFx(FSubjectHandle{ Overlapper }, FTransform(CombinedRotator, FX.HitFx.Transform.GetLocation(), FX.HitFx.Transform.GetScale3D()), FX.HitFx.SubType);
+//					}
+//				}
+//
+//				// Sound
+//				if (Overlapper.HasTrait<FSound>())
+//				{
+//					const auto& Sound = Overlapper.GetTraitRef<FSound, EParadigm::Unsafe>();
+//
+//					if (Hit.bCanPlaySound && Sound.HitSound)
+//					{
+//						QueueSound(Sound.HitSound);
+//					}
+//				}
+//			}
+//		}
+//	}
+//
+//	return Result;
+//}
 
 // 计算实际伤害，并返回一个pair，第一个元素是是否暴击，第二个元素是实际伤害
 FORCEINLINE std::pair<bool, float> ABattleFrameGameMode::ProcessCritDamage(float BaseDamage, float damageMult, float Probability)
