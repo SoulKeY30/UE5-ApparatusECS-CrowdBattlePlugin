@@ -20,6 +20,7 @@
 #include "Traits/Animation.h"
 #include "Traits/Appear.h"
 #include "Traits/Tracing.h"
+#include "Traits/Avoiding.h"
 #include "Traits/RegisterMultiple.h"
 #include "AnimToTextureDataAsset.h"
 #include "NiagaraSubjectRenderer.h"

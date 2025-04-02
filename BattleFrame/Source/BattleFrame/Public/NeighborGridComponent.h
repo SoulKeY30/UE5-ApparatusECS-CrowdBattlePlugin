@@ -22,7 +22,7 @@
 #include "NeighborGridCell.h"
 #include "Traits/Avoidance.h"
 #include "RvoSimulator.h"
-#include "Vector2.h"
+#include "RVOVector2.h"
 
 #include "NeighborGridComponent.generated.h"
 

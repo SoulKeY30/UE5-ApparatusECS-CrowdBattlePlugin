@@ -9,11 +9,9 @@
   * \brief      Contains the RVOSimulator class.
   */
 
-#include <cstddef>
 #include <limits>
-#include <vector>
 
-#include "Vector2.h"
+#include "RVOVector2.h"
 
 namespace RVO {
 	/**

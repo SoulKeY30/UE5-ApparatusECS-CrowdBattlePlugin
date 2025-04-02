@@ -2,9 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "SubjectHandle.h"
-#include "Traits/Avoiding.h"
 #include "RvoSimulator.h"
-#include "Vector2.h"
+#include "RVOVector2.h"
 
 #include "Avoidance.generated.h"
    

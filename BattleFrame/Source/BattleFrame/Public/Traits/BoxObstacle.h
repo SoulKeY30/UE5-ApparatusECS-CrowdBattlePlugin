@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Vector2.h"
+#include "RVOVector2.h"
 #include "BoxObstacle.generated.h"
 
 USTRUCT(BlueprintType, Category = "RVO")

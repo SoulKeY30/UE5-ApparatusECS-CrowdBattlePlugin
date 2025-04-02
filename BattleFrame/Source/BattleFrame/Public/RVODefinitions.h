@@ -4,17 +4,11 @@
 #define RVO_DEFINITIONS_H_
 
  /**
-  * \file       Definitions.h
+  * \file       RVODefinitions.h
   * \brief      Contains functions and constants used in multiple classes.
   */
 
-#include <algorithm>
-#include <cmath>
-#include <cstddef>
-#include <limits>
-#include <vector>
-
-#include "Vector2.h"
+#include "RVOVector2.h"
 
   /**
    * \brief       A sufficiently small positive number.

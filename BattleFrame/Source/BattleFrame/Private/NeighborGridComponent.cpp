@@ -29,7 +29,7 @@
 #include "Traits/Avoiding.h"
 #include "Traits/Corpse.h"
 #include "Math/Vector2D.h"
-#include "Definitions.h"
+#include "RVODefinitions.h"
 #include "BattleFrameFunctionLibraryRT.h"
 
 
