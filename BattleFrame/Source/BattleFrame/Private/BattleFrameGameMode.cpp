@@ -6,6 +6,7 @@
 
 #include "BattleFrameGameMode.h"
 #include "Kismet/GameplayStatics.h"
+#include "HAL/ThreadManager.h"
 
 // Niagara 插件
 #include "NiagaraDataInterfaceArrayFunctionLibrary.h"
@@ -67,6 +68,7 @@
 #include "Traits/Corpse.h"
 #include "Traits/Statistics.h"
 #include "Traits/BindFlowField.h"
+#include "Traits/ValidSubjects.h"
 
 ABattleFrameGameMode* ABattleFrameGameMode::Instance = nullptr;
 
@@ -280,47 +282,9 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 	// 索敌
 	#pragma region
 	{
-		// 是否索敌（筛选阶段）
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentTrace");
 
-		// 用于存储符合条件的Subject句柄
-		TArray<FSolidSubjectHandle, TInlineAllocator<256>> ValidSubjects;
-		FCriticalSection ArrayLock;
-
-		FFilter Filter = FFilter::Make<FAgent, FTrace>();
-		Filter.Exclude<FAppearing, FDying, FAttacking>();
-
-		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, ThreadsCount, BatchSize);
-
-		// 筛选符合条件的Subjects
-		Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FTrace& Trace)
-		{
-			bool bShouldTrace = false;
-
-			if (Trace.TimeLeft <= 0)
-			{
-				Trace.TimeLeft = Trace.CoolDown;
-				bShouldTrace = true;
-			}
-			else
-			{
-				Trace.TimeLeft -= DeltaTime;
-			}
-
-			// 立即设置标记并记录有效句柄
-			if (bShouldTrace)
-			{
-				FScopeLock Lock(&ArrayLock);
-				ValidSubjects.Add(Subject);
-			}
-
-		}, ThreadsCount, BatchSize);
-
-		// 执行索敌（处理阶段）
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentTracing");
-
-		// 玩家数据准备（同原逻辑）
+		// Trace Player 0
 		bool bPlayerIsValid = false;
 		FVector PlayerLocation;
 		FSubjectHandle PlayerHandle;
@@ -343,6 +307,54 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 					}
 				}
 			}
+		}
+
+		// Trace By Filter
+		FFilter Filter = FFilter::Make<FAgent, FTrace>();
+		Filter.Exclude<FAppearing, FDying, FAttacking>();
+
+		auto Chain = Mechanism->EnchainSolid(Filter);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, ThreadsCount, BatchSize);
+
+		// 用于存储符合条件的Subject
+		TArray<FValidSubjects> ValidSubjectsArray;
+		ValidSubjectsArray.SetNum(ThreadsCount);
+
+		// 筛选符合条件的Subjects
+		Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FTrace& Trace)
+		{
+			bool bShouldTrace = false;
+
+			if (Trace.TimeLeft <= 0)
+			{
+				Trace.TimeLeft = Trace.CoolDown;
+				bShouldTrace = true;
+			}
+			else
+			{
+				Trace.TimeLeft -= DeltaTime;
+			}
+
+			if (bShouldTrace)
+			{
+				uint32 ThreadId = FPlatformTLS::GetCurrentThreadId();
+				uint32 index = ThreadId % ThreadsCount;// this may not evenly distribute, but well enough
+
+				if (ValidSubjectsArray.IsValidIndex(index))
+				{
+					ValidSubjectsArray[index].Lock();// we lock child arrays individually
+					ValidSubjectsArray[index].Subjects.Add(Subject);
+					ValidSubjectsArray[index].Unlock();
+				}
+			}
+
+		}, ThreadsCount, BatchSize);
+
+		// append
+		TArray<FSolidSubjectHandle> ValidSubjects;
+		for (auto& CurrentArray : ValidSubjectsArray)
+		{
+			ValidSubjects.Append(CurrentArray.Subjects);
 		}
 
 		// 并行处理筛选结果
