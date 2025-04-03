@@ -572,7 +572,7 @@ void AFlowField::UpdateTimer()
 	}
 }
    
-FORCEINLINE void AFlowField::WorldToGrid(const FVector Location, bool& bIsValid, FVector2D& gridCoord)
+void AFlowField::WorldToGrid(const FVector Location, bool& bIsValid, FVector2D& gridCoord)
 {
 	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("WorldToGrid");
 
@@ -616,14 +616,14 @@ void AFlowField::GetCellAtLocation(const FVector Location, bool& bIsValid, FCell
 	CurrentCell = CurrentCellsMap[gridCoord];
 }
 
-FORCEINLINE int32 AFlowField::AddWorldSpaceInstance(UInstancedStaticMeshComponent* ISM_Component, const FTransform& InstanceTransform)
+int32 AFlowField::AddWorldSpaceInstance(UInstancedStaticMeshComponent* ISM_Component, const FTransform& InstanceTransform)
 {
 	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("AddWorldSpaceInstance");
 	FTransform LocalTransform = InstanceTransform.GetRelativeTransform(ISM_Component->GetComponentTransform());
 	return ISM_Component->AddInstance(LocalTransform);
 }
 
-FORCEINLINE FCellStruct AFlowField::EnvQuery(const FVector2D gridCoord) 
+FCellStruct AFlowField::EnvQuery(const FVector2D gridCoord) 
 {
 	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("EnvQuery");
 

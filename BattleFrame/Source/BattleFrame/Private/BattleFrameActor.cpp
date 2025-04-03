@@ -4,7 +4,7 @@
 * Author: Leroy Works, All Rights Reserved.
 */
 
-#include "BattleFrameSubjectiveActor.h"
+#include "BattleFrameActor.h"
 #include "Traits/Prop.h"
 #include "Traits/Health.h"
 #include "Traits/Avoiding.h"
@@ -13,7 +13,7 @@
 #include "Traits/BindFlowField.h"
 
 // Sets default values
-ABattleFrameSubjectiveActor::ABattleFrameSubjectiveActor()
+ABattleFrameActor::ABattleFrameActor()
 {
 	Subjective = CreateDefaultSubobject<USubjectiveActorComponent>("Subjective");
 
@@ -26,7 +26,7 @@ ABattleFrameSubjectiveActor::ABattleFrameSubjectiveActor()
 }
 
 // Called when the game starts or when spawned
-void ABattleFrameSubjectiveActor::BeginPlay()
+void ABattleFrameActor::BeginPlay()
 {
 	Super::BeginPlay();
 
@@ -40,7 +40,7 @@ void ABattleFrameSubjectiveActor::BeginPlay()
 }
 
 // Called every frame
-void ABattleFrameSubjectiveActor::Tick(float DeltaTime)
+void ABattleFrameActor::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	Subjective->GetTraitPtr<FLocated, EParadigm::Unsafe>()->Location = GetActorLocation();

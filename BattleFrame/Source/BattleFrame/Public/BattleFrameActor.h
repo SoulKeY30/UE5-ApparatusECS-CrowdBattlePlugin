@@ -4,19 +4,19 @@
 
 #include "CoreMinimal.h"
 #include "SubjectiveActorComponent.h"
-#include "BattleFrameSubjectiveActor.generated.h"
+#include "BattleFrameActor.generated.h"
 
 /**
- * 
+ *
  */
 UCLASS()
-class BATTLEFRAME_API ABattleFrameSubjectiveActor : public AActor
+class BATTLEFRAME_API ABattleFrameActor : public AActor
 {
 	GENERATED_BODY()
 
 public:
 
-	ABattleFrameSubjectiveActor();
+	ABattleFrameActor();
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Component)
 	USubjectiveActorComponent* Subjective = nullptr;
 

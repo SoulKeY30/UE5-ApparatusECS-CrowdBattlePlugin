@@ -11,18 +11,16 @@
 #include "SubjectiveActorComponent.h"
 #include "Kismet/GameplayStatics.h"
 
-
-
-#include "BattleFramePlayerCharacter.generated.h"
+#include "BattleFrameCharacter.generated.h"
 
 UCLASS()
-class BATTLEFRAME_API ABattleFramePlayerCharacter : public ACharacter
+class BATTLEFRAME_API ABattleFrameCharacter : public ACharacter
 {
 	GENERATED_BODY()
 
 public:
 	// Sets default values for this character's properties
-	ABattleFramePlayerCharacter();
+	ABattleFrameCharacter();
 	/**
 	 * The subjective of the player pawn.
 	 */
@@ -33,7 +31,7 @@ protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
-public:	
+public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 

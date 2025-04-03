@@ -20,55 +20,7 @@
 // BattleFrame 插件
 #include "NeighborGridActor.h"
 #include "NeighborGridComponent.h"
-#include "BattleFrameFunctionLibraryRT.h"
 
-// 移动相关 Traits
-#include "Traits/Move.h"
-#include "Traits/Moving.h"
-#include "Traits/Navigation.h"
-#include "Traits/Trace.h"
-#include "Traits/Death.h"
-#include "Traits/Dying.h"
-#include "Traits/DeathAnim.h"
-#include "Traits/DeathDissolve.h"
-#include "Traits/Appear.h"
-#include "Traits/Appearing.h"
-#include "Traits/AppearAnim.h"
-#include "Traits/AppearDissolve.h"
-#include "Traits/SpawningActor.h"
-#include "Traits/Rendering.h"
-#include "Traits/RenderBatchData.h"
-#include "Traits/Attack.h"
-#include "Traits/Attacking.h"
-#include "Traits/TemporalDamaging.h"
-#include "Traits/Tracing.h"
-#include "Traits/SpawnActor.h"
-#include "Traits/Hit.h"
-#include "Traits/BeingHit.h"
-#include "Traits/HitGlow.h"
-#include "Traits/SqueezeSquash.h"
-#include "Traits/Health.h"
-#include "Traits/HealthBar.h"
-#include "Traits/Damage.h"
-#include "Traits/TextPopUp.h"
-#include "Traits/Freezing.h"
-#include "Traits/PoppingText.h"
-#include "Traits/Sound.h"
-#include "Traits/FX.h"
-#include "Traits/SpawningFx.h"
-#include "Traits/Defence.h"
-#include "Traits/Agent.h"
-#include "Traits/SphereObstacle.h"
-#include "Traits/Scaled.h"
-#include "Traits/Directed.h"
-#include "Traits/Located.h"
-#include "Traits/Avoidance.h"
-#include "Traits/Collider.h"
-#include "Traits/Curves.h"
-#include "Traits/Corpse.h"
-#include "Traits/Statistics.h"
-#include "Traits/BindFlowField.h"
-#include "Traits/ValidSubjects.h"
 
 ABattleFrameGameMode* ABattleFrameGameMode::Instance = nullptr;
 
@@ -110,7 +62,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 	{
 		FFilter Filter = FFilter::Make<FStatistics>();
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently(
 			[&](FStatistics& Stats)
@@ -133,7 +85,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 
 		FFilter Filter = FFilter::Make<FAgent, FRendering, FLocated, FDirected, FAppear, FAppearing, FSpawnActor, FFX, FSound>();
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
@@ -220,7 +172,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 
 		FFilter Filter = FFilter::Make<FAgent, FRendering, FAnimation, FAppear, FAppearAnim>();
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
@@ -252,7 +204,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 
 		FFilter Filter = FFilter::Make<FAgent, FRendering, FAppearDissolve, FAnimation,FCurves>();
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
@@ -314,7 +266,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 		Filter.Exclude<FAppearing, FDying, FAttacking>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, 200, ThreadsCount, BatchSize);
 
 		TArray<FValidSubjects> ValidSubjectsArray;
 		ValidSubjectsArray.SetNum(ThreadsCount);
@@ -421,7 +373,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 		Filter.Exclude<FAppearing, FDying, FAttacking>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
@@ -482,7 +434,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 		Filter.Exclude<FAppearing, FDying>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
@@ -654,7 +606,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 		Filter.Exclude<FAppearing, FBeingHit>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
@@ -718,7 +670,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 		Filter.Exclude<FAppearing, FBeingHit>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
@@ -789,7 +741,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 
 		auto Filter = FFilter::Make<FTemporalDamaging>();
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject, FTemporalDamaging& Temporal)
@@ -905,7 +857,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 		Filter.Exclude<FAppearing, FDying>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
@@ -995,7 +947,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 		static const auto Filter = FFilter::Make<FAgent, FRendering, FHealth, FHealthBar>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
@@ -1047,7 +999,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 		Filter.Exclude<FAppearing>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
@@ -1145,7 +1097,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 		Filter.Exclude<FAppearing>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
@@ -1198,7 +1150,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 		Filter.Exclude<FAppearing>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
@@ -1228,7 +1180,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 		Filter.Exclude<FAppearing, FDying>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
@@ -1266,7 +1218,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 		FFilter Filter = FFilter::Make<FCollider, FLocated, FSphereObstacle>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently(
 			[&](FCollider Collider,
@@ -1328,7 +1280,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 
 		FFilter Filter1 = FFilter::Make<FNavigation>();
 		auto Chain1 = Mechanism->EnchainSolid(Filter1);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain1->IterableNum(), MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain1->IterableNum(), 4, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		// filter out those need reload and mark them
 		Chain1->OperateConcurrently(
@@ -1359,7 +1311,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 
 		FFilter Filter2 = FFilter::Make<FBindFlowField>();
 		auto Chain2 = Mechanism->EnchainSolid(Filter2);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain2->IterableNum(), MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain2->IterableNum(), 4, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain2->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
@@ -1397,7 +1349,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 		Filter.Exclude<FAppearing>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
@@ -1750,7 +1702,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 		Filter.Exclude<FAppearing>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, 1, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
@@ -1848,7 +1800,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 		static const auto Filter = FFilter::Make<FAgent, FAnimation, FRendering, FAppear, FAttack, FDeath,FMoving>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
@@ -1973,7 +1925,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 		FFilter Filter = FFilter::Make<FRenderBatchData>().Exclude<FDying>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
@@ -1996,7 +1948,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 		FFilter Filter = FFilter::Make<FAgent, FRendering, FDirected, FScaled, FLocated, FAnimation, FHealth, FHealthBar, FCollider>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
@@ -2067,7 +2019,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 		FFilter Filter = FFilter::Make<FAgent, FRendering, FPoppingText>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
@@ -2100,7 +2052,7 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 		FFilter Filter = FFilter::Make<FRenderBatchData>().Exclude<FDying>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
@@ -2219,33 +2171,24 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 
 FResult ABattleFrameGameMode::ApplyDamageToSubjects(const TArray<FSubjectHandle> Subjects, const TArray<FSubjectHandle> IgnoreSubjects, FSubjectHandle DmgInstigator, FVector HitFromLocation, const FDmgSphere DmgSphere, const FDebuff Debuff)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE_STR("ApplyDamageToSubjects");
+	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("ApplyDamageToSubjects");
 
 	// Record for deferred spawning of TemporalDamager
 	FTemporalDamaging TemporalDamaging;
 
 	// 添加一个数组来存储唯一的敌人句柄
 	TSet<FSubjectHandle> UniqueHandles;
-	FCriticalSection UniqueHandlesCriticalSection;
 
 	FResult Result;
-	FCriticalSection ResultCriticalSection;
 
-	ParallelFor(Subjects.Num(), [&](int32 Index)
+	for (const auto& Overlapper : Subjects)
 	{
-		const auto& Overlapper = Subjects[Index];
+		if (IgnoreSubjects.Contains(Overlapper)) continue;
 
-		if (IgnoreSubjects.Contains(Overlapper)) return;
+		int32 previousNum = UniqueHandles.Num();
+		UniqueHandles.Add(Overlapper);
 
-		// Thread-safe unique handle check
-		bool bAlreadyInSet = false;
-		{
-			FScopeLock Lock(&UniqueHandlesCriticalSection);
-			int32 previousNum = UniqueHandles.Num();
-			UniqueHandles.Add(Overlapper);
-			bAlreadyInSet = (UniqueHandles.Num() == previousNum);
-		}
-		if (bAlreadyInSet) return;
+		if (UniqueHandles.Num() == previousNum) continue;
 
 		if (Overlapper.HasTrait<FHealth>())
 		{
@@ -2298,19 +2241,15 @@ FResult ABattleFrameGameMode::ApplyDamageToSubjects(const TArray<FSubjectHandle>
 			// 限制伤害以不大于剩余血量
 			float ClampedDamage = FMath::Min(PostCritDamage, Health.Current);
 
-			// Thread-safe result update
-			{
-				FScopeLock Lock(&ResultCriticalSection);
-				Result.DamagedSubjects.Add(Overlapper);
-				Result.IsCritical.Add(bIsCrit);
-				Result.IsKill.Add(Health.Current == ClampedDamage);
-				Result.DmgDealt.Add(ClampedDamage);
-			}
+			Result.DamagedSubjects.Add(Overlapper);
+			Result.IsCritical.Add(bIsCrit);
+			Result.IsKill.Add(Health.Current == ClampedDamage);
+			Result.DmgDealt.Add(ClampedDamage);
 
-			// 应用伤害 (assuming Health.DamageToTake is thread-safe)
+			// 应用伤害
 			Health.DamageToTake.Enqueue(ClampedDamage);
 
-			// 记录伤害施加者 (assuming Health.DamageInstigator is thread-safe)
+			// 记录伤害施加者
 			if (DmgInstigator.IsValid())
 			{
 				Health.DamageInstigator.Enqueue(DmgInstigator);
@@ -2321,6 +2260,7 @@ FResult ABattleFrameGameMode::ApplyDamageToSubjects(const TArray<FSubjectHandle>
 			}
 
 			// ------------生成文字--------------
+
 			if (Overlapper.HasTrait<FTextPopUp>() && bHasLocated)
 			{
 				const auto TextPopUp = Overlapper.GetTrait<FTextPopUp>();
@@ -2358,12 +2298,12 @@ FResult ABattleFrameGameMode::ApplyDamageToSubjects(const TArray<FSubjectHandle>
 
 					Location += FVector(0, 0, Radius);
 
-					// Assuming QueueText is thread-safe or called from game thread
 					QueueText(Overlapper, PostCritDamage, Style, TextPopUp.TextScale, Radius * 1.1, Location);
 				}
 			}
 
 			//--------------Debuff--------------
+
 			FVector HitDirection = FVector::ZeroVector;
 
 			if (bHasLocated)
@@ -2378,9 +2318,9 @@ FResult ABattleFrameGameMode::ApplyDamageToSubjects(const TArray<FSubjectHandle>
 				{
 					auto& Moving = Overlapper.GetTraitRef<FMoving, EParadigm::Unsafe>();
 					const auto& Move = Overlapper.GetTraitRef<FMove, EParadigm::Unsafe>();
-					FVector KnockbackForce = (FVector(Debuff.KnockbackSpeed.X, Debuff.KnockbackSpeed.X, 1) * HitDirection + FVector(0, 0, Debuff.KnockbackSpeed.Y)) * KineticDebuffMult;
+					FVector KnockbackForce = (FVector(Debuff.KnockbackSpeed.X, Debuff.KnockbackSpeed.X, 1) * HitDirection + FVector(0,0, Debuff.KnockbackSpeed.Y)) * KineticDebuffMult;
+					FVector CombinedForce = Moving.LaunchForce + KnockbackForce;
 
-					// Thread-safe modification of Moving
 					Moving.Lock();
 					Moving.LaunchForce += KnockbackForce; // 累加击退力
 					Moving.Unlock();
@@ -2426,30 +2366,29 @@ FResult ABattleFrameGameMode::ApplyDamageToSubjects(const TArray<FSubjectHandle>
 			// 灼烧
 			if (Debuff.bCanBurn)
 			{
-				FTemporalDamaging LocalTemporalDamaging;
-				LocalTemporalDamaging.TotalTemporalDamage = BaseDamage * Debuff.BurnDmgRatio * FireDebuffMult;
+				TemporalDamaging.TotalTemporalDamage = BaseDamage * Debuff.BurnDmgRatio * FireDebuffMult;
 
-				if (LocalTemporalDamaging.TotalTemporalDamage > 0)
+				if (TemporalDamaging.TotalTemporalDamage > 0)
 				{
-					LocalTemporalDamaging.RemainingTemporalDamage = LocalTemporalDamaging.TotalTemporalDamage;
+					TemporalDamaging.RemainingTemporalDamage = TemporalDamaging.TotalTemporalDamage;
 
 					if (DmgInstigator.IsValid())
 					{
-						LocalTemporalDamaging.TemporalDamageInstigator = DmgInstigator;
+						TemporalDamaging.TemporalDamageInstigator = DmgInstigator;
 					}
 					else
 					{
-						LocalTemporalDamaging.TemporalDamageInstigator = FSubjectHandle();
+						TemporalDamaging.TemporalDamageInstigator = FSubjectHandle();
 					}
 
-					LocalTemporalDamaging.TemporalDamageTarget = Overlapper;
+					TemporalDamaging.TemporalDamageTarget = Overlapper;
 
-					// Assuming Mechanism->SpawnSubject is thread-safe or called from game thread
-					Mechanism->SpawnSubject(LocalTemporalDamaging);
+					Mechanism->SpawnSubject(TemporalDamaging);
 				}
 			}
 
 			//-----------其它效果------------
+
 			if (Overlapper.HasTrait<FHit>())
 			{
 				const auto& Hit = Overlapper.GetTraitRef<FHit, EParadigm::Unsafe>();
@@ -2490,359 +2429,7 @@ FResult ABattleFrameGameMode::ApplyDamageToSubjects(const TArray<FSubjectHandle>
 				}
 			}
 		}
-	});
+	}
 
 	return Result;
-}
-
-//FResult ABattleFrameGameMode::ApplyDamageToSubjects(const TArray<FSubjectHandle> Subjects, const TArray<FSubjectHandle> IgnoreSubjects, FSubjectHandle DmgInstigator, FVector HitFromLocation, const FDmgSphere DmgSphere, const FDebuff Debuff)
-//{
-//	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("ApplyDamageToSubjects");
-//
-//	// Record for deferred spawning of TemporalDamager
-//	FTemporalDamaging TemporalDamaging;
-//
-//	// 添加一个数组来存储唯一的敌人句柄
-//	TSet<FSubjectHandle> UniqueHandles;
-//
-//	FResult Result;
-//
-//	for (const auto& Overlapper : Subjects)
-//	{
-//		if (IgnoreSubjects.Contains(Overlapper)) continue;
-//
-//		int32 previousNum = UniqueHandles.Num();
-//		UniqueHandles.Add(Overlapper);
-//
-//		if (UniqueHandles.Num() == previousNum) continue;
-//
-//		if (Overlapper.HasTrait<FHealth>())
-//		{
-//			bool bHasLocated = Overlapper.HasTrait<FLocated>();
-//
-//			//-------------伤害和抗性------------
-//
-//			float NormalDmgMult = 1;
-//			float KineticDmgMult = 1;
-//			float KineticDebuffMult = 1;
-//			float FireDmgMult = 1;
-//			float FireDebuffMult = 1;
-//			float IceDmgMult = 1;
-//			float IceDebuffMult = 1;
-//			float PercentDmgMult = 1;
-//
-//			// 抗性 如果有的话
-//			if (Overlapper.HasTrait<FDefence>())
-//			{
-//				const auto& Defence = Overlapper.GetTraitRef<FDefence, EParadigm::Unsafe>();
-//
-//				NormalDmgMult = 1 - Defence.NormalDmgImmune;
-//				KineticDmgMult = 1 - Defence.KineticDmgImmune;
-//				KineticDebuffMult = 1 - Defence.KineticDebuffImmune;
-//				FireDmgMult = 1 - Defence.FireDmgImmune;
-//				FireDebuffMult = 1 - Defence.FireDebuffImmune;
-//				IceDmgMult = 1 - Defence.IceDmgImmune;
-//				IceDebuffMult = 1 - Defence.IceDebuffImmune;
-//				PercentDmgMult = 1.f - Defence.PercentDmgImmune;
-//			}
-//
-//			float NormalDamage = DmgSphere.Damage * NormalDmgMult;
-//			float KineticDamage = DmgSphere.KineticDmg * KineticDmgMult;
-//			float FireDamage = DmgSphere.FireDmg * FireDmgMult;
-//			float IceDamage = DmgSphere.IceDmg * IceDmgMult;
-//
-//			// 总基础伤害
-//			float BaseDamage = NormalDamage + KineticDamage + FireDamage + IceDamage;
-//
-//			// 百分比伤害
-//			auto& Health = Overlapper.GetTraitRef<FHealth, EParadigm::Unsafe>();
-//			float PercentageDamage = Health.Maximum * DmgSphere.PercentDmg * PercentDmgMult;
-//
-//			// 总伤害
-//			float CombinedDamage = BaseDamage + PercentageDamage;
-//
-//			// 考虑暴击后伤害
-//			auto [bIsCrit, PostCritDamage] = ProcessCritDamage(CombinedDamage, DmgSphere.CritMult, DmgSphere.CritProbability);
-//
-//			// 限制伤害以不大于剩余血量
-//			float ClampedDamage = FMath::Min(PostCritDamage, Health.Current);
-//
-//			Result.DamagedSubjects.Add(Overlapper);
-//			Result.IsCritical.Add(bIsCrit);
-//			Result.IsKill.Add(Health.Current == ClampedDamage);
-//			Result.DmgDealt.Add(ClampedDamage);
-//
-//			// 应用伤害
-//			Health.DamageToTake.Enqueue(ClampedDamage);
-//
-//			// 记录伤害施加者
-//			if (DmgInstigator.IsValid())
-//			{
-//				Health.DamageInstigator.Enqueue(DmgInstigator);
-//			}
-//			else
-//			{
-//				Health.DamageInstigator.Enqueue(FSubjectHandle());
-//			}
-//
-//			// ------------生成文字--------------
-//
-//			if (Overlapper.HasTrait<FTextPopUp>() && bHasLocated)
-//			{
-//				const auto TextPopUp = Overlapper.GetTrait<FTextPopUp>();
-//
-//				if (TextPopUp.Enable)
-//				{
-//					float Style = 0;
-//					float Radius = 0.f;
-//					FVector Location = Overlapper.GetTrait<FLocated>().Location;
-//
-//					if (!bIsCrit)
-//					{
-//						if (PostCritDamage < TextPopUp.WhiteTextBelowPercent)
-//						{
-//							Style = 0;
-//						}
-//						else if (PostCritDamage < TextPopUp.OrangeTextAbovePercent)
-//						{
-//							Style = 1;
-//						}
-//						else
-//						{
-//							Style = 2;
-//						}
-//					}
-//					else
-//					{
-//						Style = 3;
-//					}
-//
-//					if (Overlapper.HasTrait<FCollider>())
-//					{
-//						Radius = Overlapper.GetTrait<FCollider>().Radius;
-//					}
-//
-//					Location += FVector(0, 0, Radius);
-//
-//					QueueText(Overlapper, PostCritDamage, Style, TextPopUp.TextScale, Radius * 1.1, Location);
-//				}
-//			}
-//
-//			//--------------Debuff--------------
-//
-//			FVector HitDirection = FVector::ZeroVector;
-//
-//			if (bHasLocated)
-//			{
-//				HitDirection = (Overlapper.GetTrait<FLocated>().Location - HitFromLocation).GetSafeNormal2D();
-//			}
-//
-//			// 击退
-//			if (Debuff.bCanKnockback)
-//			{
-//				if (Overlapper.HasTrait<FMove>() && Overlapper.HasTrait<FMoving>())
-//				{
-//					auto& Moving = Overlapper.GetTraitRef<FMoving, EParadigm::Unsafe>();
-//					const auto& Move = Overlapper.GetTraitRef<FMove, EParadigm::Unsafe>();
-//					FVector KnockbackForce = (FVector(Debuff.KnockbackSpeed.X, Debuff.KnockbackSpeed.X, 1) * HitDirection + FVector(0,0, Debuff.KnockbackSpeed.Y)) * KineticDebuffMult;
-//					FVector CombinedForce = Moving.LaunchForce + KnockbackForce;
-//
-//					Moving.Lock();
-//					Moving.LaunchForce += KnockbackForce; // 累加击退力
-//					Moving.Unlock();
-//
-//					if (Moving.LaunchForce.Size() > 0.f)
-//					{
-//						Moving.bLaunching = true;
-//					}
-//				}
-//			}
-//
-//			// 冰冻
-//			if (Debuff.bCanFreeze)
-//			{
-//				if (Overlapper.HasTrait<FFreezing>())
-//				{
-//					auto& CurrentFreezing = Overlapper.GetTraitRef<FFreezing, EParadigm::Unsafe>();
-//
-//					if (Debuff.FreezeTime > CurrentFreezing.FreezeTimeout)
-//					{
-//						CurrentFreezing.FreezeTimeout = Debuff.FreezeTime;
-//					}
-//				}
-//				else
-//				{
-//					FFreezing NewFreezing;
-//					NewFreezing.FreezeTimeout = Debuff.FreezeTime * IceDebuffMult;
-//					NewFreezing.FreezeStr = Debuff.FreezeStr * IceDebuffMult;
-//
-//					if (NewFreezing.FreezeTimeout > 0 && NewFreezing.FreezeStr > 0)
-//					{
-//						if (Overlapper.HasTrait<FAnimation>())
-//						{
-//							auto& Animation = Overlapper.GetTraitRef<FAnimation, EParadigm::Unsafe>();
-//							Animation.PreviousSubjectState = ESubjectState::Dirty; // 强制刷新动画状态机
-//							Animation.FreezeFx = 1;
-//						}
-//						Overlapper.SetTraitDeferred(NewFreezing);
-//					}
-//				}
-//			}
-//
-//			// 灼烧
-//			if (Debuff.bCanBurn)
-//			{
-//				TemporalDamaging.TotalTemporalDamage = BaseDamage * Debuff.BurnDmgRatio * FireDebuffMult;
-//
-//				if (TemporalDamaging.TotalTemporalDamage > 0)
-//				{
-//					TemporalDamaging.RemainingTemporalDamage = TemporalDamaging.TotalTemporalDamage;
-//
-//					if (DmgInstigator.IsValid())
-//					{
-//						TemporalDamaging.TemporalDamageInstigator = DmgInstigator;
-//					}
-//					else
-//					{
-//						TemporalDamaging.TemporalDamageInstigator = FSubjectHandle();
-//					}
-//
-//					TemporalDamaging.TemporalDamageTarget = Overlapper;
-//
-//					Mechanism->SpawnSubject(TemporalDamaging);
-//				}
-//			}
-//
-//			//-----------其它效果------------
-//
-//			if (Overlapper.HasTrait<FHit>())
-//			{
-//				const auto& Hit = Overlapper.GetTraitRef<FHit, EParadigm::Unsafe>();
-//
-//				// Glow
-//				if (Hit.bCanGlow)
-//				{
-//					Overlapper.ObtainTraitDeferred<FHitGlow>();// we not glowing we add the trait. if is glowing, do nothing.
-//				}
-//
-//				// Jiggle
-//				if (Hit.SqueezeSquashStr != 0.f)
-//				{
-//					Overlapper.ObtainTraitDeferred<FSqueezeSquash>();
-//				}
-//
-//				// Fx
-//				if (Overlapper.HasTrait<FFX>())
-//				{
-//					const auto& FX = Overlapper.GetTraitRef<FFX, EParadigm::Unsafe>();
-//
-//					if (Hit.bCanSpawnFx && FX.HitFx.SubType != ESubType::None)
-//					{
-//						FRotator CombinedRotator = (FQuat(FX.HitFx.Transform.GetRotation()) * FQuat(HitDirection.Rotation())).Rotator();
-//						QueueFx(FSubjectHandle{ Overlapper }, FTransform(CombinedRotator, FX.HitFx.Transform.GetLocation(), FX.HitFx.Transform.GetScale3D()), FX.HitFx.SubType);
-//					}
-//				}
-//
-//				// Sound
-//				if (Overlapper.HasTrait<FSound>())
-//				{
-//					const auto& Sound = Overlapper.GetTraitRef<FSound, EParadigm::Unsafe>();
-//
-//					if (Hit.bCanPlaySound && Sound.HitSound)
-//					{
-//						QueueSound(Sound.HitSound);
-//					}
-//				}
-//			}
-//		}
-//	}
-//
-//	return Result;
-//}
-
-// 计算实际伤害，并返回一个pair，第一个元素是是否暴击，第二个元素是实际伤害
-FORCEINLINE std::pair<bool, float> ABattleFrameGameMode::ProcessCritDamage(float BaseDamage, float damageMult, float Probability)
-{
-	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("ProcessCrit");
-	float ActualDamage = BaseDamage;
-	bool IsCritical = false;  // 是否暴击
-
-	// 生成一个[0, 1]范围内的随机数
-	float CritChance = FMath::FRand();
-
-	// 判断是否触发暴击
-	if (CritChance < Probability)
-	{
-		ActualDamage *= damageMult;  // 应用暴击倍数
-		IsCritical = true;  // 设置暴击标志
-	}
-
-	return { IsCritical, ActualDamage };  // 返回pair
-}
-
-// 生成音效播放Subject
-FORCEINLINE void ABattleFrameGameMode::QueueSound(TSoftObjectPtr<USoundBase> Sound)
-{
-	float RandomValue = FMath::FRand();
-	SoundsToPlay.Enqueue(Sound);
-}
-
-// 把受击数字添加到播放序列
-FORCEINLINE void ABattleFrameGameMode::QueueText(FSubjectHandle Subject, float Value, float Style, float Scale, float Radius, FVector Location)
-{
-	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("QueueText");
-
-	if (Subject.HasTrait<FPoppingText>())
-	{
-		auto& PoppingText = Subject.GetTraitRef<FPoppingText, EParadigm::Unsafe>();
-
-		PoppingText.Lock();
-		PoppingText.TextLocationArray.Add(Location);
-		PoppingText.Text_Value_Style_Scale_Offset_Array.Add(FVector4(Value, Style, Scale, Radius));
-		//UE_LOG(LogTemp, Warning, TEXT("OldTrait"));
-		PoppingText.Unlock();
-	}
-	else
-	{
-		FPoppingText NewPoppingText;
-		NewPoppingText.TextLocationArray.Add(Location);
-		NewPoppingText.Text_Value_Style_Scale_Offset_Array.Add(FVector4(Value, Style, Scale, Radius));
-		//UE_LOG(LogTemp, Warning, TEXT("NewTrait"));
-
-		Subject.SetTraitDeferred(NewPoppingText);
-	}
-}
-
-FORCEINLINE void ABattleFrameGameMode::QueueFx(FSubjectHandle Subject, FTransform Transfrom, ESubType SubType)
-{
-	// 将偏移向量转换到Subject的本地坐标系
-	FLocated Located = Subject.GetTrait<FLocated>();
-	FRotator ForwardRotation = Subject.GetTrait<FDirected>().Direction.Rotation();
-	FVector LocationOffsetLocal = ForwardRotation.RotateVector(Transfrom.GetLocation());
-
-	FLocated FxLocated = { Located.Location + LocationOffsetLocal };  // 应用转换后的偏移量
-	FDirected FxDirected = { Transfrom.GetRotation().GetForwardVector()};
-	FScaled FxScaled = { Transfrom.GetScale3D() };
-
-	FSubjectRecord FxRecord;
-	FxRecord.SetTrait(FSpawningFx{});  // Set the SpawningFx trait
-	FxRecord.SetTrait(FxLocated);
-	FxRecord.SetTrait(FxDirected);
-	FxRecord.SetTrait(FxScaled);
-
-	// Use the function to set the appropriate FSubTypeX based on attackFxSubType
-	UBattleFrameFunctionLibraryRT::SetSubTypeTraitByEnum(SubType, FxRecord);
-
-	GetMechanism()->SpawnSubjectDeferred(FxRecord);
-}
-
-FORCEINLINE void ABattleFrameGameMode::CopyAnimData(FAnimation& Animation)
-{
-	Animation.AnimLerp = 0;
-
-	Animation.AnimIndex0 = Animation.AnimIndex1;
-	Animation.AnimCurrentTime0 = Animation.AnimCurrentTime1;
-	Animation.AnimOffsetTime0 = Animation.AnimOffsetTime1;
-	Animation.AnimPauseTime0 = Animation.AnimPauseTime1;
-	Animation.AnimPlayRate0 = Animation.AnimPlayRate1;
 }

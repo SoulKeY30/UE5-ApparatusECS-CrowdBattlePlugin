@@ -29,7 +29,7 @@ public:
     static void SetSubTypeTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord);
     static void SetSubTypeTraitByEnum(ESubType SubType, FSubjectRecord& SubjectRecord);
     static void IncludeSubTypeTraitByIndex(int32 Index, FFilter& Filter);
-    static void CalculateThreadsCountAndBatchSize(int32 IterableNum, int32& MaxThreadsAllowed, int32& ThreadsCount, int32& BatchSize);
+    static void CalculateThreadsCountAndBatchSize(int32 IterableNum, int32 MaxThreadsAllowed, int32 MinBatchSizeAllowed, int32& ThreadsCount, int32& BatchSize);
     static void SetAvoGroupTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord);
     static void SetTeamTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord);
     static void IncludeAvoGroupTraitByIndex(int32 Index, FFilter& Filter);

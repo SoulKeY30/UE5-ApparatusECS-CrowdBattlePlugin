@@ -274,7 +274,7 @@ void UNeighborGridComponent::Update()
 
 		FFilter Filter = FFilter::Make<FLocated, FTrace>();
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently([&](FLocated& Located, FTrace& Trace)
 		{
@@ -294,7 +294,7 @@ void UNeighborGridComponent::Update()
 
 		FFilter Filter = FFilter::Make<FLocated, FSphereObstacle>();
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently([&](FLocated& Located, FSphereObstacle& SphereObstacle)
 		{
@@ -315,7 +315,7 @@ void UNeighborGridComponent::Update()
 
 		FFilter Filter = FFilter::Make<FLocated, FCollider, FAvoiding>().Exclude<FRegisterMultiple>();
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FLocated& Located, FCollider& Collider, FAvoiding& Avoiding)
 		{
@@ -341,7 +341,7 @@ void UNeighborGridComponent::Update()
 
 		FFilter Filter = FFilter::Make<FLocated, FCollider, FAvoiding, FRegisterMultiple>().Exclude<FSphereObstacle>();
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FLocated& Located, FCollider& Collider, FAvoiding& Avoiding)
 		{
@@ -386,7 +386,7 @@ void UNeighborGridComponent::Update()
 
 		FFilter Filter = FFilter::Make<FLocated, FCollider, FAvoiding, FRegisterMultiple, FSphereObstacle>();
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FLocated& Located, FCollider& Collider, FAvoiding& Avoiding)
 			{
@@ -430,7 +430,7 @@ void UNeighborGridComponent::Update()
 
 		FFilter Filter = FFilter::Make<FBoxObstacle, FLocated, FAvoiding>();
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(),MaxThreadsAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, 1, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FBoxObstacle& BoxObstacle, FAvoiding& Avoiding)
 		{
@@ -450,6 +450,7 @@ void UNeighborGridComponent::Update()
 				const float StartZ = SelfLocation.Z;
 				const float EndZ = StartZ + ObstacleHeight;
 				TSet<FIntVector> AllGridCells;
+				TArray<FIntVector> AllGridCellsArray;
 
 				float CurrentLayerZ = StartZ;
 
@@ -467,19 +468,23 @@ void UNeighborGridComponent::Update()
 					CurrentLayerZ += CellSize;
 				}
 
-				for (const auto& CellPos : AllGridCells)
-				{
-					if (!LIKELY(IsInside(CellPos))) continue;
+				AllGridCellsArray = AllGridCells.Array();
 
-					auto& Cell = At(CellPos);
+				ParallelFor(AllGridCellsArray.Num(),
+					[&](int32 Index)
+					{
+						const FIntVector& CellPos = AllGridCellsArray[Index];
+						if (!LIKELY(IsInside(CellPos))) return;
 
-					Cell.Lock();
-					Cell.BoxObstacleFingerprint.Add(Subject.GetFingerprint());
-					Cell.BoxObstacles.Add(Avoiding);
-					Cell.Unlock();
-				}
+						auto& Cell = At(CellPos);
+
+						Cell.Lock();
+						Cell.BoxObstacleFingerprint.Add(Subject.GetFingerprint());
+						Cell.BoxObstacles.Add(Avoiding);
+						Cell.Unlock();
+					}
+				);
 			}
-
 		}, ThreadsCount, BatchSize);
 	}
 }
@@ -499,345 +504,209 @@ void UNeighborGridComponent::Decouple()
 	AMechanism* Mechanism = GetMechanism();
 	const FFilter Filter = FFilter::Make<FLocated, FCollider, FMove, FMoving, FAvoidance, FAvoiding>().Exclude<FSphereObstacle, FAppearing>();
 
+	auto Chain = Mechanism->EnchainSolid(Filter);
+	UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
+
+	Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FMove& Move, FLocated& Located, FCollider& Collider, FMoving& Moving, FAvoidance& Avoidance, FAvoiding& Avoiding)
 	{
-		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum() ,MaxThreadsAllowed, ThreadsCount, BatchSize);
+		if (UNLIKELY(!Move.bEnable)) return;
 
-		Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FMove& Move, FLocated& Located, FCollider& Collider, FMoving& Moving, FAvoidance& Avoidance, FAvoiding& Avoiding)
+		const auto SelfLocation = Located.Location;
+		const auto SelfRadius = Collider.Radius;
+		const auto NeighborDist = Avoidance.NeighborDist;
+		const float TotalRangeSqr = FMath::Square(SelfRadius + NeighborDist);
+		const int32 MaxNeighbors = Avoidance.MaxNeighbors;
+
+		TArray<FAvoiding> SubjectNeighbors;
+		TArray<FAvoiding> SphereObstacleNeighbors;
+		TArray<FAvoiding> BoxObstacleNeighbors;
+
+		SubjectNeighbors.Reserve(MaxNeighbors);
+		SphereObstacleNeighbors.Reserve(MaxNeighbors);
+		BoxObstacleNeighbors.Reserve(MaxNeighbors);
+
+		//--------------------------Collect Subject Neighbors And Sphere Obstacles--------------------------------
+
+		FFilter SubjectFilter = FFilter::Make<FLocated, FCollider, FAvoidance, FAvoiding>().Exclude<FSphereObstacle, FCorpse>();
+
+		// 碰撞组
+		if (!Avoidance.IgnoreGroups.IsEmpty())
 		{
-			if (UNLIKELY(!Move.bEnable)) return;
+			const int32 ClampedGroups = FMath::Clamp(Avoidance.IgnoreGroups.Num(), 0, 9);
 
-			const auto SelfLocation = Located.Location;
-			const auto SelfRadius = Collider.Radius;
-			const auto NeighborDist = Avoidance.NeighborDist;
-			const float TotalRangeSqr = FMath::Square(SelfRadius + NeighborDist);
-			const int32 MaxNeighbors = Avoidance.MaxNeighbors;
-
-			TArray<FAvoiding> SubjectNeighbors;
-			TArray<FAvoiding> SphereObstacleNeighbors;
-			TArray<FAvoiding> BoxObstacleNeighbors;
-
-			SubjectNeighbors.Reserve(MaxNeighbors);
-			SphereObstacleNeighbors.Reserve(MaxNeighbors);
-			BoxObstacleNeighbors.Reserve(MaxNeighbors);
-
-			//--------------------------Collect Subject Neighbors And Sphere Obstacles--------------------------------
-
-			FFilter SubjectFilter = FFilter::Make<FLocated, FCollider, FAvoidance, FAvoiding>().Exclude<FSphereObstacle, FCorpse>();
-
-			// 碰撞组
-			if (!Avoidance.IgnoreGroups.IsEmpty())
+			for (int32 i = 0; i < ClampedGroups; ++i)
 			{
-				const int32 ClampedGroups = FMath::Clamp(Avoidance.IgnoreGroups.Num(), 0, 9);
-
-				for (int32 i = 0; i < ClampedGroups; ++i)
-				{
-					UBattleFrameFunctionLibraryRT::ExcludeAvoGroupTraitByIndex(Avoidance.IgnoreGroups[i], SubjectFilter);
-				}
+				UBattleFrameFunctionLibraryRT::ExcludeAvoGroupTraitByIndex(Avoidance.IgnoreGroups[i], SubjectFilter);
 			}
+		}
 
-			const FFingerprint SubjectFingerprint = SubjectFilter.GetFingerprint();
+		const FFingerprint SubjectFingerprint = SubjectFilter.GetFingerprint();
 
-			const FVector SubjectRange3D(NeighborDist + SelfRadius, NeighborDist + SelfRadius, SelfRadius);
-			TArray<FIntVector> NeighbourCellCoords = GetNeighborCells(SelfLocation, SubjectRange3D);
+		const FVector SubjectRange3D(NeighborDist + SelfRadius, NeighborDist + SelfRadius, SelfRadius);
+		TArray<FIntVector> NeighbourCellCoords = GetNeighborCells(SelfLocation, SubjectRange3D);
 
-			// 使用最大堆收集最近的SubjectNeighbors
-			auto SubjectCompare = [&](const FAvoiding& A, const FAvoiding& B) {
-				return FVector::DistSquared(SelfLocation, A.Location) > FVector::DistSquared(SelfLocation, B.Location);
-				};
+		// 使用最大堆收集最近的SubjectNeighbors
+		auto SubjectCompare = [&](const FAvoiding& A, const FAvoiding& B) {
+			return FVector::DistSquared(SelfLocation, A.Location) > FVector::DistSquared(SelfLocation, B.Location);
+			};
 
-			TSet<uint32> SeenHashes;
+		TSet<uint32> SeenHashes;
 
-			TSet<FAvoiding> ValidSphereObstacleNeighbors;
-			ValidSphereObstacleNeighbors.Reserve(MaxNeighbors);
+		TSet<FAvoiding> ValidSphereObstacleNeighbors;
+		ValidSphereObstacleNeighbors.Reserve(MaxNeighbors);
 
-			for (const FIntVector& Coord : NeighbourCellCoords)
+		for (const FIntVector& Coord : NeighbourCellCoords)
+		{
+			const auto& Cell = At(Coord);
+
+			if (Cell.SubjectFingerprint.Matches(SubjectFingerprint))
 			{
-				const auto& Cell = At(Coord);
-
-				if (Cell.SubjectFingerprint.Matches(SubjectFingerprint))
+				for (const FAvoiding& AvoData : Cell.Subjects)
 				{
-					for (const FAvoiding& AvoData : Cell.Subjects)
+					// 基础过滤条件
+					if (UNLIKELY(!AvoData.SubjectHandle.Matches(SubjectFilter))) continue;
+					if (AvoData.SubjectHash == Avoiding.SubjectHash) continue;
+
+					// 距离检查
+					const float DistSqr = FVector::DistSquared(SelfLocation, AvoData.Location);
+					const float RadiusSqr = FMath::Square(AvoData.Radius) + TotalRangeSqr;
+					if (UNLIKELY(DistSqr > RadiusSqr)) continue;
+
+					// 高效去重（基于栈内存的TSet）
+					if (SeenHashes.Contains(AvoData.SubjectHash)) continue;
+					SeenHashes.Add(AvoData.SubjectHash);
+
+					// 动态维护堆
+					if (SubjectNeighbors.Num() < MaxNeighbors)
 					{
-						// 基础过滤条件
-						if (UNLIKELY(!AvoData.SubjectHandle.Matches(SubjectFilter))) continue;
-						if (AvoData.SubjectHash == Avoiding.SubjectHash) continue;
-
-						// 距离检查
-						const float DistSqr = FVector::DistSquared(SelfLocation, AvoData.Location);
-						const float RadiusSqr = FMath::Square(AvoData.Radius) + TotalRangeSqr;
-						if (UNLIKELY(DistSqr > RadiusSqr)) continue;
-
-						// 高效去重（基于栈内存的TSet）
-						if (SeenHashes.Contains(AvoData.SubjectHash)) continue;
-						SeenHashes.Add(AvoData.SubjectHash);
-
-						// 动态维护堆
-						if (SubjectNeighbors.Num() < MaxNeighbors)
+						SubjectNeighbors.HeapPush(AvoData, SubjectCompare);
+					}
+					else
+					{
+						const float HeapTopDist = FVector::DistSquared(SelfLocation, SubjectNeighbors.HeapTop().Location);
+						if (DistSqr < HeapTopDist)
 						{
+							// 弹出时同步移除哈希记录
+							SeenHashes.Remove(SubjectNeighbors.HeapTop().SubjectHash);
+							SubjectNeighbors.HeapPopDiscard(SubjectCompare);
 							SubjectNeighbors.HeapPush(AvoData, SubjectCompare);
 						}
-						else
-						{
-							const float HeapTopDist = FVector::DistSquared(SelfLocation, SubjectNeighbors.HeapTop().Location);
-							if (DistSqr < HeapTopDist)
-							{
-								// 弹出时同步移除哈希记录
-								SeenHashes.Remove(SubjectNeighbors.HeapTop().SubjectHash);
-								SubjectNeighbors.HeapPopDiscard(SubjectCompare);
-								SubjectNeighbors.HeapPush(AvoData, SubjectCompare);
-							}
-						}
-					}
-				}
-
-				// SphereObstacle
-				if (Cell.SphereObstacleFingerprint.Matches(SphereObstacleFingerprint))
-				{
-					for (const FAvoiding& AvoData : Cell.SphereObstacles)
-					{
-						if (UNLIKELY(!AvoData.SubjectHandle.Matches(SphereObstacleFilter))) continue;
-
-						const float DistSqr = FVector::DistSquared(SelfLocation, AvoData.Location);
-						const float RadiusSqr = FMath::Square(AvoData.Radius) + TotalRangeSqr;
-
-						if (UNLIKELY(DistSqr > RadiusSqr)) continue;
-
-						ValidSphereObstacleNeighbors.Add(AvoData);
 					}
 				}
 			}
 
-			// 按距离升序排序后加入结果
-			SubjectNeighbors.Sort([&](const FAvoiding& A, const FAvoiding& B) { return FVector::DistSquared(SelfLocation, A.Location) < FVector::DistSquared(SelfLocation, B.Location);});
-
-			SphereObstacleNeighbors.Append(ValidSphereObstacleNeighbors.Array());
-
-
-			//---------------------------Collect Box Obstacle Neighbors--------------------------------
-
-			const float ObstacleRange = Avoidance.RVO_TimeHorizon_Obstacle * Avoidance.MaxSpeed + Avoidance.Radius;
-			const FVector ObstacleRange3D(ObstacleRange, ObstacleRange, Avoidance.Radius);
-			TArray<FIntVector> ObstacleCellCoords = GetNeighborCells(SelfLocation, ObstacleRange3D);
-
-			for (const FIntVector& Coord : ObstacleCellCoords)
+			// SphereObstacle
+			if (Cell.SphereObstacleFingerprint.Matches(SphereObstacleFingerprint))
 			{
-				const auto& Cell = At(Coord);
-				if (LIKELY(!Cell.BoxObstacleFingerprint.Matches(BoxObstacleFingerprint))) continue;
-
-				for (FAvoiding AvoData : Cell.BoxObstacles)
+				for (const FAvoiding& AvoData : Cell.SphereObstacles)
 				{
-					const FSubjectHandle OtherObstacle = AvoData.SubjectHandle;
+					if (UNLIKELY(!AvoData.SubjectHandle.Matches(SphereObstacleFilter))) continue;
 
-					if (UNLIKELY(!OtherObstacle.Matches(BoxObstacleFilter))) continue;
+					const float DistSqr = FVector::DistSquared(SelfLocation, AvoData.Location);
+					const float RadiusSqr = FMath::Square(AvoData.Radius) + TotalRangeSqr;
 
-					const auto& ObstacleTrait = OtherObstacle.GetTrait<FBoxObstacle>();
-					const FVector ObstaclePoint = ObstacleTrait.point3d_;
-					const FBoxObstacle* NextObstaclePtr = ObstacleTrait.nextObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
+					if (UNLIKELY(DistSqr > RadiusSqr)) continue;
 
-					if (UNLIKELY(NextObstaclePtr == nullptr)) continue;
-
-					const FVector NextPoint = NextObstaclePtr->point3d_;
-					const float ObstacleHeight = ObstacleTrait.height_;
-
-					const float ObstacleZMin = ObstaclePoint.Z;
-					const float ObstacleZMax = ObstaclePoint.Z + ObstacleHeight;
-					const float SubjectZMin = SelfLocation.Z - SelfRadius;
-					const float SubjectZMax = SelfLocation.Z + SelfRadius;
-
-					if (SubjectZMax < ObstacleZMin || SubjectZMin > ObstacleZMax) continue;
-
-					RVO::Vector2 currentPos(Located.Location.X, Located.Location.Y);
-					RVO::Vector2 obstacleStart(ObstaclePoint.X, ObstaclePoint.Y);
-					RVO::Vector2 obstacleEnd(NextPoint.X, NextPoint.Y);
-
-					float leftOfValue = RVO::leftOf(obstacleStart, obstacleEnd, currentPos);
-
-					if (leftOfValue < 0.0f)
-					{
-						BoxObstacleNeighbors.Add(AvoData);
-					}
+					ValidSphereObstacleNeighbors.Add(AvoData);
 				}
 			}
+		}
 
-			Located.preLocation = Located.Location;
+		// 按距离升序排序后加入结果
+		SubjectNeighbors.Sort([&](const FAvoiding& A, const FAvoiding& B) { return FVector::DistSquared(SelfLocation, A.Location) < FVector::DistSquared(SelfLocation, B.Location);});
 
-			Avoidance.Radius = SelfRadius;
-			Avoidance.Position = RVO::Vector2(SelfLocation.X, SelfLocation.Y);
+		SphereObstacleNeighbors.Append(ValidSphereObstacleNeighbors.Array());
 
-			//----------------------------Try Avoid SubjectNeighbors---------------------------------
 
-			Avoidance.MaxSpeed = Moving.DesiredVelocity.Size2D() * Moving.SpeedMult;
-			Avoidance.DesiredVelocity = RVO::Vector2(Moving.DesiredVelocity.X, Moving.DesiredVelocity.Y);//copy into rvo trait
-			Avoidance.CurrentVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);//copy into rvo trait
+		//---------------------------Collect Box Obstacle Neighbors--------------------------------
 
-			TArray<FAvoiding> EmptyArray;
-			ComputeNewVelocity(Avoidance, SubjectNeighbors, EmptyArray, DeltaTime);
+		const float ObstacleRange = Avoidance.RVO_TimeHorizon_Obstacle * Avoidance.MaxSpeed + Avoidance.Radius;
+		const FVector ObstacleRange3D(ObstacleRange, ObstacleRange, Avoidance.Radius);
+		TArray<FIntVector> ObstacleCellCoords = GetNeighborCells(SelfLocation, ObstacleRange3D);
 
-			if (!Moving.bFalling && !(Moving.LaunchTimer > 0))
+		for (const FIntVector& Coord : ObstacleCellCoords)
+		{
+			const auto& Cell = At(Coord);
+			if (LIKELY(!Cell.BoxObstacleFingerprint.Matches(BoxObstacleFingerprint))) continue;
+
+			for (FAvoiding AvoData : Cell.BoxObstacles)
 			{
-				FVector AvoidingVelocity(Avoidance.AvoidingVelocity.x(), Avoidance.AvoidingVelocity.y(), 0);
-				FVector CurrentVelocity(Avoidance.CurrentVelocity.x(), Avoidance.CurrentVelocity.y(), 0);
-				FVector InterpedVelocity = FMath::VInterpTo(CurrentVelocity, AvoidingVelocity, DeltaTime, Move.Acceleration / 100);
-				Moving.CurrentVelocity = FVector(InterpedVelocity.X, InterpedVelocity.Y, Moving.CurrentVelocity.Z); // velocity can only change so much because of inertial
+				const FSubjectHandle OtherObstacle = AvoData.SubjectHandle;
+
+				if (UNLIKELY(!OtherObstacle.Matches(BoxObstacleFilter))) continue;
+
+				const auto& ObstacleTrait = OtherObstacle.GetTrait<FBoxObstacle>();
+				const FVector ObstaclePoint = ObstacleTrait.point3d_;
+				const FBoxObstacle* NextObstaclePtr = ObstacleTrait.nextObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
+
+				if (UNLIKELY(NextObstaclePtr == nullptr)) continue;
+
+				const FVector NextPoint = NextObstaclePtr->point3d_;
+				const float ObstacleHeight = ObstacleTrait.height_;
+
+				const float ObstacleZMin = ObstaclePoint.Z;
+				const float ObstacleZMax = ObstaclePoint.Z + ObstacleHeight;
+				const float SubjectZMin = SelfLocation.Z - SelfRadius;
+				const float SubjectZMax = SelfLocation.Z + SelfRadius;
+
+				if (SubjectZMax < ObstacleZMin || SubjectZMin > ObstacleZMax) continue;
+
+				RVO::Vector2 currentPos(Located.Location.X, Located.Location.Y);
+				RVO::Vector2 obstacleStart(ObstaclePoint.X, ObstaclePoint.Y);
+				RVO::Vector2 obstacleEnd(NextPoint.X, NextPoint.Y);
+
+				float leftOfValue = RVO::leftOf(obstacleStart, obstacleEnd, currentPos);
+
+				if (leftOfValue < 0.0f)
+				{
+					BoxObstacleNeighbors.Add(AvoData);
+				}
 			}
+		}
 
-			//-------------------------------Blocked By Obstacles------------------------------------
+		Located.preLocation = Located.Location;
 
-			Avoidance.MaxSpeed = Moving.bPushedBack ? FMath::Max(Moving.CurrentVelocity.Size2D(), Moving.PushBackSpeedOverride) : Moving.CurrentVelocity.Size2D();
-			Avoidance.DesiredVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);//copy into rvo trait
-			Avoidance.CurrentVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);//copy into rvo trait
+		Avoidance.Radius = SelfRadius;
+		Avoidance.Position = RVO::Vector2(SelfLocation.X, SelfLocation.Y);
 
-			ComputeNewVelocity(Avoidance, SphereObstacleNeighbors, BoxObstacleNeighbors, DeltaTime);
+		//----------------------------Try Avoid SubjectNeighbors---------------------------------
 
-			Moving.CurrentVelocity = FVector(Avoidance.AvoidingVelocity.x(), Avoidance.AvoidingVelocity.y(), Moving.CurrentVelocity.Z);// since obstacles are hard, we set velocity directly without any interpolation
+		Avoidance.MaxSpeed = Moving.DesiredVelocity.Size2D() * Moving.SpeedMult;
+		Avoidance.DesiredVelocity = RVO::Vector2(Moving.DesiredVelocity.X, Moving.DesiredVelocity.Y);//copy into rvo trait
+		Avoidance.CurrentVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);//copy into rvo trait
 
-			//----------------------------------Set Location---------------------------------------
+		TArray<FAvoiding> EmptyArray;
+		ComputeNewVelocity(Avoidance, SubjectNeighbors, EmptyArray, DeltaTime);
 
-			Located.Location += Moving.CurrentVelocity * DeltaTime;
+		if (!Moving.bFalling && !(Moving.LaunchTimer > 0))
+		{
+			FVector AvoidingVelocity(Avoidance.AvoidingVelocity.x(), Avoidance.AvoidingVelocity.y(), 0);
+			FVector CurrentVelocity(Avoidance.CurrentVelocity.x(), Avoidance.CurrentVelocity.y(), 0);
+			FVector InterpedVelocity = FMath::VInterpTo(CurrentVelocity, AvoidingVelocity, DeltaTime, Move.Acceleration / 100);
+			Moving.CurrentVelocity = FVector(InterpedVelocity.X, InterpedVelocity.Y, Moving.CurrentVelocity.Z); // velocity can only change so much because of inertial
+		}
 
-		}, ThreadsCount, BatchSize);
-	}
+		//-------------------------------Blocked By Obstacles------------------------------------
+
+		Avoidance.MaxSpeed = Moving.bPushedBack ? FMath::Max(Moving.CurrentVelocity.Size2D(), Moving.PushBackSpeedOverride) : Moving.CurrentVelocity.Size2D();
+		Avoidance.DesiredVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);//copy into rvo trait
+		Avoidance.CurrentVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);//copy into rvo trait
+
+		ComputeNewVelocity(Avoidance, SphereObstacleNeighbors, BoxObstacleNeighbors, DeltaTime);
+
+		Moving.CurrentVelocity = FVector(Avoidance.AvoidingVelocity.x(), Avoidance.AvoidingVelocity.y(), Moving.CurrentVelocity.Z);// since obstacles are hard, we set velocity directly without any interpolation
+
+		//----------------------------------Set Location---------------------------------------
+
+		Located.Location += Moving.CurrentVelocity * DeltaTime;
+
+	}, ThreadsCount, BatchSize);
 }
 
 void UNeighborGridComponent::Evaluate()
 {
 	Update();
 	Decouple();
-}
-
-//---------------------------------------------Helpers------------------------------------------------------------------
-
-TArray<FIntVector> UNeighborGridComponent::GetGridCellsForCapsule(FVector Start, FVector End, float Radius) const 
-{
-	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("GetGridCellsForCapsule");
-
-	TSet<FIntVector> GridCellsSet;
-
-	FIntVector StartCell = WorldToCage(Start);
-	FIntVector EndCell = WorldToCage(End);
-
-	FIntVector delta = EndCell - StartCell;
-	FIntVector absDelta = FIntVector(FMath::Abs(delta.X), FMath::Abs(delta.Y), FMath::Abs(delta.Z));
-
-	FIntVector currentCell = StartCell;
-
-	int32 xs = delta.X > 0 ? 1 : -1;
-	int32 ys = delta.Y > 0 ? 1 : -1;
-	int32 zs = delta.Z > 0 ? 1 : -1;
-
-	int32 p1, p2;
-
-	if (absDelta.X >= absDelta.Y)  // X is major axis
-	{
-		p1 = 2 * absDelta.Y - absDelta.X;
-		p2 = 2 * absDelta.Z - absDelta.X;
-
-		for (int32 i = 0; i < absDelta.X; ++i) {
-			AddSphereCells(currentCell, Radius, GridCellsSet);
-
-			if (p1 >= 0) {
-				currentCell.Y += ys;
-				p1 -= 2 * absDelta.X;
-			}
-			if (p2 >= 0) {
-				currentCell.Z += zs;
-				p2 -= 2 * absDelta.X;
-			}
-
-			p1 += 2 * absDelta.Y;
-			p2 += 2 * absDelta.Z;
-			currentCell.X += xs;
-		}
-	}
-	else // Y is major axis
-	{ 
-		p1 = 2 * absDelta.X - absDelta.Y;
-		p2 = 2 * absDelta.Z - absDelta.Y;
-
-		for (int32 i = 0; i < absDelta.Y; ++i) 
-		{
-			AddSphereCells(currentCell, Radius, GridCellsSet);
-
-			if (p1 >= 0) {
-				currentCell.X += xs;
-				p1 -= 2 * absDelta.Y;
-			}
-			if (p2 >= 0) {
-				currentCell.Z += zs;
-				p2 -= 2 * absDelta.Y;
-			}
-
-			p1 += 2 * absDelta.X;
-			p2 += 2 * absDelta.Z;
-			currentCell.Y += ys;
-		}
-	}
-
-	AddSphereCells(EndCell, Radius, GridCellsSet);
-
-	TArray<FIntVector> GridCells;
-
-	for (const FIntVector& Element : GridCellsSet)
-	{
-		GridCells.Add(Element);
-	}
-
-	return GridCells;
-}
-
-FORCEINLINE void UNeighborGridComponent::AddSphereCells(FIntVector CenterCell, float Radius, TSet<FIntVector>& GridCells) const 
-{
-	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("AddSphereCells");
-
-	int32 RadiusInCells = FMath::CeilToInt(Radius / CellSize);
-
-	for (int32 x = -RadiusInCells; x <= RadiusInCells; ++x) {
-		for (int32 y = -RadiusInCells; y <= RadiusInCells; ++y) {
-			for (int32 z = -RadiusInCells; z <= RadiusInCells; ++z) {
-				FIntVector OffsetCell = CenterCell + FIntVector(x, y, z);
-
-				if (IsInsideSphere(CenterCell, OffsetCell, Radius)) {
-					GridCells.Add(OffsetCell);
-				}
-			}
-		}
-	}
-}
-
-FORCEINLINE bool UNeighborGridComponent::IsInsideSphere(FIntVector CenterCell, FIntVector TestCell, float Radius) const {
-	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("IsInsideSphere");
-
-	FVector CenterWorld = CageToWorld(CenterCell);
-	FVector TestWorld = CageToWorld(TestCell);
-
-	float DistanceSquared = FVector::DistSquared(CenterWorld, TestWorld);
-	return DistanceSquared <= (Radius * Radius);
-}
-
-TArray<FIntVector> UNeighborGridComponent::GetNeighborCells(const FVector& Center, const FVector& Range3D) const
-{
-	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("GetNeighborCells");
-
-	const FIntVector Min = WorldToCage(Center - Range3D);
-	const FIntVector Max = WorldToCage(Center + Range3D);
-
-	TArray<FIntVector> ValidCells;
-	// 内存预分配优化：根据经验公式预先保留空间
-	const int32 ExpectedCells = (Max.X - Min.X + 1) * (Max.Y - Min.Y + 1) * (Max.Z - Min.Z + 1);
-	ValidCells.Reserve(ExpectedCells); // 根据场景规模调整
-
-	for (int32 z = Min.Z; z <= Max.Z; ++z) {
-		for (int32 y = Min.Y; y <= Max.Y; ++y) {
-			for (int32 x = Min.X; x <= Max.X; ++x) {
-				const FIntVector CellPos(x, y, z);
-				if (LIKELY(IsInside(CellPos))) { // 分支预测优化
-					ValidCells.Emplace(CellPos);
-				}
-			}
-		}
-	}
-	return ValidCells;
 }
 
 //-------------------------------RVO2D Copyright 2023, EastFoxStudio. All Rights Reserved-------------------------------

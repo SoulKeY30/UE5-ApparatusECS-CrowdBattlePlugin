@@ -38,6 +38,9 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Performance)
 	int32 MaxThreadsAllowed = FMath::Clamp(FPlatformMisc::NumberOfWorkerThreadsToSpawn() - 1, 1, 20);
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Performance)
+	int32 MinBatchSizeAllowed = 100;
+
 	int32 ThreadsCount = 1;
 	int32 BatchSize = 1;
 
@@ -88,28 +91,13 @@ public:
 	void SphereExpandForSubject(const FVector Origin, float Radius, float Height, const FFilter Filter, FSubjectHandle& Result) const;
 
 	void Update();
-
 	void Decouple();
-
 	void Evaluate();
 
-	TArray<FIntVector> GetGridCellsForCapsule(FVector Start, FVector End, float Radius) const;
-
-	void AddSphereCells(FIntVector CenterCell, float Radius, TSet<FIntVector>& GridCells) const;
-
-	bool IsInsideSphere(FIntVector CenterCell, FIntVector TestCell, float Radius) const;
-
 	void ComputeNewVelocity(FAvoidance& Avoidance, TArray<FAvoiding>& SubjectNeighbors, TArray<FAvoiding>& ObstacleNeighbors, float timeStep_);
-
 	bool LinearProgram1(const std::vector<RVO::Line>& lines, size_t lineNo, float radius, const RVO::Vector2& optVelocity, bool directionOpt, RVO::Vector2& result);
-
 	size_t LinearProgram2(const std::vector<RVO::Line>& lines, float radius, const RVO::Vector2& optVelocity, bool directionOpt, RVO::Vector2& result);
-
 	void LinearProgram3(const std::vector<RVO::Line>& lines, size_t numObstLines, size_t beginLine, float radius, RVO::Vector2& result);
-
-	TArray<FIntVector> GetNeighborCells(const FVector& Center, const FVector& Range3D) const;
-
-
 
 
 	/**
@@ -146,6 +134,7 @@ public:
 	 */
 	FORCEINLINE FVector CageToWorld(const FIntVector& CagePoint) const
 	{
+		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("CageToWorld");
 		// Convert the cage point to a local position within the cage
 		FVector LocalPoint = FVector(CagePoint.X, CagePoint.Y, CagePoint.Z) * CellSize;
 
@@ -158,6 +147,7 @@ public:
 	 */
 	FORCEINLINE FIntVector WorldToCage(FVector Point) const
 	{
+		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("WorldToCage");
 		Point -= Bounds.Min;
 		Point *= InvCellSizeCache;
 		return FIntVector(FMath::FloorToInt(Point.X),
@@ -231,6 +221,7 @@ public:
 	/* Check if the cage point is inside the cage. */
 	FORCEINLINE bool IsInside(const FIntVector& CellPoint) const
 	{
+		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("IsInside");
 		return (CellPoint.X >= 0) && (CellPoint.X < Size.X) &&
 			(CellPoint.Y >= 0) && (CellPoint.Y < Size.Y) &&
 			(CellPoint.Z >= 0) && (CellPoint.Z < Size.Z);
@@ -280,7 +271,137 @@ public:
 		return BoxAt(WorldToCage(Point));
 	}
 
+	//---------------------------------------------Helpers------------------------------------------------------------------
 
+	FORCEINLINE TArray<FIntVector> GetNeighborCells(const FVector& Center, const FVector& Range3D) const
+	{
+		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("GetNeighborCells");
 
+		const FIntVector Min = WorldToCage(Center - Range3D);
+		const FIntVector Max = WorldToCage(Center + Range3D);
+
+		TArray<FIntVector> ValidCells;
+		const int32 ExpectedCells = (Max.X - Min.X + 1) * (Max.Y - Min.Y + 1) * (Max.Z - Min.Z + 1);
+		ValidCells.Reserve(ExpectedCells); // 根据场景规模调整
+
+		for (int32 z = Min.Z; z <= Max.Z; ++z) {
+			for (int32 y = Min.Y; y <= Max.Y; ++y) {
+				for (int32 x = Min.X; x <= Max.X; ++x) {
+					const FIntVector CellPos(x, y, z);
+					if (LIKELY(IsInside(CellPos))) { // 分支预测优化
+						ValidCells.Emplace(CellPos);
+					}
+				}
+			}
+		}
+		return ValidCells;
+	}
+
+	TArray<FIntVector> GetGridCellsForCapsule(FVector Start, FVector End, float Radius) const
+	{
+		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("GetGridCellsForCapsule");// to do : optimize with parallel for
+
+		// 预计算关键参数
+		const float RadiusInCellsValue = Radius / CellSize;
+		const int32 RadiusInCells = FMath::CeilToInt(RadiusInCellsValue);
+		const float RadiusSq = FMath::Square(RadiusInCellsValue);
+
+		// 改用TArray+BitArray加速去重
+		TArray<FIntVector> GridCells;
+		TSet<FIntVector> GridCellsSet; // 保持TSet或根据性能测试调整
+
+		FIntVector StartCell = WorldToCage(Start);
+		FIntVector EndCell = WorldToCage(End);
+		FIntVector Delta = EndCell - StartCell;
+		FIntVector AbsDelta(FMath::Abs(Delta.X), FMath::Abs(Delta.Y), FMath::Abs(Delta.Z));
+
+		// Bresenham算法参数
+		FIntVector CurrentCell = StartCell;
+		const int32 XStep = Delta.X > 0 ? 1 : -1;
+		const int32 YStep = Delta.Y > 0 ? 1 : -1;
+		const int32 ZStep = Delta.Z > 0 ? 1 : -1;
+
+		// 主循环
+		if (AbsDelta.X >= AbsDelta.Y && AbsDelta.X >= AbsDelta.Z)
+		{
+			// X为主轴
+			int32 P1 = 2 * AbsDelta.Y - AbsDelta.X;
+			int32 P2 = 2 * AbsDelta.Z - AbsDelta.X;
+
+			for (int32 i = 0; i < AbsDelta.X; ++i)
+			{
+				AddSphereCells(CurrentCell, RadiusInCells, RadiusSq, GridCellsSet);
+				if (P1 >= 0) { CurrentCell.Y += YStep; P1 -= 2 * AbsDelta.X; }
+				if (P2 >= 0) { CurrentCell.Z += ZStep; P2 -= 2 * AbsDelta.X; }
+				P1 += 2 * AbsDelta.Y;
+				P2 += 2 * AbsDelta.Z;
+				CurrentCell.X += XStep;
+			}
+		}
+		else if (AbsDelta.Y >= AbsDelta.Z)
+		{
+			// Y为主轴
+			int32 P1 = 2 * AbsDelta.X - AbsDelta.Y;
+			int32 P2 = 2 * AbsDelta.Z - AbsDelta.Y;
+			for (int32 i = 0; i < AbsDelta.Y; ++i)
+			{
+				AddSphereCells(CurrentCell, RadiusInCells, RadiusSq, GridCellsSet);
+				if (P1 >= 0) { CurrentCell.X += XStep; P1 -= 2 * AbsDelta.Y; }
+				if (P2 >= 0) { CurrentCell.Z += ZStep; P2 -= 2 * AbsDelta.Y; }
+				P1 += 2 * AbsDelta.X;
+				P2 += 2 * AbsDelta.Z;
+				CurrentCell.Y += YStep;
+			}
+		}
+		else
+		{
+			// Z为主轴
+			int32 P1 = 2 * AbsDelta.X - AbsDelta.Z;
+			int32 P2 = 2 * AbsDelta.Y - AbsDelta.Z;
+			for (int32 i = 0; i < AbsDelta.Z; ++i)
+			{
+				AddSphereCells(CurrentCell, RadiusInCells, RadiusSq, GridCellsSet);
+				if (P1 >= 0) { CurrentCell.X += XStep; P1 -= 2 * AbsDelta.Z; }
+				if (P2 >= 0) { CurrentCell.Y += YStep; P2 -= 2 * AbsDelta.Z; }
+				P1 += 2 * AbsDelta.X;
+				P2 += 2 * AbsDelta.Y;
+				CurrentCell.Z += ZStep;
+			}
+		}
+
+		AddSphereCells(EndCell, RadiusInCells, RadiusSq, GridCellsSet);
+		return GridCellsSet.Array();
+	}
+
+	FORCEINLINE void AddSphereCells(
+		FIntVector CenterCell,
+		int32 RadiusInCells,
+		float RadiusSq,
+		TSet<FIntVector>& GridCells
+	) const
+	{
+		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("AddSphereCellsOptimized");
+
+		// 分层遍历优化：减少无效循环
+		for (int32 x = -RadiusInCells; x <= RadiusInCells; ++x)
+		{
+			const int32 XSq = x * x;
+			if (XSq > RadiusSq) continue;
+
+			for (int32 y = -RadiusInCells; y <= RadiusInCells; ++y)
+			{
+				const int32 YSq = y * y;
+				if (XSq + YSq > RadiusSq) continue;
+
+				// 直接计算z范围，减少循环次数
+				const float RemainingSq = RadiusSq - (XSq + YSq);
+				const int32 MaxZ = FMath::FloorToInt(FMath::Sqrt(RemainingSq));
+				for (int32 z = -MaxZ; z <= MaxZ; ++z)
+				{
+					GridCells.Add(CenterCell + FIntVector(x, y, z));
+				}
+			}
+		}
+	}
 };
 

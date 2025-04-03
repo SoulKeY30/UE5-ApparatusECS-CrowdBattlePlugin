@@ -4,7 +4,7 @@
 * Author: Leroy Works, All Rights Reserved.
 */
 
-#include "BattleFramePlayerCharacter.h"
+#include "BattleFrameCharacter.h"
 #include "Traits/Hero.h"
 #include "Traits/Health.h"
 #include "Traits/Avoiding.h"
@@ -14,7 +14,7 @@
 #include "Traits/BindFlowField.h"
 
 // Sets default values
-ABattleFramePlayerCharacter::ABattleFramePlayerCharacter()
+ABattleFrameCharacter::ABattleFrameCharacter()
 {
 	Subjective = CreateDefaultSubobject<USubjectiveActorComponent>("Subjective");
 
@@ -28,7 +28,7 @@ ABattleFramePlayerCharacter::ABattleFramePlayerCharacter()
 }
 
 // Called when the game starts or when spawned
-void ABattleFramePlayerCharacter::BeginPlay()
+void ABattleFrameCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
@@ -38,18 +38,18 @@ void ABattleFramePlayerCharacter::BeginPlay()
 
 	const auto Handle = Subjective->GetHandle();
 	const auto Collider = Subjective->ObtainTrait<FCollider>();
-	Subjective->SetTrait(FAvoiding{ GetActorLocation(),Collider.Radius, Handle, Handle.CalcHash()});
+	Subjective->SetTrait(FAvoiding{ GetActorLocation(),Collider.Radius, Handle, Handle.CalcHash() });
 }
 
 // Called every frame
-void ABattleFramePlayerCharacter::Tick(float DeltaTime)
+void ABattleFrameCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	Subjective->GetTraitPtr<FLocated, EParadigm::Unsafe>()->Location = GetActorLocation();
 }
 
 // Called to bind functionality to input
-void ABattleFramePlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
+void ABattleFrameCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 }
