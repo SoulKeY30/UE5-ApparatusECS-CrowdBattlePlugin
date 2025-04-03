@@ -45,3 +45,5 @@ Demo maps are included in the plugin's content folder.
 Coming in future updates:
 1. 2D atlas renderer and converter
 2. Agent individual navigation
+3. Control agent AI with BP nodes
+4. More trace shapes
