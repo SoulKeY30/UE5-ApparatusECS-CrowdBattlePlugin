@@ -18,7 +18,7 @@ This plugin is open source, but has the following dependencies:
 
 ## Technical Details
 
-- **Status**: Beta version (may contain bugs)
+- **Status**: Beta (with frequent modifications and may contain bugs)
 - **Tested Platforms**: 
   - Windows
   - UE5.3, UE5.4, UE5.5
