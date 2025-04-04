@@ -32,6 +32,8 @@ public:
 	float NewSpeedLimit = 0;
 	TSet<FSubjectHandle> OverridingAgents;
 	UNeighborGridComponent* NeighborGrid = nullptr;
+	bool bStatic = false;
+	bool bRegistered = false;
 
 	FSphereObstacle() {};
 
@@ -42,6 +44,8 @@ public:
 		bOverrideSpeedLimit = SphereObstacle.bOverrideSpeedLimit;
 		NewSpeedLimit = SphereObstacle.NewSpeedLimit;
 		OverridingAgents = SphereObstacle.OverridingAgents;
+		bStatic = SphereObstacle.bStatic;
+		bRegistered = SphereObstacle.bRegistered;
 	}
 
 	FSphereObstacle& operator=(const FSphereObstacle& SphereObstacle)
@@ -51,6 +55,8 @@ public:
 		bOverrideSpeedLimit = SphereObstacle.bOverrideSpeedLimit;
 		NewSpeedLimit = SphereObstacle.NewSpeedLimit;
 		OverridingAgents = SphereObstacle.OverridingAgents;
+		bStatic = SphereObstacle.bStatic;
+		bRegistered = SphereObstacle.bRegistered;
 
 		return *this;
 	}

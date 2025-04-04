@@ -966,27 +966,22 @@ void UBattleFrameFunctionLibraryRT::IncludeSubTypeTraitByIndex(int32 Index, FFil
 
 void UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(int32 IterableNum, int32 MaxThreadsAllowed, int32 MinBatchSizeAllowed, int32& ThreadsCount, int32& BatchSize)
 {
-	// 计算初始可用线程数
-	const int32 AvailableThreads = FPlatformMisc::NumberOfWorkerThreadsToSpawn();
-
 	// 计算最大可能线程数（考虑最小批次限制）
-	const int32 MaxPossibleThreads = FMath::Clamp(
-		IterableNum / FMath::Max(1, MinBatchSizeAllowed),  // 保证最小每个线程能分配到MinBatchSizeAllowed个任务
-		1,                                                 // 至少1个线程
-		FMath::Min(AvailableThreads, MaxThreadsAllowed)     // 不超过系统允许的最大值
-	);
+	const int32 MaxPossibleThreads = FMath::Clamp(IterableNum / FMath::Max(1, MinBatchSizeAllowed), 1, MaxThreadsAllowed);
 
 	// 最终确定使用的线程数
 	ThreadsCount = FMath::Clamp(MaxPossibleThreads, 1, MaxThreadsAllowed);
 
 	// 计算批次大小（使用向上取整算法解决余数问题）
 	BatchSize = IterableNum / ThreadsCount;
-	if (IterableNum % ThreadsCount != 0) {
+
+	if (IterableNum % ThreadsCount != 0) 
+	{
 		BatchSize += 1;
 	}
 
 	// 最终限制批次大小范围
-	BatchSize = FMath::Clamp(BatchSize, 1, 10000);
+	BatchSize = FMath::Clamp(BatchSize, 1, FLT_MAX);
 }
 
 void UBattleFrameFunctionLibraryRT::SetAvoGroupTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord)

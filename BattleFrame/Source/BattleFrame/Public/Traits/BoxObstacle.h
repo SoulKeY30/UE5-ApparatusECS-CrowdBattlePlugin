@@ -23,4 +23,9 @@ public:
     FVector point3d_;
 
     float height_;
+
+    bool bStatic = false;
+
+    bool bRegistered = false;
+
 };

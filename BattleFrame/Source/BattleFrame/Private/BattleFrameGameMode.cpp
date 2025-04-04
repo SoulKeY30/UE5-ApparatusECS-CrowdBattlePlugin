@@ -64,15 +64,14 @@ void ABattleFrameGameMode::Tick(float DeltaTime)
 		auto Chain = Mechanism->EnchainSolid(Filter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
-		Chain->OperateConcurrently(
-			[&](FStatistics& Stats)
+		Chain->OperateConcurrently([&](FStatistics& Stats)
+		{
+			if (Stats.bEnable)
 			{
-				if (Stats.bEnable)
-				{
-					Stats.totalTime += DeltaTime;
-				}
+				Stats.totalTime += DeltaTime;
+			}
 
-			}, ThreadsCount, BatchSize);
+		}, ThreadsCount, BatchSize);
 	}
 	#pragma endregion
 

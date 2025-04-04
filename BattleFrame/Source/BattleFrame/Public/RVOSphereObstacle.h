@@ -11,6 +11,7 @@
 #include "Components/SphereComponent.h"
 
 #include "Traits/Avoidance.h"
+#include "Traits/Avoiding.h"
 #include "Traits/Located.h"
 #include "Traits/Collider.h"
 #include "Traits/SphereObstacle.h"
@@ -39,7 +40,7 @@ public:
 
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RVOSphereObstacle")
-	bool bIsDynamicObstacle = false;
+	bool bIsDynamicObstacle = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RVOSphereObstacle")
 	bool bOverrideSpeedLimit = true;

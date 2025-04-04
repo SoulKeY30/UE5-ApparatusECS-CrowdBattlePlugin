@@ -12,6 +12,7 @@
 #include "Components/BoxComponent.h"
 #include "SubjectiveActorComponent.h"
 #include "Traits/Avoidance.h"
+#include "Traits/Avoiding.h"
 #include "Traits/BoxObstacle.h"
 #include "Traits/Located.h"
 #include "RVOSquareObstacle.generated.h"
@@ -36,10 +37,10 @@ public:
     virtual void Tick(float DeltaTime) override;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RVOSquareObstacle")
-    bool bInsideOut = false;
+    bool bIsDynamicObstacle = true;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RVOSquareObstacle")
-    bool bIsDynamicObstacle = false;
+    bool bInsideOut = false;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RVOSquareObstacle")
     UBoxComponent* BoxComponent;

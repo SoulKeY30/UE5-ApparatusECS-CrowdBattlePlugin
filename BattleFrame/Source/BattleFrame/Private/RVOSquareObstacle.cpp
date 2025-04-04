@@ -27,7 +27,6 @@ void ARVOSquareObstacle::BeginPlay()
     Super::BeginPlay();
 
     FTransform ComponentTransform = BoxComponent->GetComponentTransform();
-    //FTransform ComponentTransform = GetActorTransform();
     FVector BoxExtent = BoxComponent->GetScaledBoxExtent();
     const float HeightValue = BoxExtent.Z * 2; 
 
@@ -58,7 +57,9 @@ void ARVOSquareObstacle::BeginPlay()
         FSubjectHandle(),
         RVO::Vector2((Point2Location - Point1Location).GetSafeNormal2D().X, (Point2Location - Point1Location).GetSafeNormal2D().Y),
         Point1Location,
-        HeightValue
+        HeightValue,
+        !bIsDynamicObstacle,
+        false
     };
 
     FBoxObstacle BoxObstacle2{
@@ -68,7 +69,9 @@ void ARVOSquareObstacle::BeginPlay()
         FSubjectHandle(),
         RVO::Vector2((Point3Location - Point2Location).GetSafeNormal2D().X, (Point3Location - Point2Location).GetSafeNormal2D().Y),
         Point2Location,
-        HeightValue
+        HeightValue,
+        !bIsDynamicObstacle,
+        false
     };
 
     FBoxObstacle BoxObstacle3{
@@ -78,7 +81,9 @@ void ARVOSquareObstacle::BeginPlay()
         FSubjectHandle(),
         RVO::Vector2((Point4Location - Point3Location).GetSafeNormal2D().X, (Point4Location - Point3Location).GetSafeNormal2D().Y),
         Point3Location,
-        HeightValue
+        HeightValue,
+        !bIsDynamicObstacle,
+        false
     };
 
     FBoxObstacle BoxObstacle4{
@@ -88,7 +93,9 @@ void ARVOSquareObstacle::BeginPlay()
         FSubjectHandle(),
         RVO::Vector2((Point1Location - Point4Location).GetSafeNormal2D().X, (Point1Location - Point4Location).GetSafeNormal2D().Y),
         Point4Location,
-        HeightValue
+        HeightValue,
+        !bIsDynamicObstacle,
+        false
     };
 
     // ����Subject Record

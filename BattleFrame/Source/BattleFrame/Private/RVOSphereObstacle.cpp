@@ -25,7 +25,6 @@ void ARVOSphereObstacle::BeginPlay()
 	Template.SetTrait(FCollider{});
 	Template.SetTrait(FSphereObstacle{});
 	Template.SetTrait(FAvoidance{});
-	Template.SetTrait(FRegisterMultiple{});
 
 	FVector Location = SphereComponent->GetComponentLocation();
 	float Radius = SphereComponent->GetScaledSphereRadius();
@@ -35,6 +34,7 @@ void ARVOSphereObstacle::BeginPlay()
 	Template.GetTraitRef<FCollider>().Radius = Radius;
 	Template.GetTraitRef<FSphereObstacle>().bOverrideSpeedLimit = bOverrideSpeedLimit;
 	Template.GetTraitRef<FSphereObstacle>().NewSpeedLimit = NewSpeedLimit;
+	Template.GetTraitRef<FSphereObstacle>().bStatic = !bIsDynamicObstacle;
 	Template.GetTraitRef<FAvoidance>().Radius = Radius;
 	Template.GetTraitRef<FAvoidance>().Position = RVO::Vector2(Location.X, Location.Y);
 

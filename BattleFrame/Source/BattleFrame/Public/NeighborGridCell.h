@@ -47,10 +47,14 @@ public:
 	FFingerprint SubjectFingerprint;
 	FFingerprint SphereObstacleFingerprint;
 	FFingerprint BoxObstacleFingerprint;
+	FFingerprint SphereObstacleFingerprintStatic;
+	FFingerprint BoxObstacleFingerprintStatic;
 
 	TArray<FAvoiding> Subjects;
 	TArray<FAvoiding> SphereObstacles;
 	TArray<FAvoiding> BoxObstacles;
+	TArray<FAvoiding> SphereObstaclesStatic;
+	TArray<FAvoiding> BoxObstaclesStatic;
 
 
 	FNeighborGridCell(){}
@@ -62,9 +66,13 @@ public:
 		SubjectFingerprint = Cell.SubjectFingerprint;
 		SphereObstacleFingerprint = Cell.SphereObstacleFingerprint;
 		BoxObstacleFingerprint = Cell.BoxObstacleFingerprint;
+		SphereObstacleFingerprintStatic = Cell.SphereObstacleFingerprintStatic;
+		BoxObstacleFingerprintStatic = Cell.BoxObstacleFingerprintStatic;
 		Subjects = Cell.Subjects;
 		SphereObstacles = Cell.SphereObstacles;
 		BoxObstacles = Cell.BoxObstacles;
+		SphereObstaclesStatic = Cell.SphereObstaclesStatic;
+		BoxObstaclesStatic = Cell.BoxObstaclesStatic;
 	}
 
 	FNeighborGridCell& operator=(const FNeighborGridCell& Cell)
@@ -72,10 +80,27 @@ public:
 		SubjectFingerprint = Cell.SubjectFingerprint;
 		SphereObstacleFingerprint = Cell.SphereObstacleFingerprint;
 		BoxObstacleFingerprint = Cell.BoxObstacleFingerprint;
+		SphereObstacleFingerprintStatic = Cell.SphereObstacleFingerprintStatic;
+		BoxObstacleFingerprintStatic = Cell.BoxObstacleFingerprintStatic;
 		Subjects = Cell.Subjects;
 		SphereObstacles = Cell.SphereObstacles;
 		BoxObstacles = Cell.BoxObstacles;
+		SphereObstaclesStatic = Cell.SphereObstaclesStatic;
+		BoxObstaclesStatic = Cell.BoxObstaclesStatic;
 
 		return *this;
+	}
+
+	void Reset()
+	{
+		// 重置所有指纹
+		SubjectFingerprint.Reset();
+		SphereObstacleFingerprint.Reset();
+		BoxObstacleFingerprint.Reset();
+
+		// 清空所有存储的障碍物数据
+		Subjects.Reset();
+		SphereObstacles.Reset();
+		BoxObstacles.Reset();
 	}
 };

@@ -21,7 +21,8 @@
 #include "Machine.h"
 #include "NeighborGridCell.h"
 #include "Traits/Avoidance.h"
-#include "RvoSimulator.h"
+#include "Traits/OccupiedCells.h"
+#include "RVOSimulator.h"
 #include "RVOVector2.h"
 
 #include "NeighborGridComponent.generated.h"
@@ -61,6 +62,7 @@ public:
 	TArray<FNeighborGridCell> Cells;
 	float InvCellSizeCache = 1/ 300;
 
+	TArray<FOccupiedCells> OccupiedCellsArrays;
 
 	UNeighborGridComponent();
 
@@ -73,12 +75,8 @@ public:
 	void DoInitializeCells()
 	{
 		Cells.Reset(); // Make sure there are no cells.
-
-		//if (ensureAlwaysMsgf((int32)Size.X * (int32)Size.Y * (int32)Size.Z < (int32)TNumericLimits<int32>::Max(),
-		//	TEXT("The '%s' bubble cage has too many cells in it. Please, decrease its corresponding size in cells.")))
-		//{
-			Cells.AddDefaulted(Size.X * Size.Y * Size.Z);
-		//}
+		Cells.AddDefaulted(Size.X * Size.Y * Size.Z);
+		//OccupiedCellsArrays.SetNum(FPlatformMisc::NumberOfWorkerThreadsToSpawn());
 	}
 
 	UFUNCTION(BlueprintCallable)
@@ -134,7 +132,6 @@ public:
 	 */
 	FORCEINLINE FVector CageToWorld(const FIntVector& CagePoint) const
 	{
-		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("CageToWorld");
 		// Convert the cage point to a local position within the cage
 		FVector LocalPoint = FVector(CagePoint.X, CagePoint.Y, CagePoint.Z) * CellSize;
 
@@ -147,7 +144,6 @@ public:
 	 */
 	FORCEINLINE FIntVector WorldToCage(FVector Point) const
 	{
-		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("WorldToCage");
 		Point -= Bounds.Min;
 		Point *= InvCellSizeCache;
 		return FIntVector(FMath::FloorToInt(Point.X),
@@ -275,8 +271,6 @@ public:
 
 	FORCEINLINE TArray<FIntVector> GetNeighborCells(const FVector& Center, const FVector& Range3D) const
 	{
-		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("GetNeighborCells");
-
 		const FIntVector Min = WorldToCage(Center - Range3D);
 		const FIntVector Max = WorldToCage(Center + Range3D);
 
@@ -299,8 +293,6 @@ public:
 
 	TArray<FIntVector> GetGridCellsForCapsule(FVector Start, FVector End, float Radius) const
 	{
-		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("GetGridCellsForCapsule");// to do : optimize with parallel for
-
 		// 预计算关键参数
 		const float RadiusInCellsValue = Radius / CellSize;
 		const int32 RadiusInCells = FMath::CeilToInt(RadiusInCellsValue);
@@ -373,15 +365,8 @@ public:
 		return GridCellsSet.Array();
 	}
 
-	FORCEINLINE void AddSphereCells(
-		FIntVector CenterCell,
-		int32 RadiusInCells,
-		float RadiusSq,
-		TSet<FIntVector>& GridCells
-	) const
+	FORCEINLINE void AddSphereCells(FIntVector CenterCell, int32 RadiusInCells, float RadiusSq, TSet<FIntVector>& GridCells) const
 	{
-		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("AddSphereCellsOptimized");
-
 		// 分层遍历优化：减少无效循环
 		for (int32 x = -RadiusInCells; x <= RadiusInCells; ++x)
 		{
@@ -403,5 +388,6 @@ public:
 			}
 		}
 	}
+
 };
 
