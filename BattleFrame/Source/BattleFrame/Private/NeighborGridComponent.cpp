@@ -665,9 +665,6 @@ void UNeighborGridComponent::Decouple()
 			ProcessSphereObstacles(Cell.SphereObstaclesStatic, Cell.SphereObstacleFingerprintStatic);
 		}
 
-		// 按距离升序排序后加入结果
-		SubjectNeighbors.Sort([&](const FAvoiding& A, const FAvoiding& B) { return FVector::DistSquared(SelfLocation, A.Location) < FVector::DistSquared(SelfLocation, B.Location);});
-
 		SphereObstacleNeighbors.Append(ValidSphereObstacleNeighbors.Array());
 
 

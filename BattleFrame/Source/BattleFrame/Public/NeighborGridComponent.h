@@ -37,7 +37,7 @@ class BATTLEFRAME_API UNeighborGridComponent : public UMechanicalActorComponent
 public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Performance)
-	int32 MaxThreadsAllowed = FMath::Clamp(FPlatformMisc::NumberOfWorkerThreadsToSpawn() - 1, 1, 20);
+	int32 MaxThreadsAllowed = FMath::Clamp(FPlatformMisc::NumberOfWorkerThreadsToSpawn(), 1, 20);
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Performance)
 	int32 MinBatchSizeAllowed = 100;
