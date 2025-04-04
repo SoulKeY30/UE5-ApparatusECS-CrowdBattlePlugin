@@ -38,6 +38,7 @@
 #include "Traits/Perception.h"
 #include "Traits/Curves.h"
 #include "Traits/Statistics.h"
+#include "Traits/CustomData.h"
 
 #include "AgentConfigDataAsset.generated.h"
 
@@ -118,6 +119,9 @@ public:
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "曲线属性"))
     FCurves Curves;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "自定义数据"))
+    FCustomData CustomData;
 
     //UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "数据统计"))
     //FStatistics Statistics;

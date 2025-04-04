@@ -22,6 +22,7 @@
 #include "Traits/Tracing.h"
 #include "Traits/Avoiding.h"
 #include "Traits/RegisterMultiple.h"
+#include "Traits/CustomData.h"
 #include "AnimToTextureDataAsset.h"
 #include "NiagaraSubjectRenderer.h"
 #include "BattleFrameFunctionLibraryRT.h"
@@ -108,6 +109,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     AgentConfig.SetTrait(DataAsset->Sound);
     AgentConfig.SetTrait(DataAsset->SpawnActor);
     AgentConfig.SetTrait(DataAsset->Curves);
+    AgentConfig.SetTrait(DataAsset->CustomData);
     //AgentConfig.SetTrait(DataAsset->Statistics);
 
     AgentConfig.SetTrait(FTracing{});
