@@ -49,3 +49,5 @@ Coming in future updates:
 2. Agent individual navigation
 3. Control agent AI with BP nodes
 4. More trace shapes
+
+## Leave a star if you find this project useful ;)
