@@ -1,7 +1,6 @@
 # UE5-ApparatusECS-CrowdBattleFramePlugin
 
 [![Join Discord](https://img.shields.io/badge/Discord-Join%20Chat-blue?logo=discord)](https://discord.gg/8AUMxq3SgV)
-[![QQ Group](https://img.shields.io/badge/QQ%20Group-916358710-blue?logo=tencentqq)](https://jq.qq.com/?_wv=1027&k=5R5X5wX)
 
 ## Dependencies
 
