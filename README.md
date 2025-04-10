@@ -55,9 +55,6 @@ Coming in future updates:
 
 # UE5-ApparatusECS-群战框架插件
 
-[![加入Discord](https://img.shields.io/badge/Discord-加入群聊-blue?logo=discord)](https://discord.gg/8AUMxq3SgV)  
-[![QQ群](https://img.shields.io/badge/QQ群-916358710-blue?logo=tencentqq)](https://jq.qq.com/?_wv=1027&k=5R5X5wX)
-
 ## 依赖项
 
 本插件为开源项目，但需要以下依赖：
