@@ -11,7 +11,8 @@ This plugin is open source, but has the following dependencies:
   https://www.fab.com/listings/23ddc9c0-a218-44ed-8c0c-ebef362f08d5
 
 - **Flowfield Canvas** (Pathfinding plugin)  
-  A lite version is included with basic functionality. Full version available for purchase:  
+  Since FFC is my plugin, I've included a lite version for free.
+  Full version available for purchase:  
   https://www.fab.com/listings/e306cd3d-9855-45bf-a978-d9ac6ae2ee33
 
 - **Anim To Texture** (Official Unreal Engine plugin)  
