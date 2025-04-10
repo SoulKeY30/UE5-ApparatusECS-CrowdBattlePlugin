@@ -51,3 +51,58 @@ Coming in future updates:
 4. More trace shapes
 
 ## Leave a star if you find this project useful ;)
+
+
+# UE5-ApparatusECS-群战框架插件
+
+[![加入Discord](https://img.shields.io/badge/Discord-加入群聊-blue?logo=discord)](https://discord.gg/8AUMxq3SgV)  
+[![QQ群](https://img.shields.io/badge/QQ群-916358710-blue?logo=tencentqq)](https://jq.qq.com/?_wv=1027&k=5R5X5wX)
+
+## 依赖项
+
+本插件为开源项目，但需要以下依赖：
+
+- **Apparatus ECS框架** (FAB平台付费)  
+  https://www.fab.com/listings/23ddc9c0-a218-44ed-8c0c-ebef362f08d5
+
+- **流场画布** (寻路插件)  
+  由于FFC是作者自有插件，已内置精简版免费提供  
+  完整版购买链接：  
+  https://www.fab.com/listings/e306cd3d-9855-45bf-a978-d9ac6ae2ee33
+
+- **动画转贴图** (官方UE插件)  
+  引擎自带
+
+## 技术规格
+
+- **当前状态**：测试版（频繁修改中，可能存在bug）
+- **测试平台**：
+  - Windows
+  - UE5.3/UE5.4/UE5.5
+- **性能表现**：
+  - 10,000单位：60帧
+  - 30,000单位：30帧
+  - (测试环境：AMD锐龙5900X + RTX4080S，CPU瓶颈)
+- **技术栈**：
+  - ECS架构处理逻辑
+  - Niagara+VAT实现渲染
+  - RVO2避障/碰撞系统
+  - 邻居网格碰撞检测
+  - 流场导航
+- **编辑器功能**：
+  - 包含一键式单位设置工具控件
+
+## 功能特性
+
+完整的群战系统，包含大多数常用功能。  
+插件内容文件夹中附带了演示地图。
+
+## 开发路线
+
+未来版本将新增：
+1. 2D图集渲染器与转换工具
+2. 单位独立导航功能
+3. 通过蓝图节点控制单位AI
+4. 更多追踪形状支持
+
+## 如果觉得项目有用，请点个星星哦 ;)
