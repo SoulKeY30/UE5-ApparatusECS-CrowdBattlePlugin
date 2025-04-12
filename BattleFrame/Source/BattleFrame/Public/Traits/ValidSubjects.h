@@ -5,7 +5,7 @@
 #include "ValidSubjects.generated.h"
 
 
-USTRUCT(BlueprintType)
+USTRUCT()
 struct BATTLEFRAME_API FValidSubjects
 {
 	GENERATED_BODY()

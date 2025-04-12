@@ -60,17 +60,17 @@ void UNeighborGridComponent::InitializeComponent()
 //--------------------------------------------Tracing----------------------------------------------------------------
 
 // Get overlapping subjects
-void UNeighborGridComponent::SphereTraceForSubjects(const FVector Origin, float Radius, const FFilter Filter, TArray<FSubjectHandle>& Results) const
+void UNeighborGridComponent::SphereTraceForSubjects(const FVector Origin, float Radius, const FFilter Filter, TArray<FTraceResult>& Results) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereTraceForSubjects");
 
-	TSet<FSubjectHandle> OverlappingSubjects;
+	Results.Empty(); // 清空结果数组
 
 	const FVector Range(Radius);
 	const FIntVector CagePosMin = WorldToCage(Origin - Range);
 	const FIntVector CagePosMax = WorldToCage(Origin + Range);
 
-	// Precompute the filter fingerprint
+	// 预计算过滤器指纹
 	const FFingerprint FilterFingerprint = Filter.GetFingerprint();
 
 	for (int32 i = CagePosMin.Z; i <= CagePosMax.Z; ++i)
@@ -85,10 +85,10 @@ void UNeighborGridComponent::SphereTraceForSubjects(const FVector Origin, float 
 				{
 					const auto& NeighbourCell = At(NeighbourCellPos);
 
-					// Early out if the cell doesn't match the filter
+					// 如果单元格不匹配过滤器则跳过
 					if (!NeighbourCell.SubjectFingerprint.Matches(FilterFingerprint)) continue;
 
-					// Iterate over subjects in the cell
+					// 遍历单元格中的subjects
 					for (const FAvoiding& Data : NeighbourCell.Subjects)
 					{
 						const FSubjectHandle OtherSubject = Data.SubjectHandle;
@@ -99,13 +99,16 @@ void UNeighborGridComponent::SphereTraceForSubjects(const FVector Origin, float 
 							const float DistanceSqr = Delta.SizeSquared();
 
 							float OtherRadius = Data.Radius;
-
 							const float CombinedRadius = Radius + OtherRadius;
 							const float CombinedRadiusSquared = FMath::Square(CombinedRadius);
 
 							if (CombinedRadiusSquared > DistanceSqr)
 							{
-								OverlappingSubjects.Add(OtherSubject);
+								// 创建FTraceResult并添加到结果数组
+								FTraceResult Result;
+								Result.Subject = OtherSubject;
+								Result.Location = Data.Location;
+								Results.Add(Result);
 							}
 						}
 					}
@@ -113,20 +116,18 @@ void UNeighborGridComponent::SphereTraceForSubjects(const FVector Origin, float 
 			}
 		}
 	}
-
-	// 将结果转换为数组
-	Results = OverlappingSubjects.Array();
-
 }
 
-void UNeighborGridComponent::SphereSweepForSubjects(const FVector Start, const FVector End, float Radius, const FFilter Filter, TArray<FSubjectHandle>& Results)
+void UNeighborGridComponent::SphereSweepForSubjects(const FVector Start, const FVector End, float Radius, const FFilter Filter, TArray<FTraceResult>& Results)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereSweepForSubjects");
 
-	TSet<FSubjectHandle> HitSubjects;
+	Results.Empty(); // 清空结果数组
+
 	TArray<FIntVector> GridCells = GetGridCellsForCapsule(Start, End, Radius);
 	TSet<int32> VisitedCells;
 
+	// 收集所有需要检查的网格单元
 	for (const FIntVector& CellCoord : GridCells)
 	{
 		if (IsInside(CellCoord))
@@ -138,6 +139,7 @@ void UNeighborGridComponent::SphereSweepForSubjects(const FVector Start, const F
 	const FVector TraceDir = (End - Start).GetSafeNormal();
 	const float TraceLength = FVector::Distance(Start, End);
 
+	// 检查每个单元中的subject
 	for (int32 CellIndex : VisitedCells)
 	{
 		const FNeighborGridCell& CageCell = Cells[CellIndex];
@@ -147,31 +149,36 @@ void UNeighborGridComponent::SphereSweepForSubjects(const FVector Start, const F
 		{
 			const FSubjectHandle Subject = Data.SubjectHandle;
 
+			// 有效性检查
 			if (!Subject.IsValid() || !Subject.Matches(Filter)) continue;
 
 			const FVector SubjectPos = Data.Location;
-
 			float SubjectRadius = Data.Radius;
 
+			// 距离计算
 			const FVector ToSubject = SubjectPos - Start;
 			const float ProjOnTrace = FVector::DotProduct(ToSubject, TraceDir);
 
+			// 初步筛选
 			const float ProjThreshold = SubjectRadius + Radius;
 			if (ProjOnTrace < -ProjThreshold || ProjOnTrace > TraceLength + ProjThreshold) continue;
 
+			// 精确距离检查
 			const float ClampedProj = FMath::Clamp(ProjOnTrace, 0.0f, TraceLength);
 			const FVector NearestPoint = Start + ClampedProj * TraceDir;
 			const float CombinedRadSq = FMath::Square(Radius + SubjectRadius);
 
 			if (FVector::DistSquared(NearestPoint, SubjectPos) < CombinedRadSq)
 			{
-				HitSubjects.Add(Subject);
+				// 创建FTraceResult并添加到结果数组
+				FTraceResult Result;
+				Result.Subject = Subject;
+				Result.Location = SubjectPos;
+				Result.CachedDistSq = FVector::DistSquared(Start, SubjectPos); // 预计算距离
+				Results.Add(Result);
 			}
 		}
 	}
-
-	// 将结果转换为数组
-	Results = HitSubjects.Array();
 }
 
 // for agents to trace nearest targets( cheaper this way)
@@ -571,7 +578,7 @@ void UNeighborGridComponent::Decouple()
 		SphereObstacleNeighbors.Reserve(MaxNeighbors);
 		BoxObstacleNeighbors.Reserve(MaxNeighbors);
 
-		//--------------------------Collect Subject Neighbors And Sphere Obstacles--------------------------------
+		//--------------------------Collect Subject Neighbors--------------------------------
 
 		FFilter SubjectFilter = FFilter::Make<FLocated, FCollider, FAvoidance, FAvoiding>().Exclude<FSphereObstacle, FCorpse>();
 
@@ -597,9 +604,6 @@ void UNeighborGridComponent::Decouple()
 			};
 
 		TSet<uint32> SeenHashes;
-
-		TSet<FAvoiding> ValidSphereObstacleNeighbors;
-		ValidSphereObstacleNeighbors.Reserve(MaxNeighbors);
 
 		for (const FIntVector& Coord : NeighbourCellCoords)
 		{
@@ -641,34 +645,12 @@ void UNeighborGridComponent::Decouple()
 					}
 				}
 			}
-
-			// Sphere Obstacles
-			auto ProcessSphereObstacles = [&](const TArray<FAvoiding>& Obstacles, const FFingerprint& Fingerprint)
-			{
-				if (Fingerprint.Matches(SphereObstacleFingerprint))
-				{
-					for (const FAvoiding& AvoData : Obstacles)
-					{
-						if (UNLIKELY(!AvoData.SubjectHandle.Matches(SphereObstacleFilter))) continue;
-
-						const float DistSqr = FVector::DistSquared(SelfLocation, AvoData.Location);
-						const float RadiusSqr = FMath::Square(AvoData.Radius) + TotalRangeSqr;
-
-						if (UNLIKELY(DistSqr > RadiusSqr)) continue;
-
-						ValidSphereObstacleNeighbors.Add(AvoData);
-					}
-				}
-			};
-
-			ProcessSphereObstacles(Cell.SphereObstacles, Cell.SphereObstacleFingerprint);
-			ProcessSphereObstacles(Cell.SphereObstaclesStatic, Cell.SphereObstacleFingerprintStatic);
 		}
 
-		SphereObstacleNeighbors.Append(ValidSphereObstacleNeighbors.Array());
+		//---------------------------Collect Obstacle Neighbors--------------------------------
 
-
-		//---------------------------Collect Box Obstacle Neighbors--------------------------------
+		TSet<FAvoiding> ValidSphereObstacleNeighbors;
+		ValidSphereObstacleNeighbors.Reserve(MaxNeighbors);
 
 		const float ObstacleRange = Avoidance.RVO_TimeHorizon_Obstacle * Avoidance.MaxSpeed + Avoidance.Radius;
 		const FVector ObstacleRange3D(ObstacleRange, ObstacleRange, Avoidance.Radius);
@@ -721,9 +703,30 @@ void UNeighborGridComponent::Decouple()
 				}
 			};
 
-			// 调用 Lambda 处理动态和静态障碍物
 			ProcessBoxObstacles(Cell.BoxObstacles, Cell.BoxObstacleFingerprint);
 			ProcessBoxObstacles(Cell.BoxObstaclesStatic, Cell.BoxObstacleFingerprintStatic);
+
+			// 定义处理 SphereObstacles 的 Lambda 函数
+			auto ProcessSphereObstacles = [&](const TArray<FAvoiding>& Obstacles, const FFingerprint& Fingerprint)
+				{
+					if (Fingerprint.Matches(SphereObstacleFingerprint))
+					{
+						for (const FAvoiding& AvoData : Obstacles)
+						{
+							if (UNLIKELY(!AvoData.SubjectHandle.Matches(SphereObstacleFilter))) continue;
+
+							const float DistSqr = FVector::DistSquared(SelfLocation, AvoData.Location);
+							const float RadiusSqr = FMath::Square(AvoData.Radius) + TotalRangeSqr;
+
+							if (UNLIKELY(DistSqr > RadiusSqr)) continue;
+
+							SphereObstacleNeighbors.Add(AvoData);
+						}
+					}
+				};
+
+			ProcessSphereObstacles(Cell.SphereObstacles, Cell.SphereObstacleFingerprint);
+			ProcessSphereObstacles(Cell.SphereObstaclesStatic, Cell.SphereObstacleFingerprintStatic);
 		}
 
 		Located.preLocation = Located.Location;

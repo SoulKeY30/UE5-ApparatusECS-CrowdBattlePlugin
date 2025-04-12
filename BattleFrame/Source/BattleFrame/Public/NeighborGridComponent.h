@@ -22,6 +22,7 @@
 #include "NeighborGridCell.h"
 #include "Traits/Avoidance.h"
 #include "Traits/OccupiedCells.h"
+#include "Traits/TraceResult.h"
 #include "RVOSimulator.h"
 #include "RVOVector2.h"
 
@@ -80,10 +81,10 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable)
-	void SphereTraceForSubjects(const FVector Location, float Radius, const FFilter Filter, TArray<FSubjectHandle>& Results) const;
+	void SphereTraceForSubjects(const FVector Location, float Radius, const FFilter Filter, TArray<FTraceResult>& Results) const;
 	
 	UFUNCTION(BlueprintCallable)
-	void SphereSweepForSubjects(const FVector Start, const FVector End, float Radius, const FFilter Filter, TArray<FSubjectHandle>& Results);
+	void SphereSweepForSubjects(const FVector Start, const FVector End, float Radius, const FFilter Filter, TArray<FTraceResult>& Results);
 
 	UFUNCTION(BlueprintCallable)
 	void SphereExpandForSubject(const FVector Origin, float Radius, float Height, const FFilter Filter, FSubjectHandle& Result) const;

@@ -43,12 +43,12 @@
 #include "Stats/Stats.h"
 #include "Kismet/GameplayStatics.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
-#include "BattleFrameGameMode.h"
+#include "BattleFrameBattleControl.h"
 
 
 // Debugging
 #include "DrawDebugHelpers.h"
-#include <Engine/StaticMesh.h>
+#include "Engine/StaticMesh.h"
 
 // Generated UCLASS
 #include "NiagaraSubjectRenderer.generated.h"

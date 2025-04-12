@@ -6,6 +6,7 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "SubjectHandle.h"
 #include "Traits/SubType.h"
+#include "Traits/TraceResult.h"
 
 #include "BattleFrameFunctionLibraryRT.generated.h"
 
@@ -23,8 +24,11 @@ class BATTLEFRAME_API UBattleFrameFunctionLibraryRT : public UBlueprintFunctionL
 	
 public:
 
+    UFUNCTION(BlueprintCallable, BlueprintPure,meta = (DisplayName = "Convert to SubjectHandles",CompactNodeTitle = "->",BlueprintAutocast),Category = "BattleFrame|Utilities")
+    static TArray<FSubjectHandle> ConvertTraceResultsToSubjectHandles(const TArray<FTraceResult>& TraceResults);
+
     UFUNCTION(BlueprintCallable, Category = "Sorting", meta = (DisplayName = "Sort Subjects By Distance", Keywords = "Sort Distance Subject"))
-    static void SortSubjectsByDistance(UPARAM(ref) TArray<FSubjectHandle>& Results, const FVector& SortOrigin, ESortMode SortMode = ESortMode::NearToFar);
+    static void SortSubjectsByDistance(UPARAM(ref) TArray<FTraceResult>& Results, const FVector& SortOrigin, ESortMode SortMode = ESortMode::NearToFar);
 
     static void SetSubTypeTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord);
     static void SetSubTypeTraitByEnum(ESubType SubType, FSubjectRecord& SubjectRecord);

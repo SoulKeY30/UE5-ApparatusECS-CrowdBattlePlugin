@@ -18,6 +18,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "NeighborGridComponent.h"
+#include "Traits/TraceResult.h"
 #include "NeighborGridActor.generated.h"
 
 #define BUBBLE_DEBUG 0
@@ -89,35 +90,45 @@ public:
      * Get overlapping spheres for the specified location.
      */
     UFUNCTION(BlueprintCallable)
-    void SphereTraceForSubjects(const FVector Location, const float Radius, const FFilter Filter, TArray<FSubjectHandle>& Results)
+    void SphereTraceForSubjects(const FVector Location, const float Radius, const FFilter Filter, TArray<FTraceResult>& Results)
     {
-        Results.Reset();
-
         if (LIKELY(Instance != nullptr && Instance->NeighborGridComponent != nullptr))
         {
-            Instance->NeighborGridComponent->SphereTraceForSubjects(Location, Radius, Filter, Results);
+            TArray<FTraceResult> LocalResults;
+            Instance->NeighborGridComponent->SphereTraceForSubjects(Location, Radius, Filter, LocalResults);
+            Results = MoveTemp(LocalResults); // 使用MoveTemp转移所有权
+        }
+        else
+        {
+            Results.Empty(); // 确保无效时清空结果
         }
     }
 
     UFUNCTION(BlueprintCallable)
-    void SphereSweepForSubjects(const FVector Start, const FVector End, float Radius, const FFilter Filter, TArray<FSubjectHandle>& Results)
+    void SphereSweepForSubjects(const FVector Start, const FVector End, float Radius, const FFilter Filter, TArray<FTraceResult>& Results)
     {
-        Results.Reset();
-
         if (LIKELY(Instance != nullptr && Instance->NeighborGridComponent != nullptr))
         {
-            Instance->NeighborGridComponent->SphereSweepForSubjects(Start, End, Radius, Filter, Results);
+            TArray<FTraceResult> LocalResults;
+            Instance->NeighborGridComponent->SphereSweepForSubjects(Start, End, Radius, Filter, LocalResults);
+            Results = MoveTemp(LocalResults); // 使用MoveTemp转移所有权
+        }
+        else
+        {
+            Results.Empty();
         }
     }
 
     UFUNCTION(BlueprintCallable)
     void SphereExpandForSubject(const FVector Origin, float Radius, float Height, const FFilter Filter, FSubjectHandle& Result)
     {
-        Result = FSubjectHandle();
+        Result = FSubjectHandle(); // 重置为无效句柄
 
         if (LIKELY(Instance != nullptr && Instance->NeighborGridComponent != nullptr))
         {
-            Instance->NeighborGridComponent->SphereExpandForSubject(Origin, Radius, Height, Filter, Result);
+            FSubjectHandle LocalResult;
+            Instance->NeighborGridComponent->SphereExpandForSubject(Origin, Radius, Height, Filter, LocalResult);
+            Result = MoveTemp(LocalResult); // 使用MoveTemp转移所有权
         }
     }
 

@@ -6,15 +6,15 @@
 
 #include "NiagaraSubjectRenderer.h"
 #include "BattleFrameFunctionLibraryRT.h"
-#include <HAL/Platform.h>
-#include <BattleFrameGameMode.h>
+#include "HAL/Platform.h"
+#include "BattleFrameBattleControl.h"
 
 // Sets default values
 ANiagaraSubjectRenderer::ANiagaraSubjectRenderer()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
-	AddTickPrerequisiteActor(ABattleFrameGameMode::GetInstance());
+	AddTickPrerequisiteActor(ABattleFrameBattleControl::GetInstance());
 }
 
 // Called when the game starts or when spawned

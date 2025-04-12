@@ -8,23 +8,51 @@
 #include "SubjectHandle.h"
 #include "SubjectRecord.h"
 
-void UBattleFrameFunctionLibraryRT::SortSubjectsByDistance(UPARAM(ref) TArray<FSubjectHandle>& Results, const FVector& SortOrigin, ESortMode SortMode)
+TArray<FSubjectHandle> UBattleFrameFunctionLibraryRT::ConvertTraceResultsToSubjectHandles(const TArray<FTraceResult>& TraceResults)
 {
-    Results.Sort([&SortOrigin, SortMode](const FSubjectHandle& A, const FSubjectHandle& B) {
-        const FVector PosA = A.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
-        const FVector PosB = B.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
-        const float DistSqA = FVector::DistSquared(SortOrigin, PosA);
-        const float DistSqB = FVector::DistSquared(SortOrigin, PosB);
+	TArray<FSubjectHandle> SubjectHandles;
+	SubjectHandles.Reserve(TraceResults.Num());
 
-        if (SortMode == ESortMode::NearToFar)
-        {
-            return DistSqA < DistSqB;  // 从近到远
-        }
-        else
-        {
-            return DistSqA > DistSqB;  // 从远到近
-        }
-        });
+	for (const FTraceResult& Result : TraceResults)
+	{
+		SubjectHandles.Add(Result.Subject);
+	}
+
+	return SubjectHandles;
+}
+
+void UBattleFrameFunctionLibraryRT::SortSubjectsByDistance(UPARAM(ref) TArray<FTraceResult>& Results, const FVector& SortOrigin, ESortMode SortMode)
+{
+	// 1. 首先移除所有无效的Subject
+	Results.RemoveAll([](const FTraceResult& Result) 
+	{
+		return !Result.Subject.IsValid();
+	});
+
+	// 2. 检查剩余元素数量
+	if (Results.Num() <= 1)
+	{
+		return; // 不需要排序
+	}
+
+	// 3. 预计算距离（可选优化）
+	for (auto& Result : Results)
+	{
+		Result.CachedDistSq = FVector::DistSquared(SortOrigin, Result.Location);
+	}
+
+	// 4. 根据模式排序
+	Results.Sort([SortMode](const FTraceResult& A, const FTraceResult& B)
+	{
+		if (SortMode == ESortMode::NearToFar)
+		{
+			return A.CachedDistSq < B.CachedDistSq;  // 从近到远
+		}
+		else
+		{
+			return A.CachedDistSq > B.CachedDistSq;  // 从远到近
+		}
+	});
 }
 
 void UBattleFrameFunctionLibraryRT::SetSubTypeTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord)
