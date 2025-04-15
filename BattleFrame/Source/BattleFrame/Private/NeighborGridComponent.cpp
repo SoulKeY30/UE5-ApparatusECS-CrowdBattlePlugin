@@ -30,6 +30,7 @@
 #include "Traits/Corpse.h"
 #include "Math/Vector2D.h"
 #include "RVODefinitions.h"
+#include "Async/Async.h"
 #include "BattleFrameFunctionLibraryRT.h"
 
 
@@ -1244,3 +1245,4 @@ void UNeighborGridComponent::LinearProgram3(const std::vector<RVO::Line>& lines,
 		}
 	}
 }
+

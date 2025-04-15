@@ -25,10 +25,12 @@
 #include "Traits/TraceResult.h"
 #include "RVOSimulator.h"
 #include "RVOVector2.h"
-
+#include "Kismet/BlueprintAsyncActionBase.h"
 #include "NeighborGridComponent.generated.h"
 
 #define BUBBLE_DEBUG 0
+
+class ANeighborGridActor;
 
 UCLASS(Category = "NeighborGrid")
 class BATTLEFRAME_API UNeighborGridComponent : public UMechanicalActorComponent
