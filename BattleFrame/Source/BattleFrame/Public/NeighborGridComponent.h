@@ -82,13 +82,10 @@ public:
 		//OccupiedCellsArrays.SetNum(FPlatformMisc::NumberOfWorkerThreadsToSpawn());
 	}
 
-	UFUNCTION(BlueprintCallable)
 	void SphereTraceForSubjects(const FVector Location, float Radius, const FFilter Filter, TArray<FTraceResult>& Results) const;
 	
-	UFUNCTION(BlueprintCallable)
 	void SphereSweepForSubjects(const FVector Start, const FVector End, float Radius, const FFilter Filter, TArray<FTraceResult>& Results);
-
-	UFUNCTION(BlueprintCallable)
+	
 	void SphereExpandForSubject(const FVector Origin, float Radius, float Height, const FFilter Filter, FSubjectHandle& Result) const;
 
 	void Update();

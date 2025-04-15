@@ -146,7 +146,7 @@ public:
 		return Instance;
 	}
 
-	UFUNCTION(BlueprintCallable, Category = "Damage")
+	//UFUNCTION(BlueprintCallable, Category = "Damage")
 	FDmgResult ApplyDamageToSubjects(const TArray<FSubjectHandle> Subjects,const TArray<FSubjectHandle> IgnoreSubjects,FSubjectHandle DmgInstigator,FVector HitFromLocation,const FDmgSphere DmgSphere,const FDebuff Debuff);
 
 	// 计算实际伤害，并返回一个pair，第一个元素是是否暴击，第二个元素是实际伤害

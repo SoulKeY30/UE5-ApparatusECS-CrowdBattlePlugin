@@ -2179,8 +2179,6 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 FDmgResult ABattleFrameBattleControl::ApplyDamageToSubjects(const TArray<FSubjectHandle> Subjects, const TArray<FSubjectHandle> IgnoreSubjects, FSubjectHandle DmgInstigator, FVector HitFromLocation, const FDmgSphere DmgSphere, const FDebuff Debuff)
 {
-	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("ApplyDamageToSubjects");
-
 	// Record for deferred spawning of TemporalDamager
 	FTemporalDamaging TemporalDamaging;
 

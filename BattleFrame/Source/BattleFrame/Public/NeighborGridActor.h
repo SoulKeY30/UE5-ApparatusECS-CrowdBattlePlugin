@@ -89,7 +89,6 @@ public:
     /**
      * Get overlapping spheres for the specified location.
      */
-    UFUNCTION(BlueprintCallable)
     void SphereTraceForSubjects(const FVector Location, const float Radius, const FFilter Filter, TArray<FTraceResult>& Results)
     {
         if (LIKELY(Instance != nullptr && Instance->NeighborGridComponent != nullptr))
@@ -104,7 +103,6 @@ public:
         }
     }
 
-    UFUNCTION(BlueprintCallable)
     void SphereSweepForSubjects(const FVector Start, const FVector End, float Radius, const FFilter Filter, TArray<FTraceResult>& Results)
     {
         if (LIKELY(Instance != nullptr && Instance->NeighborGridComponent != nullptr))
@@ -119,7 +117,6 @@ public:
         }
     }
 
-    UFUNCTION(BlueprintCallable)
     void SphereExpandForSubject(const FVector Origin, float Radius, float Height, const FFilter Filter, FSubjectHandle& Result)
     {
         Result = FSubjectHandle(); // 重置为无效句柄
@@ -163,42 +160,3 @@ public:
     }
 };
 
-//-------------------------------Async Trace-------------------------------
-
-UENUM(BlueprintType)
-enum class EAsyncSortMode : uint8
-{
-    None UMETA(DisplayName = "None", ToolTip = "不排序"),
-    NearToFar UMETA(DisplayName = "Near to Far", ToolTip = "从近到远"),
-    FarToNear UMETA(DisplayName = "Far to Near", ToolTip = "从远到近")
-};
-
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FAsyncTraceOutput, const TArray<FTraceResult>& , Results);
-
-UCLASS()
-class BATTLEFRAME_API USphereSweepForSubjectsAsyncAction : public UBlueprintAsyncActionBase
-{
-    GENERATED_BODY()
-
-public:
-
-    UPROPERTY(BlueprintAssignable)
-    FAsyncTraceOutput Completed;
-
-    TWeakObjectPtr<ANeighborGridActor> NeighborGridActor;
-    FVector Start;
-    FVector End;
-    float Radius;
-    EAsyncSortMode SortMode;
-    FVector SortOrigin;
-    int32 MaxCount;
-    FFilter Filter;
-
-    TArray<FTraceResult> TempResults;
-    TArray<FTraceResult> Results;
-
-    UFUNCTION(BlueprintCallable, meta = (BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject"))
-    static USphereSweepForSubjectsAsyncAction* SphereSweepForSubjectsAsync(const UObject* WorldContextObject, ANeighborGridActor* NeighborGridActor, const FVector Start, const FVector End, float Radius, const EAsyncSortMode SortMode, const FVector SortOrigin, const int32 MaxCount, const FFilter Filter);
-
-    virtual void Activate() override;
-};
