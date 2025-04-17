@@ -1297,7 +1297,7 @@ void UBattleFrameFunctionLibraryRT::SphereSweepForSubjects
 	}
 }
 
-void UBattleFrameFunctionLibraryRT::SphereExpandForSubject
+void UBattleFrameFunctionLibraryRT::CylinderExpandForSubject
 (
 	ANeighborGridActor* NeighborGridActor,
 	FVector Origin,
@@ -1324,7 +1324,7 @@ void UBattleFrameFunctionLibraryRT::SphereExpandForSubject
 	if (IsValid(NeighborGridActor))
 	{
 		FSubjectHandle LocalResult;
-		NeighborGridActor->SphereExpandForSubject(Origin, Radius, Height, Filter, LocalResult);
+		NeighborGridActor->CylinderExpandForSubject(Origin, Radius, Height, Filter, LocalResult);
 		Result = MoveTemp(LocalResult);
 	}
 }

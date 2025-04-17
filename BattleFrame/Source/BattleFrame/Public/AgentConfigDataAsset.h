@@ -66,8 +66,14 @@ public:
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "出生属性"))
     FAppear Appear;
 
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "休眠属性"))
+    FSleep Sleep;
+
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "移动属性"))
     FMove Move;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "巡逻属性"))
+    FPatrol Patrol;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "导航属性"))
     FNavigation Navigation;
@@ -108,20 +114,20 @@ public:
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "动画属性"))
     FAnimation Animation;
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "特效属性"))
-    FFX FX;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "音效属性"))
-    FSound Sound;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "生成Actor属性"))
-    FSpawnActor SpawnActor;
-
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "曲线属性"))
     FCurves Curves;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "自定义数据"))
     FCustomData CustomData;
+
+    //UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "特效属性"))
+    //FFX FX;
+
+    //UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "音效属性"))
+    //FSound Sound;
+
+    //UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "生成Actor属性"))
+    //FSpawnActor SpawnActor;
 
     //UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "数据统计"))
     //FStatistics Statistics;

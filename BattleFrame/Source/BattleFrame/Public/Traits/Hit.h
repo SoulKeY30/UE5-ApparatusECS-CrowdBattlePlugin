@@ -1,6 +1,10 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "SubType.h"
+#include "ActorSpawnConfig.h"
+#include "SoundConfig.h"
+#include "FxConfig.h"
 #include "Hit.generated.h"
 
 /**
@@ -13,18 +17,19 @@ struct BATTLEFRAME_API FHit
 
 public:
 
-	//UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "是否启用被击中效果"))
-	//bool bEnable = true;
-
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "是否启用被击中时的发光效果"))
 	bool bCanGlow = true;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "被击中时的挤压/拉伸强度"))
-	float SqueezeSquashStr = 0.5f;
+	float JiggleStr = 0.5f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "是否播放被击中特效"))
-	bool bCanSpawnFx = true;
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = ""))
+    TArray<FActorSpawnConfig> SpawnActor;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "是否播放被击中音效"))
-	bool bCanPlaySound = true;
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = ""))
+    TArray<FFxConfig> SpawnFx;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = ""))
+    TArray<FSoundConfig> PlaySound;
+
 };

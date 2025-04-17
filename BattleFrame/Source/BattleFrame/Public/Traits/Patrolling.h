@@ -10,4 +10,7 @@ struct BATTLEFRAME_API FPatrolling
 
 public:
 
+	float TimeLeft = 0;
+
+	FVector TargetLocation = FVector::ZeroVector;
 };

@@ -15,7 +15,7 @@ public:
         InitializeCurve(DissolveIn, { {0.0f, 0.0f}, {1.0f, 1.0f} });
         InitializeCurve(DissolveOut, { {0.0f, 1.0f}, {1.0f, 0.0f} });
         InitializeCurve(HitEmission, { {0.0f, 0.0f}, {0.1f, 1.0f}, {0.5f, 0.0f} });
-        InitializeCurve(HitSqueezeSquash, { {0.0f, 1.0f}, {0.1f, 1.75f}, {0.28f, 0.78f}, {0.4f, 1.12f}, {0.5f, 1.0f} });
+        InitializeCurve(HitJiggle, { {0.0f, 1.0f}, {0.1f, 1.75f}, {0.28f, 0.78f}, {0.4f, 1.12f}, {0.5f, 1.0f} });
     }
 
 private:
@@ -43,5 +43,5 @@ public:
     FRuntimeFloatCurve HitEmission;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Curves, meta = (Tooltip = "受击挤压/拉伸效果的曲线 (控制模型的形变)"))
-    FRuntimeFloatCurve HitSqueezeSquash;
+    FRuntimeFloatCurve HitJiggle;
 };

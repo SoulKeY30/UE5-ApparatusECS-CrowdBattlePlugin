@@ -183,71 +183,186 @@ void UNeighborGridComponent::SphereSweepForSubjects(const FVector Start, const F
 }
 
 // for agents to trace nearest targets( cheaper this way)
-void UNeighborGridComponent::SphereExpandForSubject(const FVector Origin, float Radius, float Height, const FFilter Filter, FSubjectHandle& Result) const
+
+void UNeighborGridComponent::CylinderExpandForSubject(const FVector Origin, float Radius, float Height, const FFilter Filter, FSubjectHandle& Result) const
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereExpandForSubjects");
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("CylinderExpandForSubjects");
 
 	float ClosestDistanceSqr = FLT_MAX;
 	FSubjectHandle ClosestSubject;
 
-	const FVector Range(Radius, Radius, Height / 2.0f);
+	// 扩展搜索范围：包含可能部分进入圆柱的格子
+	const float CellDiagonalMargin = CellSize * 0.5f * FMath::Sqrt(3.0f); // 三维对角线
+	const float ExpandedRadius = Radius + CellDiagonalMargin;
+	const float ExpandedHalfHeight = Height * 0.5f + CellDiagonalMargin;
+	const FVector Range(ExpandedRadius, ExpandedRadius, ExpandedHalfHeight);
+
 	const FIntVector CagePosMin = WorldToCage(Origin - Range);
 	const FIntVector CagePosMax = WorldToCage(Origin + Range);
 
-	// Precompute the filter fingerprint
 	const FFingerprint FilterFingerprint = Filter.GetFingerprint();
 
-	// Iterate over the z-axis layers
-	for (int32 i = CagePosMin.Z; i <= CagePosMax.Z; ++i)
+	// 预收集候选格子（宽松条件）
+	TArray<FIntVector> CandidateCells;
+	for (int32 z = CagePosMin.Z; z <= CagePosMax.Z; ++z)
 	{
-		// Iterate over the xy plane, expanding outward in a circular pattern
-		for (float CurrentRadius = 0.0f; CurrentRadius <= Radius; CurrentRadius += CellSize)
+		for (int32 x = CagePosMin.X; x <= CagePosMax.X; ++x)
 		{
-			for (float Angle = 0.0f; Angle < 360.0f; Angle += 10.0f) // Adjust angle step for precision
+			for (int32 y = CagePosMin.Y; y <= CagePosMax.Y; ++y)
 			{
-				float X = Origin.X + CurrentRadius * FMath::Cos(FMath::DegreesToRadians(Angle));
-				float Y = Origin.Y + CurrentRadius * FMath::Sin(FMath::DegreesToRadians(Angle));
-
-				FVector CurrentLocation(X, Y, Origin.Z);
-
-				const FIntVector NeighbourCellPos = WorldToCage(CurrentLocation);
-
-				if (LIKELY(IsInside(NeighbourCellPos)))
+				const FIntVector CellPos(x, y, z);
+				if (IsInside(CellPos))
 				{
-					const auto& NeighbourCell = At(NeighbourCellPos);
-
-					// Early out if the cell doesn't match the filter
-					if (!NeighbourCell.SubjectFingerprint.Matches(FilterFingerprint)) continue;
-
-					// Iterate over subjects in the cell
-					for (const FAvoiding& Data : NeighbourCell.Subjects)
-					{
-						FSubjectHandle OtherSubject = Data.SubjectHandle;
-
-						if (LIKELY(OtherSubject.Matches(Filter)))
-						{
-							const FVector Delta = Origin - Data.Location;
-							const float DistanceSqr = Delta.SizeSquared();
-
-							const float CombinedRadius = Radius + Data.Radius;
-							const float CombinedRadiusSquared = FMath::Square(CombinedRadius);
-
-							if (CombinedRadiusSquared > DistanceSqr)
-							{
-								if (DistanceSqr < ClosestDistanceSqr)
-								{
-									ClosestDistanceSqr = DistanceSqr;
-									ClosestSubject = OtherSubject;
-								}
-							}
-						}
-					}
+					CandidateCells.Add(CellPos); // 暂时全部收集，后续统一筛选
 				}
 			}
 		}
 	}
 
-	// Set the output result
+	// 按到原点的XY距离排序（优化缓存访问）
+	CandidateCells.Sort([&](const FIntVector& A, const FIntVector& B)
+		{
+			return FVector::DistSquared2D(CageToWorld(A), Origin) <
+				FVector::DistSquared2D(CageToWorld(B), Origin);
+		});
+
+	// 精确检测
+	const float ZMin = Origin.Z - Height * 0.5f;
+	const float ZMax = Origin.Z + Height * 0.5f;
+	const float CellRadiusMarginSq = FMath::Square(CellSize * 0.5f * FMath::Sqrt(2.0f));
+
+	for (const FIntVector& CellPos : CandidateCells)
+	{
+		const auto& CellData = At(CellPos);
+		if (!CellData.SubjectFingerprint.Matches(FilterFingerprint)) continue;
+
+		// 提前终止优化：基于当前最近距离+格子最大可能扩展
+		const float CellCenterDistSq = FVector::DistSquared2D(CageToWorld(CellPos), Origin);
+		if (ClosestDistanceSqr < FLT_MAX &&
+			CellCenterDistSq > ClosestDistanceSqr + CellRadiusMarginSq + KINDA_SMALL_NUMBER)
+		{
+			break;
+		}
+
+		for (const FAvoiding& SubjectData : CellData.Subjects)
+		{
+			if (!SubjectData.SubjectHandle.Matches(Filter)) continue;
+
+			// 精确Z轴检测
+			const float SubjectZ = SubjectData.Location.Z;
+			if (SubjectZ < ZMin || SubjectZ > ZMax) continue;
+
+			// 精确距离检测（含目标半径）
+			const FVector ToSubject = SubjectData.Location - Origin; // 更清晰的命名
+			const float DistanceSqrXY = ToSubject.SizeSquared2D();
+			const float CombinedRadius = Radius + SubjectData.Radius;
+
+			if (DistanceSqrXY > FMath::Square(CombinedRadius)) continue;
+
+			// 更新最近目标
+			const float DistanceSqr = ToSubject.SizeSquared();
+			if (DistanceSqr < ClosestDistanceSqr)
+			{
+				ClosestDistanceSqr = DistanceSqr;
+				ClosestSubject = SubjectData.SubjectHandle;
+
+				if (ClosestDistanceSqr <= KINDA_SMALL_NUMBER)
+				{
+					Result = ClosestSubject;
+					return;
+				}
+			}
+		}
+	}
+
+	Result = ClosestSubject.IsValid() ? ClosestSubject : FSubjectHandle();
+}
+
+void UNeighborGridComponent::SectorExpandForSubject(const FVector Origin, float Radius, float Height, FVector Direction, float Angle, const FFilter Filter, FSubjectHandle& Result) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SectorExpandForSubject");
+
+	float ClosestDistanceSqr = FLT_MAX;
+	FSubjectHandle ClosestSubject;
+
+	const FVector NormalizedDir = Direction.GetSafeNormal2D();
+	const float HalfAngleRad = FMath::DegreesToRadians(Angle * 0.5f);
+	const float CosHalfAngle = FMath::Cos(HalfAngleRad);
+
+	// 扩展搜索范围以包含可能相交的格子
+	const float CellSizeXY = CellSize; // 假设CellSize是成员变量，表示格子尺寸
+	const float CellRadiusXY = CellSizeXY * 0.5f * FMath::Sqrt(2.0f); // 对角线缓冲
+	const float ExpandedRadius = Radius + CellRadiusXY;
+	const FVector Range(ExpandedRadius, ExpandedRadius, Height / 2.0f + CellSize * 0.5f); // 三维缓冲
+
+	const FIntVector CagePosMin = WorldToCage(Origin - Range);
+	const FIntVector CagePosMax = WorldToCage(Origin + Range);
+
+	const FFingerprint FilterFingerprint = Filter.GetFingerprint();
+
+	// 预收集候选格子（只做扩展距离检查）
+	TArray<FIntVector> CandidateCells;
+	for (int32 z = CagePosMin.Z; z <= CagePosMax.Z; ++z) {
+		for (int32 x = CagePosMin.X; x <= CagePosMax.X; ++x) {
+			for (int32 y = CagePosMin.Y; y <= CagePosMax.Y; ++y) {
+				const FIntVector CellPos(x, y, z);
+				if (IsInside(CellPos)) {
+					const FVector CellCenter = CageToWorld(CellPos);
+
+					// 扩展距离检查
+					const FVector DeltaXY = (CellCenter - Origin) * FVector(1, 1, 0);
+					if (DeltaXY.SizeSquared() > FMath::Square(ExpandedRadius)) continue;
+
+					CandidateCells.Add(CellPos);
+				}
+			}
+		}
+	}
+
+	// 按距离排序（使用原始半径排序）
+	CandidateCells.Sort([&](const FIntVector& A, const FIntVector& B) {
+		return FVector::DistSquared2D(CageToWorld(A), Origin) <
+			FVector::DistSquared2D(CageToWorld(B), Origin);
+		});
+
+	// 遍历检测
+	for (const FIntVector& CellPos : CandidateCells) {
+		const auto& CellData = At(CellPos);
+		if (!CellData.SubjectFingerprint.Matches(FilterFingerprint)) continue;
+
+		// 提前终止检查
+		const float CellDistSqr = FVector::DistSquared2D(CageToWorld(CellPos), Origin);
+		if (CellDistSqr > ClosestDistanceSqr + FMath::Square(CellSize)) break;
+
+		for (const FAvoiding& SubjectData : CellData.Subjects) {
+			if (!SubjectData.SubjectHandle.Matches(Filter)) continue;
+
+			// 精确距离检测（考虑目标半径）
+			const FVector Delta = SubjectData.Location - Origin;
+			const float DistanceSqr = Delta.SizeSquared();
+			const float CombinedRadiusSq = FMath::Square(Radius + SubjectData.Radius);
+			if (DistanceSqr > CombinedRadiusSq) continue;
+
+			// 精确扇形检测
+			const FVector DeltaXY = Delta * FVector(1, 1, 0);
+			if (!DeltaXY.IsNearlyZero()) {
+				const FVector NormalizedDelta = DeltaXY.GetSafeNormal();
+				const float CosTheta = FVector::DotProduct(NormalizedDelta, NormalizedDir);
+				if (CosTheta < CosHalfAngle) continue;
+			}
+
+			// 更新最近目标
+			if (DistanceSqr < ClosestDistanceSqr) {
+				ClosestDistanceSqr = DistanceSqr;
+				ClosestSubject = SubjectData.SubjectHandle;
+				if (ClosestDistanceSqr <= KINDA_SMALL_NUMBER) {
+					Result = ClosestSubject;
+					return;
+				}
+			}
+		}
+	}
+
 	Result = ClosestSubject.IsValid() ? ClosestSubject : FSubjectHandle();
 }
 

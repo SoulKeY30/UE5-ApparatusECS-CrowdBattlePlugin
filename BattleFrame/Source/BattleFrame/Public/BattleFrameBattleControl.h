@@ -40,25 +40,21 @@
 #include "Traits/Appearing.h"
 #include "Traits/AppearAnim.h"
 #include "Traits/AppearDissolve.h"
-#include "Traits/SpawningActor.h"
 #include "Traits/Rendering.h"
 #include "Traits/RenderBatchData.h"
 #include "Traits/Attack.h"
 #include "Traits/Attacking.h"
 #include "Traits/TemporalDamaging.h"
-#include "Traits/SpawnActor.h"
 #include "Traits/Hit.h"
 #include "Traits/BeingHit.h"
 #include "Traits/HitGlow.h"
-#include "Traits/SqueezeSquash.h"
+#include "Traits/Jiggle.h"
 #include "Traits/Health.h"
 #include "Traits/HealthBar.h"
 #include "Traits/Damage.h"
 #include "Traits/TextPopUp.h"
 #include "Traits/Freezing.h"
 #include "Traits/PoppingText.h"
-#include "Traits/Sound.h"
-#include "Traits/FX.h"
 #include "Traits/SpawningFx.h"
 #include "Traits/Defence.h"
 #include "Traits/Agent.h"
@@ -75,7 +71,13 @@
 #include "Traits/ValidSubjects.h"
 #include "Traits/TraceResult.h"
 #include "Traits/DmgResult.h"
-
+#include "Traits/Sleep.h"
+#include "Traits/Patrol.h"
+#include "Traits/Sleeping.h"
+#include "Traits/Patrolling.h"
+#include "Traits/ActorSpawnConfig.h"
+#include "Traits/SoundConfig.h"
+#include "Traits/FxConfig.h"
 #include "BattleFrameBattleControl.generated.h"
 
 // Forward Declearation
@@ -146,7 +148,6 @@ public:
 		return Instance;
 	}
 
-	//UFUNCTION(BlueprintCallable, Category = "Damage")
 	FDmgResult ApplyDamageToSubjects(const TArray<FSubjectHandle> Subjects,const TArray<FSubjectHandle> IgnoreSubjects,FSubjectHandle DmgInstigator,FVector HitFromLocation,const FDmgSphere DmgSphere,const FDebuff Debuff);
 
 	// 计算实际伤害，并返回一个pair，第一个元素是是否暴击，第二个元素是实际伤害
@@ -169,14 +170,39 @@ public:
 		return { IsCritical, ActualDamage };  // 返回pair
 	}
 
-	// 生成音效播放Subject
-	FORCEINLINE void QueueSound(TSoftObjectPtr<USoundBase> Sound)
+	FORCEINLINE static FTransform LocalOffsetToWorld(FQuat WorldRotation, FVector WorldLocation, FTransform LocalTransform)
 	{
-		float RandomValue = FMath::FRand();
-		SoundsToPlay.Enqueue(Sound);
+		// 计算世界空间的位置偏移
+		FVector WorldLocationOffset = WorldRotation.RotateVector(LocalTransform.GetLocation());
+		FVector FinalLocation = WorldLocation + WorldLocationOffset;
+
+		// 组合旋转（世界朝向 + 本地偏移旋转）
+		FQuat FinalRotation = WorldRotation * LocalTransform.GetRotation();
+
+		return FTransform(FinalRotation, FinalLocation, LocalTransform.GetScale3D());
 	}
 
-	// 把受击数字添加到播放序列
+	FORCEINLINE void QueueActor(FActorSpawnConfig Config)
+	{
+		if (!Config.bEnable) return;
+		Config.Transform = ABattleFrameBattleControl::LocalOffsetToWorld(Config.SubjectTrans.GetRotation(), Config.SubjectTrans.GetLocation(), Config.Transform);
+		Mechanism->SpawnSubjectDeferred(Config);
+	}
+
+	FORCEINLINE void QueueSound(FSoundConfig Config)
+	{
+		if (!Config.bEnable) return;
+		Config.Transform = ABattleFrameBattleControl::LocalOffsetToWorld(Config.SubjectTrans.GetRotation(), Config.SubjectTrans.GetLocation(), Config.Transform);
+		Mechanism->SpawnSubjectDeferred(Config);
+	}
+
+	FORCEINLINE void QueueFx(FFxConfig Config)
+	{
+		if (!Config.bEnable) return;
+		Config.Transform = ABattleFrameBattleControl::LocalOffsetToWorld(Config.SubjectTrans.GetRotation(), Config.SubjectTrans.GetLocation(), Config.Transform);
+		Mechanism->SpawnSubjectDeferred(Config);
+	}
+
 	FORCEINLINE void QueueText(FSubjectHandle Subject, float Value, float Style, float Scale, float Radius, FVector Location)
 	{
 		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("QueueText");
@@ -199,32 +225,6 @@ public:
 			//UE_LOG(LogTemp, Warning, TEXT("NewTrait"));
 
 			Subject.SetTraitDeferred(NewPoppingText);
-		}
-	}
-
-	FORCEINLINE void QueueFx(FSubjectHandle Subject, FTransform Transfrom, ESubType SubType)
-	{
-		// 将偏移向量转换到Subject的本地坐标系
-		FLocated Located = Subject.GetTrait<FLocated>();
-		FRotator ForwardRotation = Subject.GetTrait<FDirected>().Direction.Rotation();
-		FVector LocationOffsetLocal = ForwardRotation.RotateVector(Transfrom.GetLocation());
-
-		FLocated FxLocated = { Located.Location + LocationOffsetLocal };  // 应用转换后的偏移量
-		FDirected FxDirected = { Transfrom.GetRotation().GetForwardVector() };
-		FScaled FxScaled = { Transfrom.GetScale3D() };
-
-		FSubjectRecord FxRecord;
-		FxRecord.SetTrait(FSpawningFx{});  // Set the SpawningFx trait
-		FxRecord.SetTrait(FxLocated);
-		FxRecord.SetTrait(FxDirected);
-		FxRecord.SetTrait(FxScaled);
-
-		// Use the function to set the appropriate FSubTypeX based on attackFxSubType
-		UBattleFrameFunctionLibraryRT::SetSubTypeTraitByEnum(SubType, FxRecord);
-
-		if (Mechanism)
-		{
-			Mechanism->SpawnSubjectDeferred(FxRecord);
 		}
 	}
 

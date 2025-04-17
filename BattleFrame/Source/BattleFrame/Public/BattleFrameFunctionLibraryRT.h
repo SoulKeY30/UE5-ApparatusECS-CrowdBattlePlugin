@@ -47,7 +47,7 @@ public:
     );
 
     UFUNCTION(BlueprintCallable, Category = "BattleFrame")
-    static void SphereExpandForSubject(
+    static void CylinderExpandForSubject(
         ANeighborGridActor* NeighborGridActor,
         FVector Origin,
         float Radius,

@@ -35,6 +35,8 @@ struct BATTLEFRAME_API FDirected
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data")
 	FVector Direction = FVector::ForwardVector;
 
+	FRotator DesiredRot = FRotator::ZeroRotator;
+
 	/**
 	 * Default-initialize the direction.
 	 */

@@ -94,7 +94,9 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     AgentConfig.SetTrait(DataAsset->Damage);
     AgentConfig.SetTrait(DataAsset->Debuff);
     AgentConfig.SetTrait(DataAsset->Defence);
+    AgentConfig.SetTrait(DataAsset->Sleep);
     AgentConfig.SetTrait(DataAsset->Move);
+    AgentConfig.SetTrait(DataAsset->Patrol);
     AgentConfig.SetTrait(DataAsset->Navigation);
     AgentConfig.SetTrait(DataAsset->Avoidance);
     AgentConfig.SetTrait(DataAsset->Appear);
@@ -105,9 +107,6 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     AgentConfig.SetTrait(DataAsset->Animation);
     AgentConfig.SetTrait(DataAsset->HealthBar);
     AgentConfig.SetTrait(DataAsset->TextPop);
-    AgentConfig.SetTrait(DataAsset->FX);
-    AgentConfig.SetTrait(DataAsset->Sound);
-    AgentConfig.SetTrait(DataAsset->SpawnActor);
     AgentConfig.SetTrait(DataAsset->Curves);
     AgentConfig.SetTrait(DataAsset->CustomData);
     //AgentConfig.SetTrait(DataAsset->Statistics);
@@ -164,6 +163,20 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     else
     {
         Animation.Dissolve = 0;
+    }
+
+    auto& Sleep = AgentConfig.GetTraitRef<FSleep>();
+
+    if (Sleep.bEnable)
+    {
+        AgentConfig.SetTrait(FSleeping{});
+    }
+
+    auto& Patrol = AgentConfig.GetTraitRef<FPatrol>();
+
+    if (Patrol.bEnable)
+    {
+        AgentConfig.SetTrait(FPatrolling{});
     }
 
     UBattleFrameFunctionLibraryRT::SetTeamTraitByIndex(FMath::Clamp(Team, 0, 9), AgentConfig);

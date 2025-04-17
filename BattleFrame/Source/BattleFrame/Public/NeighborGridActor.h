@@ -117,14 +117,14 @@ public:
         }
     }
 
-    void SphereExpandForSubject(const FVector Origin, float Radius, float Height, const FFilter Filter, FSubjectHandle& Result)
+    void CylinderExpandForSubject(const FVector Origin, float Radius, float Height, const FFilter Filter, FSubjectHandle& Result)
     {
         Result = FSubjectHandle(); // 重置为无效句柄
 
         if (LIKELY(Instance != nullptr && Instance->NeighborGridComponent != nullptr))
         {
             FSubjectHandle LocalResult;
-            Instance->NeighborGridComponent->SphereExpandForSubject(Origin, Radius, Height, Filter, LocalResult);
+            Instance->NeighborGridComponent->CylinderExpandForSubject(Origin, Radius, Height, Filter, LocalResult);
             Result = MoveTemp(LocalResult); // 使用MoveTemp转移所有权
         }
     }

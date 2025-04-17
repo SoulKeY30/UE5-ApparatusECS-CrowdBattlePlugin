@@ -41,9 +41,6 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "索敌模式 (TargetIsPlayer_0: 目标为玩家, CustomTarget: 自定义目标, SphereTraceByTraits: 根据特征索敌)"))
 	ETraceMode Mode = ETraceMode::TargetIsPlayer_0;
 
-	//UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Tooltip = "自定义目标Actor的软引用"))
-	//TSoftObjectPtr<AActor> CustomTarget;
-
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "包含的索敌特征列表 (仅索敌具有这些特征的目标)"))
 	TArray<UScriptStruct*> IncludeTraits;
 
@@ -56,6 +53,8 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "索敌范围（单位：厘米）"))
 	float Range = 300;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (UIMin = 0, UIMax = 360))
+	float Angle = 360.f;
 
 	//----------------------------------------
 
@@ -81,6 +80,7 @@ public:
 		ExcludeTraits = Trace.ExcludeTraits;
 		CoolDown = Trace.CoolDown;
 		Range = Trace.Range;
+		Angle = Trace.Angle;
 	}
 
 	FTrace& operator=(const FTrace& Trace)
@@ -94,7 +94,7 @@ public:
 		IncludeTraits = Trace.IncludeTraits;
 		ExcludeTraits = Trace.ExcludeTraits;
 		CoolDown = Trace.CoolDown;
-		Range = Trace.Range;
+		Angle = Trace.Angle;
 
 		return *this;
 	}
