@@ -10,7 +10,7 @@ UENUM(BlueprintType)
 enum class ETraceMode : uint8
 {
 	TargetIsPlayer_0 UMETA(DisplayName = "IsPlayer_0", Tooltip = "索敌目标为玩家0"),
-	SphereTraceByTraits UMETA(DisplayName = "ByTraits", Tooltip = "根据特征进行球形索敌")
+	SectorTraceByTraits UMETA(DisplayName = "ByTraits", Tooltip = "根据特征进行扇形索敌")
 };
 
 USTRUCT(BlueprintType)

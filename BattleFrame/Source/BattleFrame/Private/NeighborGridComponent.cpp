@@ -366,6 +366,11 @@ void UNeighborGridComponent::SectorExpandForSubject(const FVector Origin, float 
 	Result = ClosestSubject.IsValid() ? ClosestSubject : FSubjectHandle();
 }
 
+void UNeighborGridComponent::CheckVisibility(FVector Start, FVector End, float Radius)
+{
+
+}
+
 
 //--------------------------------------------Avoidance---------------------------------------------------------------
 

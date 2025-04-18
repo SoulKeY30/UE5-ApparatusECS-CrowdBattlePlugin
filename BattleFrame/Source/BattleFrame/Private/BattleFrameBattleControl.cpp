@@ -216,27 +216,6 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 	//----------------------攻击逻辑-------------------------
 
-	// 休眠
-	#pragma region 
-	{
-		// TO DO : Re-enter sleep logic
-		
-		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("Agent Sleep");
-
-		//FFilter Filter = FFilter::Make<FAgent, FRendering, FLocated, FDirected, FSleep>().Exclude<FSleeping>();
-
-		//auto Chain = Mechanism->EnchainSolid(Filter);
-		//UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
-
-		//Chain->OperateConcurrently(
-		//	[&](FSolidSubjectHandle Subject,
-		//		FSleep Sleep)
-		//	{
-
-		//	}, ThreadsCount, BatchSize);
-	}
-	#pragma endregion
-
 	// 索敌
 	#pragma region
 	{
@@ -362,7 +341,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					break;
 				}
 
-				case ETraceMode::SphereTraceByTraits:
+				case ETraceMode::SectorTraceByTraits:
 				{
 					Trace.TraceResult = FSubjectHandle{};
 
@@ -2045,6 +2024,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 	#pragma region
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("TextRender");
+
 		FFilter Filter = FFilter::Make<FAgent, FRendering, FPoppingText>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
@@ -2074,7 +2055,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	// Write Pooling Info
 	#pragma region
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("Write Pooling Info");
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("WritePoolingInfo");
 
 		FFilter Filter = FFilter::Make<FRenderBatchData>().Exclude<FDying>();
 
@@ -2197,7 +2178,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	// Spawn Actors
 	#pragma region
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("Spawn Actors");
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("SpawnActors");
 
 		FFilter Filter = FFilter::Make<FActorSpawnConfig>();
 
@@ -2235,7 +2216,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	// Spawn Fx
 	#pragma region
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("Spawn Fx");
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("SpawnFx");
 
 		FFilter Filter = FFilter::Make<FFxConfig>();
 
@@ -2312,7 +2293,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	// Play Sound
 	#pragma region
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("Play Sound");
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("PlaySound");
 
 		FFilter Filter = FFilter::Make<FSoundConfig>();
 

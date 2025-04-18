@@ -90,6 +90,8 @@ public:
 
 	void SectorExpandForSubject(const FVector Origin, float Radius, float Height, FVector Direction, float Angle, const FFilter Filter, FSubjectHandle& Result) const;
 
+	void CheckVisibility(FVector Start, FVector End, float Radius);
+
 	void Update();
 	void Decouple();
 	void Evaluate();
