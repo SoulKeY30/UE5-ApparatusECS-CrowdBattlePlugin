@@ -16,15 +16,12 @@
 #include "Traits/Death.h"
 #include "Traits/Appear.h"
 #include "Traits/Attack.h"
-#include "Traits/SpawnActor.h"
 #include "Traits/Hit.h"
 #include "Traits/Health.h"
 #include "Traits/HealthBar.h"
 #include "Traits/Damage.h"
 #include "Traits/TextPopUp.h"
 #include "Traits/Debuff.h"
-#include "Traits/Sound.h"
-#include "Traits/FX.h"
 #include "Traits/Defence.h"
 #include "Traits/Agent.h"
 #include "Traits/Scaled.h"
@@ -119,15 +116,6 @@ public:
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "自定义数据"))
     FCustomData CustomData;
-
-    //UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "特效属性"))
-    //FFX FX;
-
-    //UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "音效属性"))
-    //FSound Sound;
-
-    //UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "生成Actor属性"))
-    //FSpawnActor SpawnActor;
 
     //UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "数据统计"))
     //FStatistics Statistics;

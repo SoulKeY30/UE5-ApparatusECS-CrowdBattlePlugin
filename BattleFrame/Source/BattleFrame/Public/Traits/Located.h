@@ -39,7 +39,7 @@ struct BATTLEFRAME_API FLocated
 	FVector preLocation = FVector::ZeroVector; 
 
 	//UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data")
-	//FVector nextLocation = FVector::ZeroVector;
+	FVector InitialLocation = FVector::ZeroVector;
 
 
 	/** Initialize a default instance. */

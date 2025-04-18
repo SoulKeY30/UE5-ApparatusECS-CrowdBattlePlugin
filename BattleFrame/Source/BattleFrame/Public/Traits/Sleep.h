@@ -22,6 +22,8 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	bool bWakeOnHit = true;
 
+
+
 	//UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	//bool bCheckVisibility = true;
 

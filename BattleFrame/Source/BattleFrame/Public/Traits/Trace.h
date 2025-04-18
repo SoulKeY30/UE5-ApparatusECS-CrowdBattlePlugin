@@ -51,7 +51,7 @@ public:
 	float CoolDown = 2;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "索敌范围（单位：厘米）"))
-	float Range = 300;
+	float Radius = 300;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (UIMin = 0, UIMax = 360))
 	float Angle = 360.f;
@@ -79,7 +79,7 @@ public:
 		IncludeTraits = Trace.IncludeTraits;
 		ExcludeTraits = Trace.ExcludeTraits;
 		CoolDown = Trace.CoolDown;
-		Range = Trace.Range;
+		Radius = Trace.Radius;
 		Angle = Trace.Angle;
 	}
 
@@ -94,6 +94,7 @@ public:
 		IncludeTraits = Trace.IncludeTraits;
 		ExcludeTraits = Trace.ExcludeTraits;
 		CoolDown = Trace.CoolDown;
+		Radius = Trace.Radius;
 		Angle = Trace.Angle;
 
 		return *this;

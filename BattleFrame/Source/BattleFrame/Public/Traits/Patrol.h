@@ -4,10 +4,17 @@
 #include "Patrol.generated.h" 
 
 UENUM(BlueprintType)
-enum class EPatrolOrigin : uint8
+enum class EPatrolOriginMode : uint8
 {
-	Initial UMETA(DisplayName = "Initial", ToolTip = "原点为出生时坐标"),
-	Previous UMETA(DisplayName = "Previous", ToolTip = "原点为上次结束巡逻后的位置")
+	Initial UMETA(DisplayName = "Around Initial Location", ToolTip = "原点为出生时坐标"),
+	Previous UMETA(DisplayName = "Around Previous Location", ToolTip = "原点为上次结束巡逻后的位置")
+};
+
+UENUM(BlueprintType)
+enum class EPatrolRecoverMode : uint8
+{
+	Patrol UMETA(DisplayName = "Continue Patrolling", ToolTip = ""),
+	Move UMETA(DisplayName = "Move By Flow Field", ToolTip = "")
 };
 
 
@@ -19,24 +26,23 @@ struct BATTLEFRAME_API FPatrol
 public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	bool bEnable = false;
+	bool bEnable = true;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	float Range = false;
+	float Radius = 1000;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	EPatrolOrigin Origin = EPatrolOrigin::Initial;
+	float MaxDuration = 5.f;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	float CoolDown = 3.f;
+	float CoolDown = 2.f;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	FVector2D Randomize = FVector2D(0.5,1);
+	EPatrolOriginMode OriginMode = EPatrolOriginMode::Initial;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	bool bCheckVisibility = true;
+	EPatrolRecoverMode OnLostTarget = EPatrolRecoverMode::Patrol;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	TEnumAsByte<EObjectTypeQuery> TraceObjectType;
+	FVector Origin = FVector::ZeroVector;
 
 };

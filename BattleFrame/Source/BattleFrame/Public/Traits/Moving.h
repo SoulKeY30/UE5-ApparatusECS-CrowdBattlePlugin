@@ -36,8 +36,13 @@ public:
 	  UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "实际移动的速度与方向"))
 	  FVector CurrentVelocity = FVector::ZeroVector;
 
+	  UPROPERTY(BlueprintReadOnly, VisibleAnywhere, meta = (Tooltip = ""))
 	  bool bFalling = false;
+
+	  UPROPERTY(BlueprintReadOnly, VisibleAnywhere, meta = (Tooltip = ""))
 	  bool bLaunching = false;
+
+	  UPROPERTY(BlueprintReadOnly, VisibleAnywhere, meta = (Tooltip = ""))
 	  bool bPushedBack = false;
 
 	  FVector LaunchForce = FVector::ZeroVector;

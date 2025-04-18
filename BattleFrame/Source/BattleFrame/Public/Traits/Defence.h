@@ -19,8 +19,11 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "对动能伤害的免疫比例（0-1）"))
 	float KineticDmgImmune = 0.f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "对动能Debuff的免疫比例（0-1）"))
-	float KineticDebuffImmune = 0.f;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "存活时对动能Debuff的免疫比例（0-1）"))
+	float KineticDebuffImmuneAlive = 0.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "死亡后对动能Debuff的免疫比例（0-1）"))
+	float KineticDebuffImmuneDead = 0.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Tooltip = "最大击退力"))
 	float KineticMaxImpulse = 10000.f;

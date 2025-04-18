@@ -220,6 +220,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
         FLocated spawnLocated;
         spawnLocated.Location = SpawnPoint3D;
         spawnLocated.preLocation = SpawnPoint3D;
+        spawnLocated.InitialLocation = SpawnPoint3D;
         Config.SetTrait(spawnLocated);
 
         APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);

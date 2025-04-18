@@ -75,6 +75,7 @@
 #include "Traits/Patrol.h"
 #include "Traits/Sleeping.h"
 #include "Traits/Patrolling.h"
+#include "Traits/Burning.h"
 #include "Traits/ActorSpawnConfig.h"
 #include "Traits/SoundConfig.h"
 #include "Traits/FxConfig.h"
@@ -100,7 +101,7 @@ public:
 	int32 BatchSize = 1;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Sound)
-	int32 NumSoundsPerFrame = 1;
+	int32 NumSoundsPerFrame = 10;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Sound)
 	float SoundVolume = 1.f;
