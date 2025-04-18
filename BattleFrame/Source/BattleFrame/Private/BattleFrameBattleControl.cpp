@@ -2260,36 +2260,43 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 						UBattleFrameFunctionLibraryRT::SetSubTypeTraitByEnum(Config.SubType, FxRecord);
 
-						Mechanism->SpawnSubjectDeferred(FxRecord);
+						for (int32 i = 0; i < Config.Quantity; ++i)
+						{
+							Mechanism->SpawnSubjectDeferred(FxRecord);
+						}
 					}
 
 					// 处理非合批情况
 					if (Config.NiagaraAsset || Config.CascadeAsset)
 					{
-						if (Config.NiagaraAsset)
+						for (int32 i = 0; i < Config.Quantity; ++i)
 						{
-							UNiagaraFunctionLibrary::SpawnSystemAtLocation(
-								CurrentWorld,
-								Config.NiagaraAsset,
-								Config.Transform.GetLocation(),
-								Config.Transform.GetRotation().Rotator(),
-								Config.Transform.GetScale3D(),
-								true,  // bAutoDestroy
-								true,  // bAutoActivate
-								ENCPoolMethod::AutoRelease
-							);
-						}
-						else if (Config.CascadeAsset)
-						{
-							UGameplayStatics::SpawnEmitterAtLocation(
-								CurrentWorld,
-								Config.CascadeAsset,
-								Config.Transform.GetLocation(),
-								Config.Transform.GetRotation().Rotator(),
-								Config.Transform.GetScale3D(),
-								true,  // bAutoDestroy
-								EPSCPoolMethod::AutoRelease
-							);
+							if (Config.NiagaraAsset)
+							{
+								UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+									CurrentWorld,
+									Config.NiagaraAsset,
+									Config.Transform.GetLocation(),
+									Config.Transform.GetRotation().Rotator(),
+									Config.Transform.GetScale3D(),
+									true,  // bAutoDestroy
+									true,  // bAutoActivate
+									ENCPoolMethod::AutoRelease
+								);
+							}
+
+							if (Config.CascadeAsset)
+							{
+								UGameplayStatics::SpawnEmitterAtLocation(
+									CurrentWorld,
+									Config.CascadeAsset,
+									Config.Transform.GetLocation(),
+									Config.Transform.GetRotation().Rotator(),
+									Config.Transform.GetScale3D(),
+									true,  // bAutoDestroy
+									EPSCPoolMethod::AutoRelease
+								);
+							}
 						}
 					}
 					Subject.Despawn();
@@ -2342,10 +2349,10 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 			}
 
 			StreamableManager.RequestAsyncLoad(Sound.ToSoftObjectPath(), FStreamableDelegate::CreateLambda([this, Sound]()
-				{
-					// 播放加载完成的音效
-					UGameplayStatics::PlaySound2D(GetWorld(), Sound.Get(), SoundVolume);
-				}));
+			{
+				// 播放加载完成的音效
+				UGameplayStatics::PlaySound2D(GetWorld(), Sound.Get(), SoundVolume);
+			}));
 		}
 	}
 	#pragma endregion

@@ -26,7 +26,7 @@ struct BATTLEFRAME_API FPatrol
 public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	bool bEnable = true;
+	bool bEnable = false;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	float Radius = 1000;
