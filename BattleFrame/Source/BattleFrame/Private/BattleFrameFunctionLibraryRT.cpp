@@ -1366,7 +1366,7 @@ void USphereSweepForSubjectsAsyncAction::Activate()
 			TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereSweepForSubjectsAsync");
 
 			TWeakObjectPtr<UNeighborGridComponent> NeighborGrid = NeighborGridActor->FindComponentByClass<UNeighborGridComponent>();
-			TArray<FIntVector> CellCoords = NeighborGrid->GetGridCellsForCapsule(Start, End, Radius);
+			TArray<FIntVector> CellCoords = NeighborGrid->SphereSweepForCells(Start, End, Radius);
 
 			const FVector TraceDir = (End - Start).GetSafeNormal();
 			const float TraceLength = FVector::Distance(Start, End);

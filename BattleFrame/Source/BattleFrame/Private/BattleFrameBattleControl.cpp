@@ -334,7 +334,10 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 							if (AngleDiff <= FinalAngle * 0.5f)
 							{
-								Trace.TraceResult = PlayerHandle;
+								if (Trace.NeighborGrid->CheckVisibility(Located.Location,PlayerLocation,1))
+								{
+									Trace.TraceResult = PlayerHandle;
+								}
 							}
 						}
 					}
@@ -364,7 +367,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 							TraceDirection,     // 扇形方向
 							FinalAngle,         // 扇形角度
 							TargetFilter,       // 过滤条件
-							Result              // 输出结果
+							Result,              // 输出结果
+							true
 						);
 
 						// 直接使用结果（扇形检测已包含角度验证）
@@ -1439,16 +1443,18 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				const bool bIsAttacking = Subject.HasTrait<FAttacking>();
 				const bool bIsFreezing = Subject.HasTrait<FFreezing>();
 				const bool bIsDying = Subject.HasTrait<FDying>();
+
+				const bool bIsValidFF = IsValid(Navigation.FlowField);
 				const bool bIsValidTraceResult = Trace.TraceResult.IsValid();
 				const bool bIsTraceResultHasLocated = bIsValidTraceResult ? Trace.TraceResult.HasTrait<FLocated>() : false;
 				const bool bIsTraceResultHasBindFlowField = bIsValidTraceResult ? Trace.TraceResult.HasTrait<FBindFlowField>() : false;
-				const bool bIsValidFF = IsValid(Navigation.FlowField);
 
 				// 初始化
 				FVector& AgentLocation = Located.Location;
 				FVector GoalLocation = AgentLocation;
 				FVector DesiredMoveDirection = Directed.Direction;
 				Moving.SpeedMult = 1;
+
 				bool bInside_BaseFF = false;
 				FCellStruct Cell_BaseFF = FCellStruct{};
 				bool bInside_TargetFF = false;
