@@ -60,8 +60,14 @@ public:
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "缩放属性"))
     FScaled Scale;
 
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "生命值属性"))
+    FHealth Health;
+
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "出生属性"))
     FAppear Appear;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "索敌属性"))
+    FTrace Trace;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "休眠属性"))
     FSleep Sleep;
@@ -78,9 +84,6 @@ public:
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "避障属性"))
     FAvoidance Avoidance;
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "索敌属性"))
-    FTrace Trace;
-
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "攻击属性"))
     FAttack Attack;
 
@@ -92,9 +95,6 @@ public:
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "受击属性"))
     FHit Hit;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "生命值属性"))
-    FHealth Health;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "生命条属性"))
     FHealthBar HealthBar;

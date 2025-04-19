@@ -129,6 +129,18 @@ public:
         }
     }
 
+    void SectorExpandForSubject(const FVector Origin, float Radius, float Height, FVector Direction, float Angle, const FFilter Filter, FSubjectHandle& Result, bool bCheckVisibility = false)
+    {
+        Result = FSubjectHandle();
+        if (LIKELY(Instance != nullptr && Instance->NeighborGridComponent != nullptr))
+        {
+            FSubjectHandle LocalResult;
+            Instance->NeighborGridComponent->SectorExpandForSubject(Origin, Radius, Height, Direction, Angle, Filter, LocalResult, bCheckVisibility);
+            Result = MoveTemp(LocalResult);
+        }
+    }
+
+
     /**
      * Re-fill the cage with bubbles.
      */

@@ -239,5 +239,4 @@ public:
 		Animation.AnimPauseTime0 = Animation.AnimPauseTime1;
 		Animation.AnimPlayRate0 = Animation.AnimPlayRate1;
 	}
-
 };

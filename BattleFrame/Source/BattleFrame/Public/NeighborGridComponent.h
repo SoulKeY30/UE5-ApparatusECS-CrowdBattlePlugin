@@ -115,7 +115,6 @@ public:
 	TArray<FIntVector> GetNeighborCells(const FVector& Center, const FVector& Range3D) const;
 	TArray<FIntVector> SphereSweepForCells(FVector Start, FVector End, float Radius) const;
 	void AddSphereCells(FIntVector CenterCell, int32 RadiusInCells, float RadiusSq, TSet<FIntVector>& GridCells) const;
-	TArray<FIntVector> GetGridCellsAlongLine(const FVector& Start, const FVector& End) const;
 
 
 	/**

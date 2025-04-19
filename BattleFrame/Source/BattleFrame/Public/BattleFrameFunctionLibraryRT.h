@@ -57,6 +57,19 @@ public:
     );
 
     UFUNCTION(BlueprintCallable, Category = "BattleFrame")
+    static void SectorExpandForSubject(
+        ANeighborGridActor* NeighborGridActor,
+        FVector Origin,
+        float Radius, 
+        float Height, 
+        FVector Direction, 
+        float Angle, 
+        FFilter Filter, 
+        FSubjectHandle& Result, 
+        bool bCheckVisibility
+    );
+
+    UFUNCTION(BlueprintCallable, Category = "BattleFrame")
     static FDmgResult ApplyDamageToSubjects(
         ABattleFrameBattleControl* BattleControl,
         TArray<FSubjectHandle> Subjects,

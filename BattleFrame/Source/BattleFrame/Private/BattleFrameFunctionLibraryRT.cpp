@@ -1329,6 +1329,43 @@ void UBattleFrameFunctionLibraryRT::CylinderExpandForSubject
 	}
 }
 
+void UBattleFrameFunctionLibraryRT::SectorExpandForSubject
+(
+	ANeighborGridActor* NeighborGridActor,
+	FVector Origin, 
+	float Radius, 
+	float Height, 
+	FVector Direction, 
+	float Angle, 
+	FFilter Filter, 
+	FSubjectHandle& Result, 
+	bool bCheckVisibility
+)
+{
+	Result = FSubjectHandle(); // 重置为无效句柄
+
+	if (!IsValid(NeighborGridActor))
+	{
+		if (UWorld* World = GEngine->GetCurrentPlayWorld())
+		{
+			for (TActorIterator<ANeighborGridActor> It(World); It; ++It)
+			{
+				NeighborGridActor = *It;
+				break;
+			}
+		}
+	}
+
+	if (IsValid(NeighborGridActor))
+	{
+		FSubjectHandle LocalResult;
+		NeighborGridActor->SectorExpandForSubject(Origin,Radius,Height,Direction,Angle,Filter,Result,bCheckVisibility);
+		Result = MoveTemp(LocalResult);
+	}
+}
+
+
+
 //-------------------------------Async Trace-------------------------------
 
 USphereSweepForSubjectsAsyncAction* USphereSweepForSubjectsAsyncAction::SphereSweepForSubjectsAsync

@@ -127,24 +127,15 @@ void UNeighborGridComponent::SphereSweepForSubjects(const FVector Start, const F
 	Results.Empty(); // 清空结果数组
 
 	TArray<FIntVector> GridCells = SphereSweepForCells(Start, End, Radius);
-	TSet<int32> VisitedCells;
-
-	// 收集所有需要检查的网格单元
-	for (const FIntVector& CellCoord : GridCells)
-	{
-		if (IsInside(CellCoord))
-		{
-			VisitedCells.Add(GetIndexAt(CellCoord.X, CellCoord.Y, CellCoord.Z));
-		}
-	}
 
 	const FVector TraceDir = (End - Start).GetSafeNormal();
 	const float TraceLength = FVector::Distance(Start, End);
 
 	// 检查每个单元中的subject
-	for (int32 CellIndex : VisitedCells)
-	{
-		const FNeighborGridCell& CageCell = Cells[CellIndex];
+	for (const FIntVector& CellIndex : GridCells)
+	{	
+		const FNeighborGridCell& CageCell = At(CellIndex.X, CellIndex.Y, CellIndex.Z);
+
 		if (!CageCell.SubjectFingerprint.Matches(Filter.GetFingerprint())) continue;
 
 		for (const FAvoiding& Data : CageCell.Subjects)
@@ -222,10 +213,10 @@ void UNeighborGridComponent::CylinderExpandForSubject(const FVector Origin, floa
 
 	// 按到原点的XY距离排序（优化缓存访问）
 	CandidateCells.Sort([&](const FIntVector& A, const FIntVector& B)
-		{
-			return FVector::DistSquared2D(CageToWorld(A), Origin) <
-				FVector::DistSquared2D(CageToWorld(B), Origin);
-		});
+	{
+		return FVector::DistSquared2D(CageToWorld(A), Origin) <
+			FVector::DistSquared2D(CageToWorld(B), Origin);
+	});
 
 	// 精确检测
 	const float ZMin = Origin.Z - Height * 0.5f;
@@ -434,34 +425,44 @@ bool UNeighborGridComponent::CheckVisibility(FVector Start, FVector End, float R
 					const FBoxObstacle* CurrentObstacle = Avoiding.SubjectHandle.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
 					if (!CurrentObstacle) continue;
 
+					// 获取上一个顶点特征
+					const FBoxObstacle* PrevObstacle = CurrentObstacle->prevObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
+					if (!PrevObstacle) continue;
+
 					// 获取下一个顶点特征
 					const FBoxObstacle* NextObstacle = CurrentObstacle->nextObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
 					if (!NextObstacle) continue;
 
+					// 获取下下个顶点特征
+					const FBoxObstacle* NextNextObstacle = NextObstacle->nextObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
+					if (!NextNextObstacle) continue;
+
 					// 长方体参数
 					const FVector& CurrentPos = CurrentObstacle->point3d_;
+					const FVector& PrevPos = PrevObstacle->point3d_;
 					const FVector& NextPos = NextObstacle->point3d_;
-					const float Height = CurrentObstacle->height_;
-					const float ObstacleRadius = Avoiding.Radius; // 长方体厚度/半径
+					const FVector& NextNextPos = NextNextObstacle->point3d_;
+
+					const float Height = CurrentObstacle->height_ * 0.5f;
 
 					// 1. 计算长方体的基本向量
-					const FVector EdgeDir = (NextPos - CurrentPos).GetSafeNormal();
-					const FVector Right = FVector::CrossProduct(EdgeDir, FVector::UpVector).GetSafeNormal();
 					const FVector Up = FVector::UpVector;
 
 					// 2. 构建长方体的8个顶点
-					const FVector BottomVertices[4] = {
-						CurrentPos - Right * ObstacleRadius,
-						CurrentPos + Right * ObstacleRadius,
-						NextPos + Right * ObstacleRadius,
-						NextPos - Right * ObstacleRadius
+					const FVector BottomVertices[4] = 
+					{
+						PrevPos - Up * Height,
+						CurrentPos - Up * Height,
+						NextPos - Up * Height,
+						NextNextPos - Up * Height
 					};
 
-					const FVector TopVertices[4] = {
-						BottomVertices[0] + Up * Height,
-						BottomVertices[1] + Up * Height,
-						BottomVertices[2] + Up * Height,
-						BottomVertices[3] + Up * Height
+					const FVector TopVertices[4] = 
+					{
+						PrevPos + Up * Height,
+						CurrentPos + Up * Height,
+						NextPos + Up * Height,
+						NextNextPos + Up * Height
 					};
 
 					// 3. 手动实现球体与长方体的碰撞检测
@@ -473,7 +474,8 @@ bool UNeighborGridComponent::CheckVisibility(FVector Start, FVector End, float R
 							const float CapsuleLength = FVector::Dist(SphereStart, SphereEnd);
 
 							// 定义长方体的6个面
-							const TArray<TArray<FVector>> Faces = {
+							const TArray<TArray<FVector>> Faces = 
+							{
 								// 底面
 								{BottomVerts[0], BottomVerts[1], BottomVerts[2], BottomVerts[3]},
 								// 顶面
@@ -1710,7 +1712,19 @@ TArray<FIntVector> UNeighborGridComponent::SphereSweepForCells(FVector Start, FV
 	}
 
 	AddSphereCells(EndCell, RadiusInCells, RadiusSq, GridCellsSet);
-	return GridCellsSet.Array();
+
+	// 转换为数组并排序
+	TArray<FIntVector> ResultArray = GridCellsSet.Array();
+
+	// 按距离Start点的平方距离排序（避免开根号）
+	Algo::Sort(ResultArray, [this, Start](const FIntVector& A, const FIntVector& B)
+		{
+			const FVector WorldA = CageToWorld(A);
+			const FVector WorldB = CageToWorld(B);
+			return (WorldA - Start).SizeSquared() < (WorldB - Start).SizeSquared();
+		});
+
+	return ResultArray;
 }
 
 void UNeighborGridComponent::AddSphereCells(FIntVector CenterCell, int32 RadiusInCells, float RadiusSq, TSet<FIntVector>& GridCells) const
@@ -1735,59 +1749,4 @@ void UNeighborGridComponent::AddSphereCells(FIntVector CenterCell, int32 RadiusI
 			}
 		}
 	}
-}
-
-TArray<FIntVector> UNeighborGridComponent::GetGridCellsAlongLine(const FVector& Start, const FVector& End) const // 3D DDA算法遍历直线路径网格单元
-{
-	TArray<FIntVector> PathCells;
-	const FIntVector StartCell = WorldToCage(Start);
-	const FIntVector EndCell = WorldToCage(End);
-
-	FIntVector CurrentCell = StartCell;
-	PathCells.Add(CurrentCell);
-
-	if (StartCell == EndCell) return PathCells;
-
-	const FVector Direction = (End - Start).GetSafeNormal();
-	const FVector AbsDirection = FVector(FMath::Abs(Direction.X), FMath::Abs(Direction.Y), FMath::Abs(Direction.Z));
-
-	const FIntVector Step(
-		Direction.X > 0 ? 1 : -1,
-		Direction.Y > 0 ? 1 : -1,
-		Direction.Z > 0 ? 1 : -1
-	);
-
-	FVector tMax(
-		(Step.X > 0 ? (StartCell.X + 1) : StartCell.X) * CellSize - Start.X,
-		(Step.Y > 0 ? (StartCell.Y + 1) : StartCell.Y) * CellSize - Start.Y,
-		(Step.Z > 0 ? (StartCell.Z + 1) : StartCell.Z) * CellSize - Start.Z
-	);
-	tMax /= AbsDirection;
-
-	const FVector tDelta(CellSize / AbsDirection.X, CellSize / AbsDirection.Y, CellSize / AbsDirection.Z);
-
-	while (true)
-	{
-		if (tMax.X < tMax.Y && tMax.X < tMax.Z)
-		{
-			CurrentCell.X += Step.X;
-			tMax.X += tDelta.X;
-		}
-		else if (tMax.Y < tMax.Z)
-		{
-			CurrentCell.Y += Step.Y;
-			tMax.Y += tDelta.Y;
-		}
-		else
-		{
-			CurrentCell.Z += Step.Z;
-			tMax.Z += tDelta.Z;
-		}
-
-		if (!IsInside(CurrentCell)) break;
-		PathCells.Add(CurrentCell);
-		if (CurrentCell == EndCell) break;
-	}
-
-	return PathCells;
 }

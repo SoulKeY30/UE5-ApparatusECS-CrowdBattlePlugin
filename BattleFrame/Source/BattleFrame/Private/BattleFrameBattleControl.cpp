@@ -334,7 +334,14 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 							if (AngleDiff <= FinalAngle * 0.5f)
 							{
-								if (Trace.NeighborGrid->CheckVisibility(Located.Location,PlayerLocation,1))
+								if (Trace.bCheckVisibility)
+								{
+									if (IsValid(Trace.NeighborGrid) && Trace.NeighborGrid->CheckVisibility(Located.Location, PlayerLocation, Collider.Radius))
+									{
+										Trace.TraceResult = PlayerHandle;
+									}
+								}
+								else
 								{
 									Trace.TraceResult = PlayerHandle;
 								}
@@ -368,7 +375,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 							FinalAngle,         // 扇形角度
 							TargetFilter,       // 过滤条件
 							Result,              // 输出结果
-							true
+							Trace.bCheckVisibility
 						);
 
 						// 直接使用结果（扇形检测已包含角度验证）
@@ -1327,27 +1334,30 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		// Lambda for finding a new goal location. To Do : Add pathfinding and obstacle tracing here
-		auto FindNewGoalLocation = [](FVector Origin, float Range) {
+		auto FindNewGoalLocation = [](FVector Origin, float Range) 
+		{
 			float Angle = FMath::FRandRange(0.f, 2.f * PI);
 			float Distance = FMath::FRandRange(0.f, Range);
 			return Origin + FVector(FMath::Cos(Angle) * Distance, FMath::Sin(Angle) * Distance, 0.f);
-			};
+		};
 
 		// Lambda for resetting timer
-		auto ResetTimer = [](const FPatrol& Patrol, FPatrolling& Patrolling) {
+		auto ResetTimer = [](const FPatrol& Patrol, FPatrolling& Patrolling) 
+		{
 			Patrolling.MoveTimeLeft = Patrol.MaxDuration;
 			Patrolling.WaitTimeLeft = Patrol.CoolDown;
-			};
+		};
 
 		// Lambda for resetting origin
-		auto ResetOrigin = [](FPatrol& Patrol, const FLocated& Located) {
+		auto ResetOrigin = [](FPatrol& Patrol, const FLocated& Located) 
+		{
 			if (Patrol.OriginMode == EPatrolOriginMode::Previous) {
 				Patrol.Origin = Located.Location; // use current loc
 			}
 			else {
 				Patrol.Origin = Located.InitialLocation; // use init loc
 			}
-			};
+		};
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
@@ -1538,7 +1548,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				// 助推力
 				if (Moving.bLaunching)
 				{
-					Moving.CurrentVelocity += Moving.LaunchForce * (1 - bIsDying ? Defence.KineticDebuffImmuneDead : Defence.KineticDebuffImmuneAlive);
+					Moving.CurrentVelocity += Moving.LaunchForce * (1 - (bIsDying ? Defence.KineticDebuffImmuneDead : Defence.KineticDebuffImmuneAlive));
 
 					FVector XYDir = Moving.CurrentVelocity.GetSafeNormal2D();
 					float XYSpeed = Moving.CurrentVelocity.Size2D();

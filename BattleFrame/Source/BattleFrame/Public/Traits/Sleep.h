@@ -22,12 +22,4 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	bool bWakeOnHit = true;
 
-
-
-	//UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	//bool bCheckVisibility = true;
-
-	//UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	//TEnumAsByte<EObjectTypeQuery> TraceObjectType;
-
 };
