@@ -27,53 +27,58 @@ class BATTLEFRAME_API UBattleFrameFunctionLibraryRT : public UBlueprintFunctionL
 	
 public:
 
-    UFUNCTION(BlueprintCallable, Category = "BattleFrame")
+    UFUNCTION(BlueprintCallable, Category = "BattleFrame", meta = (AutoCreateRefTerm = "IgnoreSubjects"))
     static void SphereTraceForSubjects(
         ANeighborGridActor* NeighborGridActor,
         FVector Location,
         float Radius,
+        const TArray<FSubjectHandle>& IgnoreSubjects,
         FFilter Filter,
         TArray<FTraceResult>& Results
     );
 
-    UFUNCTION(BlueprintCallable, Category = "BattleFrame")
+
+    UFUNCTION(BlueprintCallable, Category = "BattleFrame", meta = (AutoCreateRefTerm = "IgnoreSubjects"))
     static void SphereSweepForSubjects(
         ANeighborGridActor* NeighborGridActor,
         FVector Start,
         FVector End,
         float Radius,
+        const TArray<FSubjectHandle>& IgnoreSubjects,
         FFilter Filter,
         TArray<FTraceResult>& Results
     );
 
-    UFUNCTION(BlueprintCallable, Category = "BattleFrame")
+    UFUNCTION(BlueprintCallable, Category = "BattleFrame", meta = (AutoCreateRefTerm = "IgnoreSubjects"))
     static void CylinderExpandForSubject(
         ANeighborGridActor* NeighborGridActor,
         FVector Origin,
         float Radius,
         float Height,
+        const TArray<FSubjectHandle>& IgnoreSubjects,
         FFilter Filter,
         FSubjectHandle& Result
     );
 
-    UFUNCTION(BlueprintCallable, Category = "BattleFrame")
+    UFUNCTION(BlueprintCallable, Category = "BattleFrame", meta = (AutoCreateRefTerm = "IgnoreSubjects"))
     static void SectorExpandForSubject(
         ANeighborGridActor* NeighborGridActor,
         FVector Origin,
-        float Radius, 
-        float Height, 
-        FVector Direction, 
-        float Angle, 
-        FFilter Filter, 
-        FSubjectHandle& Result, 
-        bool bCheckVisibility
+        float Radius,
+        float Height,
+        FVector Direction,
+        float Angle,
+        bool bCheckVisibility,
+        const TArray<FSubjectHandle>& IgnoreSubjects,
+        FFilter Filter,
+        FSubjectHandle& Result
     );
 
-    UFUNCTION(BlueprintCallable, Category = "BattleFrame")
+    UFUNCTION(BlueprintCallable, Category = "BattleFrame", meta = (AutoCreateRefTerm = "IgnoreSubjects"))
     static FDmgResult ApplyDamageToSubjects(
         ABattleFrameBattleControl* BattleControl,
         TArray<FSubjectHandle> Subjects,
-        TArray<FSubjectHandle> IgnoreSubjects,
+        const TArray<FSubjectHandle>& IgnoreSubjects,
         FSubjectHandle DmgInstigator,
         FVector HitFromLocation,
         FDmgSphere DmgSphere,

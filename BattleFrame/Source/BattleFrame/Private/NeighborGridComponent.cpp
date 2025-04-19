@@ -62,7 +62,7 @@ void UNeighborGridComponent::InitializeComponent()
 
 // Get overlapping subjects
 
-void UNeighborGridComponent::SphereTraceForSubjects(const FVector Origin, float Radius, const FFilter Filter, TArray<FTraceResult>& Results) const
+void UNeighborGridComponent::SphereTraceForSubjects(const FVector Origin, float Radius, TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, TArray<FTraceResult>& Results) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereTraceForSubjects");
 
@@ -74,6 +74,9 @@ void UNeighborGridComponent::SphereTraceForSubjects(const FVector Origin, float 
 
 	// 预计算过滤器指纹
 	const FFingerprint FilterFingerprint = Filter.GetFingerprint();
+
+	// 将忽略列表转换为集合以便快速查找
+	TSet<FSubjectHandle> IgnoreSet(IgnoreSubjects);
 
 	for (int32 i = CagePosMin.Z; i <= CagePosMax.Z; ++i)
 	{
@@ -94,6 +97,12 @@ void UNeighborGridComponent::SphereTraceForSubjects(const FVector Origin, float 
 					for (const FAvoiding& Data : NeighbourCell.Subjects)
 					{
 						const FSubjectHandle OtherSubject = Data.SubjectHandle;
+
+						// 检查是否在忽略列表中
+						if (IgnoreSet.Contains(OtherSubject))
+						{
+							continue;
+						}
 
 						if (LIKELY(OtherSubject.Matches(Filter)))
 						{
@@ -120,11 +129,14 @@ void UNeighborGridComponent::SphereTraceForSubjects(const FVector Origin, float 
 	}
 }
 
-void UNeighborGridComponent::SphereSweepForSubjects(const FVector Start, const FVector End, float Radius, const FFilter Filter, TArray<FTraceResult>& Results)
+void UNeighborGridComponent::SphereSweepForSubjects(const FVector Start, const FVector End, float Radius, TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, TArray<FTraceResult>& Results)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereSweepForSubjects");
 
 	Results.Empty(); // 清空结果数组
+
+	// 将忽略列表转换为集合以便快速查找
+	TSet<FSubjectHandle> IgnoreSet(IgnoreSubjects);
 
 	TArray<FIntVector> GridCells = SphereSweepForCells(Start, End, Radius);
 
@@ -133,7 +145,7 @@ void UNeighborGridComponent::SphereSweepForSubjects(const FVector Start, const F
 
 	// 检查每个单元中的subject
 	for (const FIntVector& CellIndex : GridCells)
-	{	
+	{
 		const FNeighborGridCell& CageCell = At(CellIndex.X, CellIndex.Y, CellIndex.Z);
 
 		if (!CageCell.SubjectFingerprint.Matches(Filter.GetFingerprint())) continue;
@@ -141,6 +153,12 @@ void UNeighborGridComponent::SphereSweepForSubjects(const FVector Start, const F
 		for (const FAvoiding& Data : CageCell.Subjects)
 		{
 			const FSubjectHandle Subject = Data.SubjectHandle;
+
+			// 检查是否在忽略列表中
+			if (IgnoreSet.Contains(Subject))
+			{
+				continue;
+			}
 
 			// 有效性检查
 			if (!Subject.IsValid() || !Subject.Matches(Filter)) continue;
@@ -176,12 +194,15 @@ void UNeighborGridComponent::SphereSweepForSubjects(const FVector Start, const F
 
 // for agents to trace nearest targets( cheaper this way)
 
-void UNeighborGridComponent::CylinderExpandForSubject(const FVector Origin, float Radius, float Height, const FFilter Filter, FSubjectHandle& Result) const
+void UNeighborGridComponent::CylinderExpandForSubject(const FVector Origin, float Radius, float Height, TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, FSubjectHandle& Result) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("CylinderExpandForSubjects");
 
 	float ClosestDistanceSqr = FLT_MAX;
 	FSubjectHandle ClosestSubject;
+
+	// 将忽略列表转换为集合以便快速查找
+	TSet<FSubjectHandle> IgnoreSet(IgnoreSubjects);
 
 	// 扩展搜索范围：包含可能部分进入圆柱的格子
 	const float CellDiagonalMargin = CellSize * 0.5f * FMath::Sqrt(3.0f); // 三维对角线
@@ -213,10 +234,10 @@ void UNeighborGridComponent::CylinderExpandForSubject(const FVector Origin, floa
 
 	// 按到原点的XY距离排序（优化缓存访问）
 	CandidateCells.Sort([&](const FIntVector& A, const FIntVector& B)
-	{
-		return FVector::DistSquared2D(CageToWorld(A), Origin) <
-			FVector::DistSquared2D(CageToWorld(B), Origin);
-	});
+		{
+			return FVector::DistSquared2D(CageToWorld(A), Origin) <
+				FVector::DistSquared2D(CageToWorld(B), Origin);
+		});
 
 	// 精确检测
 	const float ZMin = Origin.Z - Height * 0.5f;
@@ -238,7 +259,15 @@ void UNeighborGridComponent::CylinderExpandForSubject(const FVector Origin, floa
 
 		for (const FAvoiding& SubjectData : CellData.Subjects)
 		{
-			if (!SubjectData.SubjectHandle.Matches(Filter)) continue;
+			const FSubjectHandle Subject = SubjectData.SubjectHandle;
+
+			// 检查是否在忽略列表中
+			if (IgnoreSet.Contains(Subject))
+			{
+				continue;
+			}
+
+			if (!Subject.Matches(Filter)) continue;
 
 			// 精确Z轴检测
 			const float SubjectZ = SubjectData.Location.Z;
@@ -256,7 +285,7 @@ void UNeighborGridComponent::CylinderExpandForSubject(const FVector Origin, floa
 			if (DistanceSqr < ClosestDistanceSqr)
 			{
 				ClosestDistanceSqr = DistanceSqr;
-				ClosestSubject = SubjectData.SubjectHandle;
+				ClosestSubject = Subject;
 
 				if (ClosestDistanceSqr <= KINDA_SMALL_NUMBER)
 				{
@@ -270,12 +299,15 @@ void UNeighborGridComponent::CylinderExpandForSubject(const FVector Origin, floa
 	Result = ClosestSubject.IsValid() ? ClosestSubject : FSubjectHandle();
 }
 
-void UNeighborGridComponent::SectorExpandForSubject(const FVector Origin, float Radius, float Height, FVector Direction, float Angle, const FFilter Filter, FSubjectHandle& Result, bool bCheckVisibility) const
+void UNeighborGridComponent::SectorExpandForSubject(const FVector Origin, float Radius, float Height, FVector Direction, float Angle, bool bCheckVisibility, TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, FSubjectHandle& Result) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SectorExpandForSubject");
 
 	float ClosestDistanceSqr = FLT_MAX;
 	FSubjectHandle ClosestSubject;
+
+	// 将忽略列表转换为集合以便快速查找
+	TSet<FSubjectHandle> IgnoreSet(IgnoreSubjects);
 
 	const FVector NormalizedDir = Direction.GetSafeNormal2D();
 	const float HalfAngleRad = FMath::DegreesToRadians(Angle * 0.5f);
@@ -318,7 +350,7 @@ void UNeighborGridComponent::SectorExpandForSubject(const FVector Origin, float 
 		});
 
 	// 遍历检测
-	for (const FIntVector& CellPos : CandidateCells) 
+	for (const FIntVector& CellPos : CandidateCells)
 	{
 		const auto& CellData = At(CellPos);
 		if (!CellData.SubjectFingerprint.Matches(FilterFingerprint)) continue;
@@ -327,9 +359,17 @@ void UNeighborGridComponent::SectorExpandForSubject(const FVector Origin, float 
 		const float CellDistSqr = FVector::DistSquared2D(CageToWorld(CellPos), Origin);
 		if (CellDistSqr > ClosestDistanceSqr + FMath::Square(CellSize)) break;
 
-		for (const FAvoiding& SubjectData : CellData.Subjects) 
+		for (const FAvoiding& SubjectData : CellData.Subjects)
 		{
-			if (!SubjectData.SubjectHandle.Matches(Filter)) continue;
+			const FSubjectHandle Subject = SubjectData.SubjectHandle;
+
+			// 检查是否在忽略列表中
+			if (IgnoreSet.Contains(Subject))
+			{
+				continue;
+			}
+
+			if (!Subject.Matches(Filter)) continue;
 
 			// 精确距离检测（考虑目标半径）
 			const FVector Delta = SubjectData.Location - Origin;
@@ -340,7 +380,7 @@ void UNeighborGridComponent::SectorExpandForSubject(const FVector Origin, float 
 			// 精确扇形检测
 			const FVector DeltaXY = Delta * FVector(1, 1, 0);
 
-			if (!DeltaXY.IsNearlyZero()) 
+			if (!DeltaXY.IsNearlyZero())
 			{
 				const FVector NormalizedDelta = DeltaXY.GetSafeNormal();
 				const float CosTheta = FVector::DotProduct(NormalizedDelta, NormalizedDir);
@@ -351,7 +391,7 @@ void UNeighborGridComponent::SectorExpandForSubject(const FVector Origin, float 
 			if (bCheckVisibility)
 			{
 				// 获取目标精确位置(需Unsafe访问)
-				if (const auto TargetLocation = SubjectData.SubjectHandle.GetTraitPtr<FLocated, EParadigm::Unsafe>())
+				if (const auto TargetLocation = Subject.GetTraitPtr<FLocated, EParadigm::Unsafe>())
 				{
 					// 执行可见性检测
 					if (!CheckVisibility(Origin, TargetLocation->Location, Radius))
@@ -369,7 +409,7 @@ void UNeighborGridComponent::SectorExpandForSubject(const FVector Origin, float 
 			if (DistanceSqr < ClosestDistanceSqr)
 			{
 				ClosestDistanceSqr = DistanceSqr;
-				ClosestSubject = SubjectData.SubjectHandle;
+				ClosestSubject = Subject;
 				if (ClosestDistanceSqr <= KINDA_SMALL_NUMBER)
 				{
 					Result = ClosestSubject;

@@ -367,15 +367,20 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						const FVector TraceDirection = Directed.Direction.GetSafeNormal2D();
 						const float TraceHeight = Collider.Radius * 2.0f; // 根据实际需求调整高度
 
+						// ignore self
+						TArray<FSubjectHandle> IgnoreList;
+						IgnoreList.Add(FSubjectHandle(Subject));
+
 						Trace.NeighborGrid->SectorExpandForSubject(
 							Located.Location,   // 检测原点
 							FinalRange,         // 检测半径
 							TraceHeight,        // 检测高度
 							TraceDirection,     // 扇形方向
 							FinalAngle,         // 扇形角度
+							Trace.bCheckVisibility,
+							IgnoreList,
 							TargetFilter,       // 过滤条件
-							Result,              // 输出结果
-							Trace.bCheckVisibility
+							Result              // 输出结果
 						);
 
 						// 直接使用结果（扇形检测已包含角度验证）
@@ -1204,7 +1209,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				if (!SphereObstacle.bOverrideSpeedLimit) return;
 
 				// 调用修改后的SphereTraceForSubjects函数
-				SphereObstacle.NeighborGrid->SphereTraceForSubjects(Located.Location, Collider.Radius, FFilter::Make<FAgent, FLocated, FCollider, FMoving>(), Results);
+				SphereObstacle.NeighborGrid->SphereTraceForSubjects(Located.Location, Collider.Radius, TArray<FSubjectHandle>(), FFilter::Make<FAgent, FLocated, FCollider, FMoving>(), Results);
 
 				// 处理结果
 				if (!Results.IsEmpty())
@@ -1334,11 +1339,38 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		// Lambda for finding a new goal location. To Do : Add pathfinding and obstacle tracing here
-		auto FindNewGoalLocation = [](FVector Origin, float Range) 
+		auto FindNewGoalLocation = [&](FVector Origin, float MinRange, float MaxRange, FTrace Trace, FLocated Located)
 		{
-			float Angle = FMath::FRandRange(0.f, 2.f * PI);
-			float Distance = FMath::FRandRange(0.f, Range);
-			return Origin + FVector(FMath::Cos(Angle) * Distance, FMath::Sin(Angle) * Distance, 0.f);
+			const int32 MaxAttempts = 1; // 最大尝试次数
+			FVector NewGoal = Located.Location;
+
+			// 获取NeighborGridComponent引用
+			UNeighborGridComponent* NeighborGrid = Trace.NeighborGrid;
+
+			if (!IsValid(NeighborGrid))
+			{
+				// 如果没有有效的NeighborGrid，回退到简单环形随机位置
+				float Angle = FMath::FRandRange(0.f, 2.f * PI);
+				float Distance = FMath::FRandRange(MinRange, MaxRange); // 使用环形范围
+				return Origin + FVector(FMath::Cos(Angle) * Distance, FMath::Sin(Angle) * Distance, 0.f);
+			}
+
+			for (int32 Attempt = 0; Attempt < MaxAttempts; ++Attempt)
+			{
+				// 随机生成环形区域内的目标位置
+				float Angle = FMath::FRandRange(0.f, 2.f * PI);
+				float Distance = FMath::FRandRange(MinRange, MaxRange); // 确保在环形范围内
+				NewGoal = Origin + FVector(FMath::Cos(Angle) * Distance, FMath::Sin(Angle) * Distance, 0.f);
+
+				// 使用NeighborGridComponent检查可见性
+				if (NeighborGrid->CheckVisibility(Located.Location, NewGoal, Trace.Radius))
+				{
+					return NewGoal;
+				}
+			}
+
+			// 如果多次尝试都找不到可见点，返回最后一次尝试的位置
+			return NewGoal;
 		};
 
 		// Lambda for resetting timer
@@ -1351,47 +1383,61 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 		// Lambda for resetting origin
 		auto ResetOrigin = [](FPatrol& Patrol, const FLocated& Located) 
 		{
-			if (Patrol.OriginMode == EPatrolOriginMode::Previous) {
+			if (Patrol.OriginMode == EPatrolOriginMode::Previous) 
+			{
 				Patrol.Origin = Located.Location; // use current loc
 			}
-			else {
+			else 
+			{
 				Patrol.Origin = Located.InitialLocation; // use init loc
 			}
 		};
 
 		Chain->OperateConcurrently(
-			[&](FSolidSubjectHandle Subject,
+			[&, DeltaTime = DeltaTime](FSolidSubjectHandle Subject,
 				FLocated& Located,
 				FTrace& Trace,
 				FPatrol& Patrol)
 			{
 				if (!Patrol.bEnable) return;
 
-				// if patrol is enabled
-				if (Subject.HasTrait<FPatrolling>()) // is patrolling
+				// 如果有追踪目标，使用目标位置
+				if (Trace.TraceResult.IsValid() && Trace.TraceResult.HasTrait<FLocated>())
+				{
+					Patrol.Goal = Trace.TraceResult.GetTrait<FLocated>().Location;
+				}
+
+				// 巡逻逻辑
+				if (Subject.HasTrait<FPatrolling>())
 				{
 					auto& Patrolling = Subject.GetTraitRef<FPatrolling, EParadigm::Unsafe>();
+					const float ArrivalThreshold = 10.f; // 到达阈值
 
-					if (FVector::Dist2D(Patrol.Origin, Patrolling.GoalLocation) < 10.f) // has arrived
+					// 检查是否到达目标点
+					const bool bHasArrived = FVector::Dist2D(Located.Location, Patrol.Goal) < ArrivalThreshold;
+
+					if (bHasArrived)
 					{
-						if (Patrolling.WaitTimeLeft <= 0) // has waited at goal location for enough time
+						// 到达目标点后的等待逻辑
+						if (Patrolling.WaitTimeLeft <= 0.f)
 						{
 							ResetTimer(Patrol, Patrolling);
 							ResetOrigin(Patrol, Located);
-							Patrolling.GoalLocation = FindNewGoalLocation(Patrol.Origin, Patrol.Radius);
+							Patrol.Goal = FindNewGoalLocation(Patrol.Origin,Patrol.MinRadius,Patrol.MaxRadius,Trace,Located);
 						}
 						else
 						{
 							Patrolling.WaitTimeLeft -= DeltaTime;
 						}
 					}
-					else // has not arrived
+					else
 					{
-						if (Patrolling.MoveTimeLeft <= 0) // out of time
+						// 移动超时逻辑
+						if (Patrolling.MoveTimeLeft <= 0.f)
 						{
 							ResetTimer(Patrol, Patrolling);
 							ResetOrigin(Patrol, Located);
-							Patrolling.GoalLocation = FindNewGoalLocation(Patrol.Origin, Patrol.Radius);
+							Patrol.Goal = FindNewGoalLocation(Patrol.Origin, Patrol.MinRadius, Patrol.MaxRadius, Trace, Located);
 						}
 						else
 						{
@@ -1399,18 +1445,18 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						}
 					}
 				}
-				else if (!Trace.TraceResult.IsValid() && Patrol.OnLostTarget == EPatrolRecoverMode::Patrol) // is not patrolling but met the conditions to re-enter patrol state
+
+				// 重新进入巡逻状态的逻辑
+				else if (!Trace.TraceResult.IsValid() && Patrol.OnLostTarget == EPatrolRecoverMode::Patrol)
 				{
 					FPatrolling NewPatrolling;
-
 					ResetTimer(Patrol, NewPatrolling);
 					ResetOrigin(Patrol, Located);
-					NewPatrolling.GoalLocation = FindNewGoalLocation(Patrol.Origin, Patrol.Radius);
 
-					Subject.SetTraitDeferred(FPatrolling());
+					Subject.SetTraitDeferred(NewPatrolling);
 				}
 
-			}, ThreadsCount, BatchSize);
+			},ThreadsCount,BatchSize);
 	}
 	#pragma endregion
 
@@ -1419,7 +1465,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentMovement");
 
-		FFilter Filter = FFilter::Make<FAgent, FRendering, FAnimation, FMove, FMoving, FDirected, FLocated, FAttack, FTrace, FNavigation, FAvoidance, FCollider, FDefence>();
+		FFilter Filter = FFilter::Make<FAgent, FRendering, FAnimation, FMove, FMoving, FDirected, FLocated, FAttack, FTrace, FNavigation, FAvoidance, FCollider, FDefence, FPatrol>();
 		Filter.Exclude<FAppearing>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
@@ -1437,7 +1483,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				FNavigation& Navigation,
 				FAvoidance& Avoidance,
 				FCollider& Collider,
-				FDefence& Defence)
+				FDefence& Defence,
+				FPatrol& Patrol)
 			{
 				if (!Move.bEnable) return;
 
@@ -1508,7 +1555,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 				if (bIsPatrolling)// if patrolling
 				{
-					GoalLocation = Subject.GetTraitRef<FPatrolling, EParadigm::Unsafe>().GoalLocation;
+					GoalLocation = Patrol.Goal;
 					DesiredMoveDirection = (GoalLocation - AgentLocation).GetSafeNormal2D();
 				}
 
@@ -2358,7 +2405,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FDmgResult ABattleFrameBattleControl::ApplyDamageToSubjects(const TArray<FSubjectHandle> Subjects, const TArray<FSubjectHandle> IgnoreSubjects, FSubjectHandle DmgInstigator, FVector HitFromLocation, const FDmgSphere DmgSphere, const FDebuff Debuff)
+FDmgResult ABattleFrameBattleControl::ApplyDamageToSubjects(TArray<FSubjectHandle> Subjects, TArray<FSubjectHandle> IgnoreSubjects, FSubjectHandle DmgInstigator, FVector HitFromLocation, FDmgSphere DmgSphere, FDebuff Debuff)
 {
 	// Record for deferred spawning of TemporalDamager
 	FTemporalDamaging TemporalDamaging;

@@ -29,7 +29,10 @@ public:
 	bool bEnable = false;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	float Radius = 1000;
+	float MinRadius = 500;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	float MaxRadius = 1000;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	float MaxDuration = 5.f;
@@ -44,5 +47,7 @@ public:
 	EPatrolRecoverMode OnLostTarget = EPatrolRecoverMode::Patrol;
 
 	FVector Origin = FVector::ZeroVector;
+
+	FVector Goal = FVector::ZeroVector;
 
 };

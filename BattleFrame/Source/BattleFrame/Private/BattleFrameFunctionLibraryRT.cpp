@@ -12,49 +12,6 @@
 #include "Async/Async.h"
 
 
-
-FDmgResult UBattleFrameFunctionLibraryRT::ApplyDamageToSubjects(
-	ABattleFrameBattleControl* BattleControl,
-	TArray<FSubjectHandle> Subjects,
-	TArray<FSubjectHandle> IgnoreSubjects,
-	FSubjectHandle DmgInstigator,
-	FVector HitFromLocation,
-	FDmgSphere DmgSphere,
-	FDebuff Debuff)
-{
-	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("ApplyDamageToSubjects");
-
-	// 直接获取当前游戏世界的 World（仅限 Runtime）
-	UWorld* World = GEngine ? GEngine->GetCurrentPlayWorld() : nullptr;
-
-	// 如果 BattleControl 无效，尝试查找场景中的第一个实例
-	if (!IsValid(BattleControl) && World)
-	{
-		for (TActorIterator<ABattleFrameBattleControl> It(World); It; ++It)
-		{
-			BattleControl = *It;
-			break; // 只取第一个
-		}
-	}
-
-	// 仍然无效则返回空结果
-	if (!IsValid(BattleControl))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("ApplyDamageToSubjects: No valid BattleControl found!"));
-		return FDmgResult();
-	}
-
-	// 用 MoveTemp 优化传递
-	return BattleControl->ApplyDamageToSubjects(
-		MoveTemp(Subjects),
-		MoveTemp(IgnoreSubjects),
-		MoveTemp(DmgInstigator),
-		HitFromLocation,
-		DmgSphere,
-		Debuff
-	);
-}
-
 TArray<FSubjectHandle> UBattleFrameFunctionLibraryRT::ConvertTraceResultsToSubjectHandles(const TArray<FTraceResult>& TraceResults)
 {
 	TArray<FSubjectHandle> SubjectHandles;
@@ -1238,39 +1195,7 @@ void UBattleFrameFunctionLibraryRT::SphereTraceForSubjects
 	ANeighborGridActor* NeighborGridActor,
 	FVector Location,
 	float Radius,
-	FFilter Filter,
-	TArray<FTraceResult>& Results
-)
-{
-	Results.Empty(); // 确保初始为空
-
-	// 自动查找第一个ANeighborGridActor
-	if (!IsValid(NeighborGridActor))
-	{
-		if (UWorld* World = GEngine->GetCurrentPlayWorld())
-		{
-			for (TActorIterator<ANeighborGridActor> It(World); It; ++It)
-			{
-				NeighborGridActor = *It;
-				break;
-			}
-		}
-	}
-
-	if (IsValid(NeighborGridActor))
-	{
-		TArray<FTraceResult> LocalResults;
-		NeighborGridActor->SphereTraceForSubjects(Location, Radius, Filter, LocalResults);
-		Results = MoveTemp(LocalResults);
-	}
-}
-
-void UBattleFrameFunctionLibraryRT::SphereSweepForSubjects
-(
-	ANeighborGridActor* NeighborGridActor,
-	FVector Start,
-	FVector End,
-	float Radius,
+	const TArray<FSubjectHandle>& IgnoreSubjects,
 	FFilter Filter,
 	TArray<FTraceResult>& Results
 )
@@ -1291,9 +1216,38 @@ void UBattleFrameFunctionLibraryRT::SphereSweepForSubjects
 
 	if (IsValid(NeighborGridActor))
 	{
-		TArray<FTraceResult> LocalResults;
-		NeighborGridActor->SphereSweepForSubjects(Start, End, Radius, Filter, LocalResults);
-		Results = MoveTemp(LocalResults);
+		NeighborGridActor->SphereTraceForSubjects(Location, Radius, IgnoreSubjects, Filter, Results);
+	}
+}
+
+void UBattleFrameFunctionLibraryRT::SphereSweepForSubjects
+(
+	ANeighborGridActor* NeighborGridActor,
+	FVector Start,
+	FVector End,
+	float Radius,
+	const TArray<FSubjectHandle>& IgnoreSubjects,
+	FFilter Filter,
+	TArray<FTraceResult>& Results
+)
+{
+	Results.Empty();
+
+	if (!IsValid(NeighborGridActor))
+	{
+		if (UWorld* World = GEngine->GetCurrentPlayWorld())
+		{
+			for (TActorIterator<ANeighborGridActor> It(World); It; ++It)
+			{
+				NeighborGridActor = *It;
+				break;
+			}
+		}
+	}
+
+	if (IsValid(NeighborGridActor))
+	{
+		NeighborGridActor->SphereSweepForSubjects(Start, End, Radius, IgnoreSubjects, Filter, Results);
 	}
 }
 
@@ -1303,6 +1257,7 @@ void UBattleFrameFunctionLibraryRT::CylinderExpandForSubject
 	FVector Origin,
 	float Radius,
 	float Height,
+	const TArray<FSubjectHandle>& IgnoreSubjects,
 	FFilter Filter,
 	FSubjectHandle& Result
 )
@@ -1323,9 +1278,7 @@ void UBattleFrameFunctionLibraryRT::CylinderExpandForSubject
 
 	if (IsValid(NeighborGridActor))
 	{
-		FSubjectHandle LocalResult;
-		NeighborGridActor->CylinderExpandForSubject(Origin, Radius, Height, Filter, LocalResult);
-		Result = MoveTemp(LocalResult);
+		NeighborGridActor->CylinderExpandForSubject(Origin, Radius, Height, IgnoreSubjects, Filter, Result);
 	}
 }
 
@@ -1337,9 +1290,10 @@ void UBattleFrameFunctionLibraryRT::SectorExpandForSubject
 	float Height, 
 	FVector Direction, 
 	float Angle, 
+	bool bCheckVisibility,
+	const TArray<FSubjectHandle>& IgnoreSubjects,
 	FFilter Filter, 
-	FSubjectHandle& Result, 
-	bool bCheckVisibility
+	FSubjectHandle& Result
 )
 {
 	Result = FSubjectHandle(); // 重置为无效句柄
@@ -1358,12 +1312,50 @@ void UBattleFrameFunctionLibraryRT::SectorExpandForSubject
 
 	if (IsValid(NeighborGridActor))
 	{
-		FSubjectHandle LocalResult;
-		NeighborGridActor->SectorExpandForSubject(Origin,Radius,Height,Direction,Angle,Filter,Result,bCheckVisibility);
-		Result = MoveTemp(LocalResult);
+		NeighborGridActor->SectorExpandForSubject(Origin, Radius, Height, Direction, Angle, bCheckVisibility, IgnoreSubjects, Filter, Result);
 	}
 }
 
+FDmgResult UBattleFrameFunctionLibraryRT::ApplyDamageToSubjects
+(
+	ABattleFrameBattleControl* BattleControl,
+	TArray<FSubjectHandle> Subjects,
+	const TArray<FSubjectHandle>& IgnoreSubjects,
+	FSubjectHandle DmgInstigator,
+	FVector HitFromLocation,
+	FDmgSphere DmgSphere,
+	FDebuff Debuff
+)
+{
+	// 直接获取当前游戏世界的 World（仅限 Runtime）
+	UWorld* World = GEngine ? GEngine->GetCurrentPlayWorld() : nullptr;
+
+	// 如果 BattleControl 无效，尝试查找场景中的第一个实例
+	if (!IsValid(BattleControl) && World)
+	{
+		for (TActorIterator<ABattleFrameBattleControl> It(World); It; ++It)
+		{
+			BattleControl = *It;
+			break; // 只取第一个
+		}
+	}
+
+	// 仍然无效则返回空结果
+	if (!IsValid(BattleControl))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ApplyDamageToSubjects: No valid BattleControl found!"));
+		return FDmgResult();
+	}
+
+	return BattleControl->ApplyDamageToSubjects(
+		Subjects,
+		IgnoreSubjects,
+		DmgInstigator,
+		HitFromLocation,
+		DmgSphere,
+		Debuff
+	);
+}
 
 
 //-------------------------------Async Trace-------------------------------

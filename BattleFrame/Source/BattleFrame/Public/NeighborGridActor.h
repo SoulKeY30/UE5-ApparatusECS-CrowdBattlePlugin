@@ -89,12 +89,12 @@ public:
     /**
      * Get overlapping spheres for the specified location.
      */
-    void SphereTraceForSubjects(const FVector Location, const float Radius, const FFilter Filter, TArray<FTraceResult>& Results)
+    void SphereTraceForSubjects(const FVector Location, const float Radius, TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, TArray<FTraceResult>& Results)
     {
         if (LIKELY(Instance != nullptr && Instance->NeighborGridComponent != nullptr))
         {
             TArray<FTraceResult> LocalResults;
-            Instance->NeighborGridComponent->SphereTraceForSubjects(Location, Radius, Filter, LocalResults);
+            Instance->NeighborGridComponent->SphereTraceForSubjects(Location, Radius, IgnoreSubjects, Filter, LocalResults);
             Results = MoveTemp(LocalResults); // 使用MoveTemp转移所有权
         }
         else
@@ -103,12 +103,12 @@ public:
         }
     }
 
-    void SphereSweepForSubjects(const FVector Start, const FVector End, float Radius, const FFilter Filter, TArray<FTraceResult>& Results)
+    void SphereSweepForSubjects(const FVector Start, const FVector End, float Radius, TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, TArray<FTraceResult>& Results)
     {
         if (LIKELY(Instance != nullptr && Instance->NeighborGridComponent != nullptr))
         {
             TArray<FTraceResult> LocalResults;
-            Instance->NeighborGridComponent->SphereSweepForSubjects(Start, End, Radius, Filter, LocalResults);
+            Instance->NeighborGridComponent->SphereSweepForSubjects(Start, End, Radius, IgnoreSubjects, Filter, LocalResults);
             Results = MoveTemp(LocalResults); // 使用MoveTemp转移所有权
         }
         else
@@ -117,25 +117,25 @@ public:
         }
     }
 
-    void CylinderExpandForSubject(const FVector Origin, float Radius, float Height, const FFilter Filter, FSubjectHandle& Result)
+    void CylinderExpandForSubject(const FVector Origin, float Radius, float Height, TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, FSubjectHandle& Result)
     {
         Result = FSubjectHandle(); // 重置为无效句柄
 
         if (LIKELY(Instance != nullptr && Instance->NeighborGridComponent != nullptr))
         {
             FSubjectHandle LocalResult;
-            Instance->NeighborGridComponent->CylinderExpandForSubject(Origin, Radius, Height, Filter, LocalResult);
+            Instance->NeighborGridComponent->CylinderExpandForSubject(Origin, Radius, Height, IgnoreSubjects, Filter, LocalResult);
             Result = MoveTemp(LocalResult); // 使用MoveTemp转移所有权
         }
     }
 
-    void SectorExpandForSubject(const FVector Origin, float Radius, float Height, FVector Direction, float Angle, const FFilter Filter, FSubjectHandle& Result, bool bCheckVisibility = false)
+    void SectorExpandForSubject(const FVector Origin, float Radius, float Height, FVector Direction, float Angle, bool bCheckVisibility, TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, FSubjectHandle& Result)
     {
         Result = FSubjectHandle();
         if (LIKELY(Instance != nullptr && Instance->NeighborGridComponent != nullptr))
         {
             FSubjectHandle LocalResult;
-            Instance->NeighborGridComponent->SectorExpandForSubject(Origin, Radius, Height, Direction, Angle, Filter, LocalResult, bCheckVisibility);
+            Instance->NeighborGridComponent->SectorExpandForSubject(Origin, Radius, Height, Direction, Angle, bCheckVisibility, IgnoreSubjects, Filter, LocalResult);
             Result = MoveTemp(LocalResult);
         }
     }

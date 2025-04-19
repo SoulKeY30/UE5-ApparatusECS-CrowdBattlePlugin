@@ -12,5 +12,5 @@ public:
 
 	float MoveTimeLeft = 0;
 	float WaitTimeLeft = 0;
-	FVector GoalLocation = FVector::ZeroVector;
+
 };
