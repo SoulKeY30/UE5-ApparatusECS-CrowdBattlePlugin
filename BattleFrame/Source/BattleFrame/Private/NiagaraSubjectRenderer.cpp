@@ -32,7 +32,10 @@ void ANiagaraSubjectRenderer::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 	for (UNiagaraComponent* System : SpawnedNiagaraSystems)
 	{
-		System->DestroyComponent();
+		if (System)
+		{
+			System->DestroyComponent();
+		}
 	}
 }
 
@@ -116,8 +119,7 @@ void ANiagaraSubjectRenderer::Register()
 		AMechanism* Mechanism = UMachine::ObtainMechanism(GetWorld());
 		if (Mechanism == nullptr) return;
 
-		FFilter Filter = FFilter::Make<FLocated, FDirected, FScaled, FAnimation, FHealthBar, FAnimation>().Exclude<FRendering>();
-        Filter.Include<FAgent>();
+		FFilter Filter = FFilter::Make<FAgent, FLocated, FDirected, FScaled, FAnimation, FHealthBar, FAnimation, FActivated>().Exclude<FRendering>();
 		UBattleFrameFunctionLibraryRT::IncludeSubTypeTraitByIndex(SubType.Index, Filter);
 
 		Mechanism->Operate<FUnsafeChain>(Filter,

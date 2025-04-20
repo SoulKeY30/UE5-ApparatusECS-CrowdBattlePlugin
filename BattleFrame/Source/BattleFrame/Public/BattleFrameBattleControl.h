@@ -79,6 +79,7 @@
 #include "Traits/ActorSpawnConfig.h"
 #include "Traits/SoundConfig.h"
 #include "Traits/FxConfig.h"
+#include "Traits/Activated.h"
 #include "BattleFrameBattleControl.generated.h"
 
 // Forward Declearation

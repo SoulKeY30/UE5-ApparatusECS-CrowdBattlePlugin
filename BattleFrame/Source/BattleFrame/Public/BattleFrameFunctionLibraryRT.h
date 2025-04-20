@@ -131,12 +131,25 @@ public:
     FVector SortOrigin;
     int32 MaxCount;
     FFilter Filter;
+    TArray<FSubjectHandle> IgnoreSubjects;
 
     TArray<FTraceResult> TempResults;
     TArray<FTraceResult> Results;
 
-    UFUNCTION(BlueprintCallable, meta = (BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject"))
-    static USphereSweepForSubjectsAsyncAction* SphereSweepForSubjectsAsync(const UObject* WorldContextObject, ANeighborGridActor* NeighborGridActor, const FVector Start, const FVector End, float Radius, const EAsyncSortMode SortMode, const FVector SortOrigin, const int32 MaxCount, const FFilter Filter);
+    UFUNCTION(BlueprintCallable, meta = (BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject", AutoCreateRefTerm = "IgnoreSubjects"))
+    static USphereSweepForSubjectsAsyncAction* SphereSweepForSubjectsAsync
+    (
+        const UObject* WorldContextObject, 
+        ANeighborGridActor* NeighborGridActor, 
+        const FVector Start, 
+        const FVector End, 
+        float Radius, 
+        const EAsyncSortMode SortMode, 
+        const FVector SortOrigin, 
+        const int32 MaxCount, 
+        const TArray<FSubjectHandle>& IgnoreSubjects, 
+        const FFilter Filter
+    );
 
     virtual void Activate() override;
 };

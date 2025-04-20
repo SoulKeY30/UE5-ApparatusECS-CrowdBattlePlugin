@@ -11,12 +11,13 @@
 #include "Traits/SpawningFx.h"
 #include "Traits/Located.h"
 #include "NiagaraDataInterfaceArrayFunctionLibrary.h"
-
+#include "BattleFrameBattleControl.h"
 
 ANiagaraFXRenderer::ANiagaraFXRenderer()
 {
     PrimaryActorTick.bCanEverTick = true;
     PrimaryActorTick.bStartWithTickEnabled = true;
+    AddTickPrerequisiteActor(ABattleFrameBattleControl::GetInstance());
 
     // Create and setup the Niagara component
     NiagaraComponent = CreateDefaultSubobject<UNiagaraComponent>(TEXT("NiagaraComponent"));

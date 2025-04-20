@@ -5,12 +5,13 @@
 */
 
 #include "RVOSquareObstacle.h"
+#include "BattleFrameBattleControl.h"
 
 // Sets default values 
 ARVOSquareObstacle::ARVOSquareObstacle()
 {
     PrimaryActorTick.bCanEverTick = false;
-
+    AddTickPrerequisiteActor(ABattleFrameBattleControl::GetInstance());
     BoxComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("BoxComponent"));
     RootComponent = BoxComponent;
     //BoxComponent->SetupAttachment(RootComponent);

@@ -5,12 +5,12 @@
 */
 
 #include "RVOSphereObstacle.h"
-
+#include "BattleFrameBattleControl.h"
 // Sets default values
 ARVOSphereObstacle::ARVOSphereObstacle()
 {
 	PrimaryActorTick.bCanEverTick = true;
-
+	AddTickPrerequisiteActor(ABattleFrameBattleControl::GetInstance());
 	SphereComponent = CreateDefaultSubobject<USphereComponent>(TEXT("SphereComponent"));
 	SphereComponent->SetupAttachment(RootComponent);
 }

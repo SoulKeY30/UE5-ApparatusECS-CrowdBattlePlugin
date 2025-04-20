@@ -1188,6 +1188,7 @@ void UBattleFrameFunctionLibraryRT::ExcludeAvoGroupTraitByIndex(int32 Index, FFi
 	}
 }
 
+
 //-------------------------------Sync Traces-------------------------------
 
 void UBattleFrameFunctionLibraryRT::SphereTraceForSubjects
@@ -1216,7 +1217,9 @@ void UBattleFrameFunctionLibraryRT::SphereTraceForSubjects
 
 	if (IsValid(NeighborGridActor))
 	{
-		NeighborGridActor->SphereTraceForSubjects(Location, Radius, IgnoreSubjects, Filter, Results);
+		TArray<FTraceResult> LocalResults;
+		NeighborGridActor->SphereTraceForSubjects(Location, Radius, IgnoreSubjects, Filter, LocalResults);
+		Results = MoveTemp(LocalResults);
 	}
 }
 
@@ -1247,7 +1250,9 @@ void UBattleFrameFunctionLibraryRT::SphereSweepForSubjects
 
 	if (IsValid(NeighborGridActor))
 	{
-		NeighborGridActor->SphereSweepForSubjects(Start, End, Radius, IgnoreSubjects, Filter, Results);
+		TArray<FTraceResult> LocalResults;
+		NeighborGridActor->SphereSweepForSubjects(Start, End, Radius, IgnoreSubjects, Filter, LocalResults);
+		Results = MoveTemp(LocalResults);
 	}
 }
 
@@ -1262,7 +1267,7 @@ void UBattleFrameFunctionLibraryRT::CylinderExpandForSubject
 	FSubjectHandle& Result
 )
 {
-	Result = FSubjectHandle(); // 重置为无效句柄
+	Result = FSubjectHandle();
 
 	if (!IsValid(NeighborGridActor))
 	{
@@ -1278,25 +1283,27 @@ void UBattleFrameFunctionLibraryRT::CylinderExpandForSubject
 
 	if (IsValid(NeighborGridActor))
 	{
-		NeighborGridActor->CylinderExpandForSubject(Origin, Radius, Height, IgnoreSubjects, Filter, Result);
+		FSubjectHandle LocalResult;
+		NeighborGridActor->CylinderExpandForSubject(Origin, Radius, Height, IgnoreSubjects, Filter, LocalResult);
+		Result = MoveTemp(LocalResult);
 	}
 }
 
 void UBattleFrameFunctionLibraryRT::SectorExpandForSubject
 (
 	ANeighborGridActor* NeighborGridActor,
-	FVector Origin, 
-	float Radius, 
-	float Height, 
-	FVector Direction, 
-	float Angle, 
+	FVector Origin,
+	float Radius,
+	float Height,
+	FVector Direction,
+	float Angle,
 	bool bCheckVisibility,
 	const TArray<FSubjectHandle>& IgnoreSubjects,
-	FFilter Filter, 
+	FFilter Filter,
 	FSubjectHandle& Result
 )
 {
-	Result = FSubjectHandle(); // 重置为无效句柄
+	Result = FSubjectHandle();
 
 	if (!IsValid(NeighborGridActor))
 	{
@@ -1312,20 +1319,20 @@ void UBattleFrameFunctionLibraryRT::SectorExpandForSubject
 
 	if (IsValid(NeighborGridActor))
 	{
-		NeighborGridActor->SectorExpandForSubject(Origin, Radius, Height, Direction, Angle, bCheckVisibility, IgnoreSubjects, Filter, Result);
+		FSubjectHandle LocalResult;
+		NeighborGridActor->SectorExpandForSubject(Origin, Radius, Height, Direction, Angle, bCheckVisibility, IgnoreSubjects, Filter, LocalResult);
+		Result = MoveTemp(LocalResult);
 	}
 }
 
-FDmgResult UBattleFrameFunctionLibraryRT::ApplyDamageToSubjects
-(
+FDmgResult UBattleFrameFunctionLibraryRT::ApplyDamageToSubjects(
 	ABattleFrameBattleControl* BattleControl,
 	TArray<FSubjectHandle> Subjects,
 	const TArray<FSubjectHandle>& IgnoreSubjects,
 	FSubjectHandle DmgInstigator,
 	FVector HitFromLocation,
 	FDmgSphere DmgSphere,
-	FDebuff Debuff
-)
+	FDebuff Debuff)
 {
 	// 直接获取当前游戏世界的 World（仅限 Runtime）
 	UWorld* World = GEngine ? GEngine->GetCurrentPlayWorld() : nullptr;
@@ -1347,13 +1354,14 @@ FDmgResult UBattleFrameFunctionLibraryRT::ApplyDamageToSubjects
 		return FDmgResult();
 	}
 
+	// 使用MoveTemp转移Subjects的所有权
 	return BattleControl->ApplyDamageToSubjects(
-		Subjects,
+		MoveTemp(Subjects),
 		IgnoreSubjects,
-		DmgInstigator,
+		MoveTemp(DmgInstigator),
 		HitFromLocation,
-		DmgSphere,
-		Debuff
+		MoveTemp(DmgSphere),
+		MoveTemp(Debuff)
 	);
 }
 
@@ -1362,15 +1370,16 @@ FDmgResult UBattleFrameFunctionLibraryRT::ApplyDamageToSubjects
 
 USphereSweepForSubjectsAsyncAction* USphereSweepForSubjectsAsyncAction::SphereSweepForSubjectsAsync
 (
-	const UObject* WorldContextObject,
+	const UObject* WorldContextObject, 
 	ANeighborGridActor* NeighborGridActor, 
-	const FVector Start = FVector::ZeroVector, 
-	const FVector End = FVector::ZeroVector, 
-	float Radius = 0, 
-	const EAsyncSortMode SortMode = EAsyncSortMode::None, 
-	const FVector SortOrigin = FVector::ZeroVector, 
-	const int32 MaxCount = 1, 
-	const FFilter Filter = FFilter()
+	const FVector Start, 
+	const FVector End, 
+	float Radius, 
+	const EAsyncSortMode SortMode, 
+	const FVector SortOrigin, 
+	const int32 MaxCount, 
+	const TArray<FSubjectHandle>& IgnoreSubjects, 
+	const FFilter Filter
 )
 {
 	USphereSweepForSubjectsAsyncAction* AsyncAction = NewObject<USphereSweepForSubjectsAsyncAction>();
@@ -1384,6 +1393,7 @@ USphereSweepForSubjectsAsyncAction* USphereSweepForSubjectsAsyncAction::SphereSw
 	AsyncAction->SortOrigin = SortOrigin;
 	AsyncAction->MaxCount = MaxCount;
 	AsyncAction->Filter = Filter;
+	AsyncAction->IgnoreSubjects = IgnoreSubjects;
 
 	return AsyncAction;
 }
@@ -1400,6 +1410,14 @@ void USphereSweepForSubjectsAsyncAction::Activate()
 			const FVector TraceDir = (End - Start).GetSafeNormal();
 			const float TraceLength = FVector::Distance(Start, End);
 
+			// 创建忽略列表的哈希集合以便快速查找
+			TSet<FSubjectHandle> IgnoreSet;
+
+			for (const FSubjectHandle& Subject : IgnoreSubjects)
+			{
+				IgnoreSet.Add(Subject);
+			}
+
 			// 检查每个单元中的subject
 			for (FIntVector CellCoord : CellCoords)
 			{
@@ -1410,6 +1428,12 @@ void USphereSweepForSubjectsAsyncAction::Activate()
 				for (const FAvoiding& Data : CageCell.Subjects)
 				{
 					const FSubjectHandle Subject = Data.SubjectHandle;
+
+					// 检查是否在忽略列表中
+					if (IgnoreSet.Contains(Subject))
+					{
+						continue;
+					}
 
 					const FVector SubjectPos = Data.Location;
 					float SubjectRadius = Data.Radius;

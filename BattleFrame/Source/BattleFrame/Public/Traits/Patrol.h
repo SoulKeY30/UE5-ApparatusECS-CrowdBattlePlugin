@@ -46,8 +46,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	EPatrolRecoverMode OnLostTarget = EPatrolRecoverMode::Patrol;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	FVector Origin = FVector::ZeroVector;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	FVector Goal = FVector::ZeroVector;
 
 };

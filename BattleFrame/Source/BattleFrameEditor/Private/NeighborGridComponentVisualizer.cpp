@@ -24,6 +24,8 @@ FNeighborGridComponentVisualizer::DrawVisualization(const UActorComponent* Compo
 {
     const auto NeighborGridComponent = Cast<const UNeighborGridComponent>(Component);
 
+    if (!IsValid(NeighborGridComponent)) return;
+
     const auto Color = FLinearColor::Yellow;
 
     const auto Bounds = NeighborGridComponent->GetBounds();

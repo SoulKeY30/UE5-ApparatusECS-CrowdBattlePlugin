@@ -114,17 +114,23 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable, Category = "Spawning")
-	TArray<FSubjectHandle> SpawnAgentsRectangular(
+	TArray<FSubjectHandle> SpawnAgentsRectangular
+	(
 		int32 configIndex = 0,
 		int32 quantity = 1,
 		int32 team = 0,
 		FVector origin = FVector::ZeroVector,
-		FVector2D region = FVector2D(0.f, 0.f),
-		FVector2D LaunchForce = FVector2D(0,0),
-		EInitialDirection initialDirection = EInitialDirection::FacePlayer,
+		FVector2D region = FVector2D::ZeroVector,
+		FVector2D LaunchForce = FVector2D::ZeroVector,
+		EInitialDirection initialDirection = EInitialDirection::FaceForward,
 		FVector FaceCustomLocation = FVector::ZeroVector,
-		FSpawnerMult Multipliers = FSpawnerMult()
+		FSpawnerMult Multipliers = FSpawnerMult(),
+		bool bActivate = true
+		//const TArray<UScriptStruct*>& OverrideTraits
 	);
+
+	UFUNCTION(BlueprintCallable, Category = "Spawning")
+	void ActivateAgent(FSubjectHandle Agent);
 
 	UFUNCTION(BlueprintCallable, Category = "SpawningTD")
 	void KillAllAgents();

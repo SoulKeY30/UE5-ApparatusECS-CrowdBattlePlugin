@@ -28,10 +28,12 @@
 #include "Traits/Trace.h"
 #include "Traits/Avoiding.h"
 #include "Traits/Corpse.h"
+#include "Traits/Activated.h"
 #include "Math/Vector2D.h"
 #include "RVODefinitions.h"
 #include "Async/Async.h"
 #include "BattleFrameFunctionLibraryRT.h"
+#include "Traits/Agent.h"
 
 
 UNeighborGridComponent::UNeighborGridComponent()
@@ -634,8 +636,7 @@ bool UNeighborGridComponent::CheckVisibility(FVector Start, FVector End, float R
 										return MinDist;
 									};
 
-								if (PointToFaceDistance(SphereStart, Face, Normal) <= SphereRadius ||
-									PointToFaceDistance(SphereEnd, Face, Normal) <= SphereRadius)
+								if (PointToFaceDistance(SphereStart, Face, Normal) <= SphereRadius || PointToFaceDistance(SphereEnd, Face, Normal) <= SphereRadius)
 								{
 									return true;
 								}
@@ -967,7 +968,7 @@ void UNeighborGridComponent::Decouple()
 	const FFingerprint BoxObstacleFingerprint = BoxObstacleFilter.GetFingerprint();
 
 	AMechanism* Mechanism = GetMechanism();
-	const FFilter Filter = FFilter::Make<FLocated, FCollider, FMove, FMoving, FAvoidance, FAvoiding>().Exclude<FSphereObstacle, FAppearing>();
+	const FFilter Filter = FFilter::Make<FAgent, FActivated, FLocated, FCollider, FMove, FMoving, FAvoidance, FAvoiding>().Exclude<FSphereObstacle, FAppearing>();
 
 	auto Chain = Mechanism->EnchainSolid(Filter);
 	UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
@@ -992,7 +993,7 @@ void UNeighborGridComponent::Decouple()
 
 		//--------------------------Collect Subject Neighbors--------------------------------
 
-		FFilter SubjectFilter = FFilter::Make<FLocated, FCollider, FAvoidance, FAvoiding>().Exclude<FSphereObstacle, FCorpse>();
+		FFilter SubjectFilter = FFilter::Make<FAgent, FActivated, FLocated, FCollider, FAvoidance, FAvoiding>().Exclude<FSphereObstacle, FCorpse>();
 
 		// 碰撞组
 		if (!Avoidance.IgnoreGroups.IsEmpty())
@@ -1191,7 +1192,7 @@ void UNeighborGridComponent::Evaluate()
 
 void UNeighborGridComponent::ComputeNewVelocity(FAvoidance& Avoidance, TArray<FAvoiding>& SubjectNeighbors, TArray<FAvoiding>& ObstacleNeighbors, float TimeStep_)
 {
-	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("computeNewVelocity");
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("ComputeNewVelocity");
 
 	Avoidance.OrcaLines.clear();
 
@@ -1661,6 +1662,8 @@ void UNeighborGridComponent::LinearProgram3(const std::vector<RVO::Line>& lines,
 
 TArray<FIntVector> UNeighborGridComponent::GetNeighborCells(const FVector& Center, const FVector& Range3D) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("GetNeighborCells");
+
 	const FIntVector Min = WorldToCage(Center - Range3D);
 	const FIntVector Max = WorldToCage(Center + Range3D);
 
@@ -1683,6 +1686,8 @@ TArray<FIntVector> UNeighborGridComponent::GetNeighborCells(const FVector& Cente
 
 TArray<FIntVector> UNeighborGridComponent::SphereSweepForCells(FVector Start, FVector End, float Radius) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereSweepForCells");
+
 	// 预计算关键参数
 	const float RadiusInCellsValue = Radius / CellSize;
 	const int32 RadiusInCells = FMath::CeilToInt(RadiusInCellsValue);
@@ -1769,6 +1774,8 @@ TArray<FIntVector> UNeighborGridComponent::SphereSweepForCells(FVector Start, FV
 
 void UNeighborGridComponent::AddSphereCells(FIntVector CenterCell, int32 RadiusInCells, float RadiusSq, TSet<FIntVector>& GridCells) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AddSphereCells");
+
 	// 分层遍历优化：减少无效循环
 	for (int32 x = -RadiusInCells; x <= RadiusInCells; ++x)
 	{

@@ -12,12 +12,13 @@
 #include "Traits/Collider.h"
 #include "Traits/Statistics.h"
 #include "Traits/BindFlowField.h"
+#include "BattleFrameBattleControl.h"
 
 // Sets default values
 ABattleFrameCharacter::ABattleFrameCharacter()
 {
 	Subjective = CreateDefaultSubobject<USubjectiveActorComponent>("Subjective");
-
+	AddTickPrerequisiteActor(ABattleFrameBattleControl::GetInstance());
 	Subjective->SetTrait(FHero{});
 	Subjective->SetTrait(FHealth{});
 	Subjective->SetTrait(FCollider{});

@@ -26,6 +26,7 @@
 #include "AnimToTextureDataAsset.h"
 #include "NiagaraSubjectRenderer.h"
 #include "BattleFrameFunctionLibraryRT.h"
+#include "Traits/Activated.h"
 
 
 AAgentSpawner* AAgentSpawner::Instance = nullptr;
@@ -50,7 +51,9 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     FVector2D LaunchForce,
     EInitialDirection InitialDirection,
     FVector FaceCustomLocation,
-    FSpawnerMult Multipliers
+    FSpawnerMult Multipliers,
+    bool bActivate
+    //const TArray<UScriptStruct*>& OverrideTraits
 )
 {
     TRACE_CPUPROFILER_EVENT_SCOPE_STR("SpawnAgentsRectangular");
@@ -153,32 +156,6 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     ScaledTrait.Factors *= Multipliers.ScaleMult;
     ScaledTrait.renderFactors = ScaledTrait.Factors;
 
-    auto& Appear = AgentConfig.GetTraitRef<FAppear>();
-    auto& Animation = AgentConfig.GetTraitRef<FAnimation>();
-
-    if (Appear.bEnable)
-    {
-        AgentConfig.SetTrait(FAppearing{});
-    }
-    else
-    {
-        Animation.Dissolve = 0;
-    }
-
-    auto& Sleep = AgentConfig.GetTraitRef<FSleep>();
-
-    if (Sleep.bEnable)
-    {
-        AgentConfig.SetTrait(FSleeping{});
-    }
-
-    auto& Patrol = AgentConfig.GetTraitRef<FPatrol>();
-
-    if (Patrol.bEnable)
-    {
-        AgentConfig.SetTrait(FPatrolling{});
-    }
-
     UBattleFrameFunctionLibraryRT::SetTeamTraitByIndex(FMath::Clamp(Team, 0, 9), AgentConfig);
 
     UBattleFrameFunctionLibraryRT::SetAvoGroupTraitByIndex(FMath::Clamp(DataAsset->Avoidance.Group, 0, 9), AgentConfig);
@@ -222,6 +199,11 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
         spawnLocated.preLocation = SpawnPoint3D;
         spawnLocated.InitialLocation = SpawnPoint3D;
         Config.SetTrait(spawnLocated);
+
+        auto& Patrol = Config.GetTraitRef<FPatrol>();
+
+        Patrol.Goal = SpawnPoint3D;
+        Patrol.Origin = SpawnPoint3D;
 
         APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
 
@@ -272,10 +254,39 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
 
         Agent.SetTrait(FAvoiding{ SpawnPoint3D, Collider.Radius, Agent, Agent.CalcHash()});
 
+        if (bActivate)
+        {
+            ActivateAgent(Agent);
+        }
+
         SpawnedAgents.Add(Agent);
     }
 
     return SpawnedAgents;
+}
+
+void AAgentSpawner::ActivateAgent( FSubjectHandle Agent )
+{
+    if (Agent.GetTrait<FAppear>().bEnable)
+    {
+        Agent.SetTrait(FAppearing());
+    }
+    else
+    {
+        Agent.GetTraitRef<FAnimation, EParadigm::Unsafe>().Dissolve = 0;
+    }
+
+    if (Agent.GetTrait<FSleep>().bEnable)
+    {
+        Agent.SetTrait(FSleeping());
+    }
+
+    if (Agent.GetTrait<FPatrol>().bEnable)
+    {
+        Agent.SetTrait(FPatrolling());
+    }
+
+    Agent.SetTrait(FActivated());
 }
 
 void AAgentSpawner::KillAllAgents()

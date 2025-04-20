@@ -83,7 +83,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentAppearMain");
 
-		FFilter Filter = FFilter::Make<FAgent, FRendering, FLocated, FDirected, FAppear, FAppearing>();
+		FFilter Filter = FFilter::Make<FAgent, FRendering, FLocated, FDirected, FAppear, FAppearing, FActivated>();
 		auto Chain = Mechanism->EnchainSolid(Filter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
@@ -158,7 +158,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentAppearAnim");
 
-		FFilter Filter = FFilter::Make<FAgent, FRendering, FAnimation, FAppear, FAppearAnim>();
+		FFilter Filter = FFilter::Make<FAgent, FRendering, FAnimation, FAppear, FAppearAnim, FActivated>();
 		auto Chain = Mechanism->EnchainSolid(Filter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
@@ -189,7 +189,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentAppearDissolve");
 
-		FFilter Filter = FFilter::Make<FAgent, FRendering, FAppearDissolve, FAnimation, FCurves>();
+		FFilter Filter = FFilter::Make<FAgent, FRendering, FAppearDissolve, FAnimation, FCurves, FActivated>();
 		auto Chain = Mechanism->EnchainSolid(Filter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
@@ -247,7 +247,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 		}
 
 		// Trace By Filter
-		FFilter Filter = FFilter::Make<FAgent, FTrace, FLocated, FDirected, FCollider, FSleep, FPatrol>();
+		FFilter Filter = FFilter::Make<FAgent, FTrace, FLocated, FDirected, FCollider, FSleep, FPatrol, FActivated>();
 		Filter.Exclude<FAppearing, FAttacking, FDying>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
@@ -418,7 +418,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentAttackMain");
 
-		FFilter Filter = FFilter::Make<FAgent, FAttack, FRendering, FLocated, FDirected, FTrace, FCollider>();
+		FFilter Filter = FFilter::Make<FAgent, FAttack, FRendering, FLocated, FDirected, FTrace, FCollider, FActivated>();
 		Filter.Exclude<FAppearing, FSleeping, FAttacking, FDying>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
@@ -464,7 +464,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentAttacking");
 
-		FFilter Filter = FFilter::Make<FAgent, FAttack, FRendering, FLocated, FAnimation, FAttacking, FMove, FMoving, FDirected, FTrace, FDebuff, FDamage>();
+		FFilter Filter = FFilter::Make<FAgent, FAttack, FRendering, FLocated, FAnimation, FAttacking, FMove, FMoving, FDirected, FTrace, FDebuff, FDamage, FActivated>();
 		Filter.Exclude<FAppearing, FSleeping, FDying>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
@@ -589,7 +589,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentHitGlow");
 
-		FFilter Filter = FFilter::Make<FAgent, FRendering, FHitGlow, FAnimation, FCurves>();
+		FFilter Filter = FFilter::Make<FAgent, FRendering, FHitGlow, FAnimation, FCurves, FActivated>();
 		Filter.Exclude<FAppearing, FBeingHit>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
@@ -651,7 +651,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentJiggle");
 
-		FFilter Filter = FFilter::Make<FAgent, FRendering, FJiggle, FScaled, FHit, FCurves>();
+		FFilter Filter = FFilter::Make<FAgent, FRendering, FJiggle, FScaled, FHit, FCurves, FActivated>();
 		Filter.Exclude<FAppearing, FBeingHit>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
@@ -944,7 +944,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentHealthBar");
 
-		static const auto Filter = FFilter::Make<FAgent, FRendering, FHealth, FHealthBar>();
+		static const auto Filter = FFilter::Make<FAgent, FRendering, FHealth, FHealthBar, FActivated>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
@@ -995,7 +995,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentDeathMain");
 
-		FFilter Filter = FFilter::Make<FAgent, FRendering, FDeath,FLocated, FDying, FDirected, FTrace, FMove, FMoving>();
+		FFilter Filter = FFilter::Make<FAgent, FRendering, FDeath,FLocated, FDying, FDirected, FTrace, FMove, FMoving, FActivated>();
 		Filter.Exclude<FAppearing>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
@@ -1072,7 +1072,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentDeathDissolve");
 
-		FFilter Filter = FFilter::Make<FAgent, FRendering, FDeathDissolve, FAnimation, FDying, FDeath, FCurves>();
+		FFilter Filter = FFilter::Make<FAgent, FRendering, FDeathDissolve, FAnimation, FDying, FDeath, FCurves, FActivated>();
 		Filter.Exclude<FAppearing>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
@@ -1125,7 +1125,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentDeathAnim");
 
-		FFilter Filter = FFilter::Make<FAgent, FRendering, FDeathAnim, FAnimation, FDying>();
+		FFilter Filter = FFilter::Make<FAgent, FRendering, FDeathAnim, FAnimation, FDying, FActivated>();
 		Filter.Exclude<FAppearing>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
@@ -1155,7 +1155,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentFrozen");
 
-		FFilter Filter = FFilter::Make<FAgent, FRendering, FAnimation, FFreezing>();
+		FFilter Filter = FFilter::Make<FAgent, FRendering, FAnimation, FFreezing, FActivated>();
 		Filter.Exclude<FAppearing, FDying>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
@@ -1332,7 +1332,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("Patrol");
 
-		FFilter Filter = FFilter::Make<FAgent, FRendering, FLocated, FDirected, FTrace, FPatrol>();
+		FFilter Filter = FFilter::Make<FAgent, FRendering, FLocated, FDirected, FTrace, FPatrol, FActivated>();
 		Filter.Exclude<FAppearing, FSleeping, FAttacking, FDying>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
@@ -1341,6 +1341,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 		// Lambda for finding a new goal location. To Do : Add pathfinding and obstacle tracing here
 		auto FindNewGoalLocation = [&](FVector Origin, float MinRange, float MaxRange, FTrace Trace, FLocated Located)
 		{
+			TRACE_CPUPROFILER_EVENT_SCOPE_STR("FindNewGoalLocation");
+
 			const int32 MaxAttempts = 1; // 最大尝试次数
 			FVector NewGoal = Located.Location;
 
@@ -1449,6 +1451,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				// 重新进入巡逻状态的逻辑
 				else if (!Trace.TraceResult.IsValid() && Patrol.OnLostTarget == EPatrolRecoverMode::Patrol)
 				{
+					TRACE_CPUPROFILER_EVENT_SCOPE_STR("Re-patrol");
+
 					FPatrolling NewPatrolling;
 					ResetTimer(Patrol, NewPatrolling);
 					ResetOrigin(Patrol, Located);
@@ -1465,7 +1469,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentMovement");
 
-		FFilter Filter = FFilter::Make<FAgent, FRendering, FAnimation, FMove, FMoving, FDirected, FLocated, FAttack, FTrace, FNavigation, FAvoidance, FCollider, FDefence, FPatrol>();
+		FFilter Filter = FFilter::Make<FAgent, FRendering, FAnimation, FMove, FMoving, FDirected, FLocated, FAttack, FTrace, FNavigation, FAvoidance, FCollider, FDefence, FPatrol, FActivated>();
 		Filter.Exclude<FAppearing>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
@@ -1830,7 +1834,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("IdleToMoveAnim");
 
 		// 初始化过滤器
-		FFilter Filter = FFilter::Make<FAgent, FAnimation, FMoving, FDeath>();
+		FFilter Filter = FFilter::Make<FAgent, FAnimation, FMoving, FDeath, FActivated>();
 		Filter.Exclude<FAppearing>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
@@ -1866,7 +1870,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	#pragma region
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentStateMachine");
-		static const auto Filter = FFilter::Make<FAgent, FAnimation, FRendering, FAppear, FAttack, FDeath, FMoving>();
+		static const auto Filter = FFilter::Make<FAgent, FAnimation, FRendering, FAppear, FAttack, FDeath, FMoving, FActivated>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
@@ -2016,7 +2020,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentRender");
 
-		FFilter Filter = FFilter::Make<FAgent, FRendering, FDirected, FScaled, FLocated, FAnimation, FHealth, FHealthBar, FCollider>();
+		FFilter Filter = FFilter::Make<FAgent, FRendering, FDirected, FScaled, FLocated, FAnimation, FHealth, FHealthBar, FCollider, FActivated>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
@@ -2089,7 +2093,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("TextRender");
 
-		FFilter Filter = FFilter::Make<FAgent, FRendering, FPoppingText>();
+		FFilter Filter = FFilter::Make<FAgent, FRendering, FPoppingText, FActivated>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
