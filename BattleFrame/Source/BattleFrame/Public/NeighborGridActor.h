@@ -110,6 +110,7 @@ public:
         const FVector Start,
         const FVector End,
         float Radius,
+        bool bCheckVisibility,
         const TArray<FSubjectHandle>& IgnoreSubjects,
         const FFilter Filter,
         TArray<FTraceResult>& Results)
@@ -117,7 +118,7 @@ public:
         if (LIKELY(NeighborGridComponent != nullptr))
         {
             TArray<FTraceResult> LocalResults;
-            NeighborGridComponent->SphereSweepForSubjects(Start, End, Radius, IgnoreSubjects, Filter, LocalResults);
+            NeighborGridComponent->SphereSweepForSubjects(Start, End, Radius, bCheckVisibility, IgnoreSubjects, Filter, LocalResults);
             Results = MoveTemp(LocalResults);
         }
         else

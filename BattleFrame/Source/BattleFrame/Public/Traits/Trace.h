@@ -51,10 +51,10 @@ public:
 	float CoolDown = 2;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "索敌视野半径"))
-	float Radius = 1000;
+	float TraceRadius = 1000;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (UIMin = 0, UIMax = 360, Tooltip = "索敌视野角度"))
-	float Angle = 360.f;
+	float TraceAngle = 360.f;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "检测目标是不是在障碍物后面"))
 	bool bCheckVisibility = false;
@@ -82,8 +82,8 @@ public:
 		IncludeTraits = Trace.IncludeTraits;
 		ExcludeTraits = Trace.ExcludeTraits;
 		CoolDown = Trace.CoolDown;
-		Radius = Trace.Radius;
-		Angle = Trace.Angle;
+		TraceRadius = Trace.TraceRadius;
+		TraceAngle = Trace.TraceAngle;
 		bCheckVisibility = Trace.bCheckVisibility;
 	}
 
@@ -98,8 +98,8 @@ public:
 		IncludeTraits = Trace.IncludeTraits;
 		ExcludeTraits = Trace.ExcludeTraits;
 		CoolDown = Trace.CoolDown;
-		Radius = Trace.Radius;
-		Angle = Trace.Angle;
+		TraceRadius = Trace.TraceRadius;
+		TraceAngle = Trace.TraceAngle;
 		bCheckVisibility = Trace.bCheckVisibility;
 
 		return *this;

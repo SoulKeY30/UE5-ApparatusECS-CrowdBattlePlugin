@@ -200,11 +200,6 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
         spawnLocated.InitialLocation = SpawnPoint3D;
         Config.SetTrait(spawnLocated);
 
-        auto& Patrol = Config.GetTraitRef<FPatrol>();
-
-        Patrol.Goal = SpawnPoint3D;
-        Patrol.Origin = SpawnPoint3D;
-
         APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
 
         FVector Direction;
@@ -241,7 +236,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
 
         Config.SetTrait(FDirected{ Direction });
 
-        Move.MoveSpeed *= Multipliers.SpeedMult;
+        Move.MaxSpeed *= Multipliers.SpeedMult;
 
         if (LaunchForce.Size() > 0)
         {         
@@ -281,10 +276,17 @@ void AAgentSpawner::ActivateAgent( FSubjectHandle Agent )
         Agent.SetTrait(FSleeping());
     }
 
-    if (Agent.GetTrait<FPatrol>().bEnable)
+    auto& Patrol = Agent.GetTraitRef<FPatrol,EParadigm::Unsafe>();
+
+    if (Patrol.bEnable)
     {
         Agent.SetTrait(FPatrolling());
     }
+
+    auto Location = Agent.GetTrait<FLocated>().Location;
+
+    Patrol.Goal = Location;
+    Patrol.Origin = Location;
 
     Agent.SetTrait(FActivated());
 }

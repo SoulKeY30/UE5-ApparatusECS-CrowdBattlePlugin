@@ -44,6 +44,7 @@ public:
         FVector Start,
         FVector End,
         float Radius,
+        bool bCheckVisibility,
         const TArray<FSubjectHandle>& IgnoreSubjects,
         FFilter Filter,
         TArray<FTraceResult>& Results

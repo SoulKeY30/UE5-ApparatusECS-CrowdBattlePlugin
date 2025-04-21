@@ -95,13 +95,13 @@ public:
 
 	void SphereTraceForSubjects(const FVector Origin, float Radius, TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, TArray<FTraceResult>& Results) const;
 	
-	void SphereSweepForSubjects(const FVector Start, const FVector End, float Radius, TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, TArray<FTraceResult>& Results);
+	void SphereSweepForSubjects(const FVector Start, const FVector End, float Radius, bool bCheckVisibility, TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, TArray<FTraceResult>& Results);
 	
 	void CylinderExpandForSubject(const FVector Origin, float Radius, float Height, TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, FSubjectHandle& Result) const;
 
 	void SectorExpandForSubject(const FVector Origin, float Radius, float Height, FVector Direction, float Angle, bool bCheckVisibility, TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, FSubjectHandle& Result) const;
 
-	bool CheckVisibility(FVector Start, FVector End, float Radius) const;
+	void SphereSweepForObstacle(FVector Start, FVector End, float Radius, bool& Hit, FTraceResult& Result) const;
 
 	void Update();
 	void Decouple();

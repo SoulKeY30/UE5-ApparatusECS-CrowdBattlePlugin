@@ -1229,6 +1229,7 @@ void UBattleFrameFunctionLibraryRT::SphereSweepForSubjects
 	FVector Start,
 	FVector End,
 	float Radius,
+	bool bCheckVisibility,
 	const TArray<FSubjectHandle>& IgnoreSubjects,
 	FFilter Filter,
 	TArray<FTraceResult>& Results
@@ -1251,7 +1252,7 @@ void UBattleFrameFunctionLibraryRT::SphereSweepForSubjects
 	if (IsValid(NeighborGridActor))
 	{
 		TArray<FTraceResult> LocalResults;
-		NeighborGridActor->SphereSweepForSubjects(Start, End, Radius, IgnoreSubjects, Filter, LocalResults);
+		NeighborGridActor->SphereSweepForSubjects(Start, End, Radius, bCheckVisibility, IgnoreSubjects, Filter, LocalResults);
 		Results = MoveTemp(LocalResults);
 	}
 }

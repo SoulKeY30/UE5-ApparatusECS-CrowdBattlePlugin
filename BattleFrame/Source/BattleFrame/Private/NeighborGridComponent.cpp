@@ -131,13 +131,13 @@ void UNeighborGridComponent::SphereTraceForSubjects(const FVector Origin, float 
 	}
 }
 
-void UNeighborGridComponent::SphereSweepForSubjects(const FVector Start, const FVector End, float Radius, TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, TArray<FTraceResult>& Results)
+void UNeighborGridComponent::SphereSweepForSubjects(const FVector Start, const FVector End, float Radius, bool bCheckVisibility, TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, TArray<FTraceResult>& Results)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereSweepForSubjects");
 
-	Results.Empty(); // 清空结果数组
+	Results.Empty(); // Clear result array
 
-	// 将忽略列表转换为集合以便快速查找
+	// Convert ignore list to set for fast lookup
 	TSet<FSubjectHandle> IgnoreSet(IgnoreSubjects);
 
 	TArray<FIntVector> GridCells = SphereSweepForCells(Start, End, Radius);
@@ -145,7 +145,7 @@ void UNeighborGridComponent::SphereSweepForSubjects(const FVector Start, const F
 	const FVector TraceDir = (End - Start).GetSafeNormal();
 	const float TraceLength = FVector::Distance(Start, End);
 
-	// 检查每个单元中的subject
+	// Check subjects in each cell
 	for (const FIntVector& CellIndex : GridCells)
 	{
 		const FNeighborGridCell& CageCell = At(CellIndex.X, CellIndex.Y, CellIndex.Z);
@@ -156,38 +156,52 @@ void UNeighborGridComponent::SphereSweepForSubjects(const FVector Start, const F
 		{
 			const FSubjectHandle Subject = Data.SubjectHandle;
 
-			// 检查是否在忽略列表中
+			// Check if in ignore list
 			if (IgnoreSet.Contains(Subject))
 			{
 				continue;
 			}
 
-			// 有效性检查
+			// Validity checks
 			if (!Subject.IsValid() || !Subject.Matches(Filter)) continue;
 
 			const FVector SubjectPos = Data.Location;
 			float SubjectRadius = Data.Radius;
 
-			// 距离计算
+			// Distance calculations
 			const FVector ToSubject = SubjectPos - Start;
 			const float ProjOnTrace = FVector::DotProduct(ToSubject, TraceDir);
 
-			// 初步筛选
+			// Initial filtering
 			const float ProjThreshold = SubjectRadius + Radius;
 			if (ProjOnTrace < -ProjThreshold || ProjOnTrace > TraceLength + ProjThreshold) continue;
 
-			// 精确距离检查
+			// Precise distance check
 			const float ClampedProj = FMath::Clamp(ProjOnTrace, 0.0f, TraceLength);
 			const FVector NearestPoint = Start + ClampedProj * TraceDir;
 			const float CombinedRadSq = FMath::Square(Radius + SubjectRadius);
 
 			if (FVector::DistSquared(NearestPoint, SubjectPos) < CombinedRadSq)
 			{
-				// 创建FTraceResult并添加到结果数组
+				/** New visibility check logic **/
+				if (bCheckVisibility)
+				{
+					// Perform visibility check
+					bool bHit = false;
+					FTraceResult VisibilityResult;
+					SphereSweepForObstacle(Start, SubjectPos, Radius, bHit, VisibilityResult);
+
+					if (bHit)
+					{
+						continue; // Path is blocked, skip this subject
+					}
+				}
+
+				// Create FTraceResult and add to results array
 				FTraceResult Result;
 				Result.Subject = Subject;
 				Result.Location = SubjectPos;
-				Result.CachedDistSq = FVector::DistSquared(Start, SubjectPos); // 预计算距离
+				Result.CachedDistSq = FVector::DistSquared(Start, SubjectPos); // Precompute distance
 				Results.Add(Result);
 			}
 		}
@@ -396,7 +410,11 @@ void UNeighborGridComponent::SectorExpandForSubject(const FVector Origin, float 
 				if (const auto TargetLocation = Subject.GetTraitPtr<FLocated, EParadigm::Unsafe>())
 				{
 					// 执行可见性检测
-					if (!CheckVisibility(Origin, TargetLocation->Location, Radius))
+					bool Hit = false;
+					FTraceResult Result;
+					SphereSweepForObstacle(Origin, TargetLocation->Location, 1, Hit, Result);
+
+					if (Hit)
 					{
 						continue; // 路径被阻挡，跳过该目标
 					}
@@ -424,11 +442,29 @@ void UNeighborGridComponent::SectorExpandForSubject(const FVector Origin, float 
 	Result = ClosestSubject.IsValid() ? ClosestSubject : FSubjectHandle();
 }
 
-bool UNeighborGridComponent::CheckVisibility(FVector Start, FVector End, float Radius) const
+void UNeighborGridComponent::SphereSweepForObstacle(FVector Start, FVector End, float Radius, bool& Hit, FTraceResult& Result) const
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE_STR("CheckVisibility");
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereSweepForObstacle");
+
+	Hit = false;
+	Result = FTraceResult();
+	float ClosestHitDistSq = FLT_MAX;
 
 	TArray<FIntVector> PathCells = SphereSweepForCells(Start, End, Radius);
+
+	auto ProcessObstacle = [&](const FAvoiding& Obstacle, float DistSqr)
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE_STR("ProcessObstacle");
+
+			if (DistSqr < ClosestHitDistSq)
+			{
+				ClosestHitDistSq = DistSqr;
+				Hit = true;
+				Result.Subject = Obstacle.SubjectHandle;
+				Result.Location = Obstacle.Location;
+				Result.CachedDistSq = DistSqr;
+			}
+		};
 
 	for (const FIntVector& CellPos : PathCells)
 	{
@@ -437,6 +473,8 @@ bool UNeighborGridComponent::CheckVisibility(FVector Start, FVector End, float R
 		// 检查球形障碍物
 		auto CheckSphereCollision = [&](const TArray<FAvoiding>& Obstacles)
 			{
+				TRACE_CPUPROFILER_EVENT_SCOPE_STR("CheckSphereCollision");
+
 				for (const FAvoiding& Avoiding : Obstacles)
 				{
 					// 计算球体到线段的最短距离平方
@@ -446,52 +484,43 @@ bool UNeighborGridComponent::CheckVisibility(FVector Start, FVector End, float R
 					// 如果距离小于合并半径，则发生碰撞
 					if (DistSqr <= FMath::Square(CombinedRadius))
 					{
-						return true;
+						ProcessObstacle(Avoiding, DistSqr);
 					}
 				}
-				return false;
 			};
 
 		// 检查静态/动态球形障碍物
-		if (CheckSphereCollision(Cell.SphereObstacles) || CheckSphereCollision(Cell.SphereObstaclesStatic))
-		{
-			return false;
-		}
+		CheckSphereCollision(Cell.SphereObstacles);
+		CheckSphereCollision(Cell.SphereObstaclesStatic);
 
 		// 检查长方体障碍物碰撞
 		auto CheckBoxCollision = [&](const TArray<FAvoiding>& Obstacles)
 			{
+				TRACE_CPUPROFILER_EVENT_SCOPE_STR("CheckBoxCollision");
+
 				for (const FAvoiding& Avoiding : Obstacles)
 				{
-					// 获取当前长方体顶点特征
 					const FBoxObstacle* CurrentObstacle = Avoiding.SubjectHandle.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
 					if (!CurrentObstacle) continue;
 
-					// 获取上一个顶点特征
 					const FBoxObstacle* PrevObstacle = CurrentObstacle->prevObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
 					if (!PrevObstacle) continue;
 
-					// 获取下一个顶点特征
 					const FBoxObstacle* NextObstacle = CurrentObstacle->nextObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
 					if (!NextObstacle) continue;
 
-					// 获取下下个顶点特征
 					const FBoxObstacle* NextNextObstacle = NextObstacle->nextObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
 					if (!NextNextObstacle) continue;
 
-					// 长方体参数
 					const FVector& CurrentPos = CurrentObstacle->point3d_;
 					const FVector& PrevPos = PrevObstacle->point3d_;
 					const FVector& NextPos = NextObstacle->point3d_;
 					const FVector& NextNextPos = NextNextObstacle->point3d_;
 
 					const float Height = CurrentObstacle->height_ * 0.5f;
-
-					// 1. 计算长方体的基本向量
 					const FVector Up = FVector::UpVector;
 
-					// 2. 构建长方体的8个顶点
-					const FVector BottomVertices[4] = 
+					const FVector BottomVertices[4] =
 					{
 						PrevPos - Up * Height,
 						CurrentPos - Up * Height,
@@ -499,7 +528,7 @@ bool UNeighborGridComponent::CheckVisibility(FVector Start, FVector End, float R
 						NextNextPos - Up * Height
 					};
 
-					const FVector TopVertices[4] = 
+					const FVector TopVertices[4] =
 					{
 						PrevPos + Up * Height,
 						CurrentPos + Up * Height,
@@ -507,10 +536,10 @@ bool UNeighborGridComponent::CheckVisibility(FVector Start, FVector End, float R
 						NextNextPos + Up * Height
 					};
 
-					// 3. 手动实现球体与长方体的碰撞检测
-					auto SphereIntersectsBox = [](const FVector& SphereStart, const FVector& SphereEnd, float SphereRadius,
-						const FVector BottomVerts[4], const FVector TopVerts[4]) -> bool
+					auto SphereIntersectsBox = [](const FVector& SphereStart, const FVector& SphereEnd, float SphereRadius, const FVector BottomVerts[4], const FVector TopVerts[4]) -> bool
 						{
+							TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereIntersectsBox");
+
 							// 将球体运动轨迹视为胶囊体
 							const FVector CapsuleDir = (SphereEnd - SphereStart).GetSafeNormal();
 							const float CapsuleLength = FVector::Dist(SphereStart, SphereEnd);
@@ -592,6 +621,8 @@ bool UNeighborGridComponent::CheckVisibility(FVector Start, FVector End, float R
 								// 检查球体端点与面的距离
 								auto PointToFaceDistance = [](const FVector& Point, const TArray<FVector>& Face, const FVector& Normal) -> float
 									{
+										TRACE_CPUPROFILER_EVENT_SCOPE_STR("PointToFaceDistance");
+
 										// 计算点到平面的距离
 										const float PlaneDist = FMath::Abs(FVector::DotProduct(Normal, Point - Face[0]));
 
@@ -642,27 +673,23 @@ bool UNeighborGridComponent::CheckVisibility(FVector Start, FVector End, float R
 								}
 							}
 
-							return false;
+							return false; // Simplified for brevity
 						};
 
-					if (SphereIntersectsBox(Start, End, Radius, BottomVertices, TopVertices))
-					{
-						return true;
-					}
+				if (SphereIntersectsBox(Start, End, Radius, BottomVertices, TopVertices))
+				{
+					// For box obstacles, use the distance from start to the obstacle's center
+					const float DistSqr = FVector::DistSquared(Start, Avoiding.Location);
+					ProcessObstacle(Avoiding, DistSqr);
 				}
-				return false;
-			};
+			}
+		};
 
 		// 检查静态/动态盒体障碍物
-		if (CheckBoxCollision(Cell.BoxObstacles) || CheckBoxCollision(Cell.BoxObstaclesStatic))
-		{
-			return false;
-		}
+		CheckBoxCollision(Cell.BoxObstacles);
+		CheckBoxCollision(Cell.BoxObstaclesStatic);
 	}
-
-	return true;
 }
-
 
 //--------------------------------------------Avoidance---------------------------------------------------------------
 
