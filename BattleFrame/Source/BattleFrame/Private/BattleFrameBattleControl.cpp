@@ -1854,59 +1854,41 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	// 移动动画
 	#pragma region
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("IdleToMoveAnim");
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("IdleToMoveAnim");
 
-		// 初始化过滤器
-		FFilter Filter = FFilter::Make<FAgent, FAnimation, FMove, FMoving, FDeath, FActivated>().Exclude<FAppearing, FSleeping, FDying>();
+	// 初始化过滤器
+	FFilter Filter = FFilter::Make<FAgent, FAnimation, FMove, FMoving, FDeath, FActivated>();
+	Filter.Exclude<FAppearing,FDying>();
 
-		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, 1, ThreadsCount, BatchSize);
+	auto Chain = Mechanism->EnchainSolid(Filter);
+	UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, 1, ThreadsCount, BatchSize);
 
-		Chain->OperateConcurrently(
-			[&](FSolidSubjectHandle Subject,
-				FAnimation& Animation,
-				FMove& Move,
-				FMoving& Moving,
-				FDeath& Death)
+	Chain->OperateConcurrently(
+		[&](FSolidSubjectHandle Subject,
+			FAnimation& Animation,
+			FMove& Move,
+			FMoving& Moving,
+			FDeath& Death)
+		{
+			const bool bIsAttacking = Subject.HasTrait<FAttacking>();
+
+			if (bIsAttacking)
 			{
-				const bool bIsAttacking = Subject.HasTrait<FAttacking>();
+				EAttackState State = Subject.GetTraitRef<FAttacking, EParadigm::Unsafe>().State;
 
-				const float Speed2D = Moving.CurrentVelocity.Size2D();
-				const float MoveSpeedThresholdHigh = Move.MinMoveSpeed * 1.25f;
-				const float MoveSpeedThresholdLow = Move.MinMoveSpeed * 0.75f;
-
-				// Lambda for state transition logic
-				auto UpdateAnimationState = [&](bool bCanChangeState) 
+				if (State == EAttackState::Cooling)
 				{
-					if (!bCanChangeState) return;
-
-					if (Animation.SubjectState == ESubjectState::Idle) 
-					{
-						if (Speed2D > MoveSpeedThresholdHigh) 
-						{
-							Animation.SubjectState = ESubjectState::Moving;
-						}
-					}
-					else 
-					{
-						if (Speed2D < MoveSpeedThresholdLow) 
-						{
-							Animation.SubjectState = ESubjectState::Idle;
-						}
-					}
-				};
-
-				if (bIsAttacking) 
-				{
-					EAttackState State = Subject.GetTraitRef<FAttacking, EParadigm::Unsafe>().State;
-					UpdateAnimationState(State == EAttackState::Cooling);
+					const bool IsMoving = Moving.CurrentVelocity.Size2D() > Move.MinMoveSpeed;
+					Animation.SubjectState = IsMoving ? ESubjectState::Moving : ESubjectState::Idle;
 				}
-				else 
-				{
-					UpdateAnimationState(true);
-				}
+			}
+			else
+			{
+				const bool IsMoving = Moving.CurrentVelocity.Size2D() > Move.MinMoveSpeed;
+				Animation.SubjectState = IsMoving ? ESubjectState::Moving : ESubjectState::Idle;
+			}
 
-			}, ThreadsCount, BatchSize);
+		}, ThreadsCount, BatchSize);
 	}
 	#pragma endregion
 
