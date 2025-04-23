@@ -29,6 +29,7 @@
 #include "Traits/Avoiding.h"
 #include "Traits/Corpse.h"
 #include "Traits/Activated.h"
+#include "Traits/Excluding.h"
 #include "Math/Vector2D.h"
 #include "RVODefinitions.h"
 #include "Async/Async.h"
@@ -411,8 +412,8 @@ void UNeighborGridComponent::SectorExpandForSubject(const FVector Origin, float 
 				{
 					// 执行可见性检测
 					bool Hit = false;
-					FTraceResult Result;
-					SphereSweepForObstacle(Origin, TargetLocation->Location, 1, Hit, Result);
+					FTraceResult TraceResult;
+					SphereSweepForObstacle(Origin, TargetLocation->Location, 1, Hit, TraceResult);
 
 					if (Hit)
 					{
@@ -453,18 +454,16 @@ void UNeighborGridComponent::SphereSweepForObstacle(FVector Start, FVector End, 
 	TArray<FIntVector> PathCells = SphereSweepForCells(Start, End, Radius);
 
 	auto ProcessObstacle = [&](const FAvoiding& Obstacle, float DistSqr)
+	{
+		if (DistSqr < ClosestHitDistSq)
 		{
-			TRACE_CPUPROFILER_EVENT_SCOPE_STR("ProcessObstacle");
-
-			if (DistSqr < ClosestHitDistSq)
-			{
-				ClosestHitDistSq = DistSqr;
-				Hit = true;
-				Result.Subject = Obstacle.SubjectHandle;
-				Result.Location = Obstacle.Location;
-				Result.CachedDistSq = DistSqr;
-			}
-		};
+			ClosestHitDistSq = DistSqr;
+			Hit = true;
+			Result.Subject = Obstacle.SubjectHandle;
+			Result.Location = Obstacle.Location;
+			Result.CachedDistSq = DistSqr;
+		}
+	};
 
 	for (const FIntVector& CellPos : PathCells)
 	{
@@ -472,22 +471,24 @@ void UNeighborGridComponent::SphereSweepForObstacle(FVector Start, FVector End, 
 
 		// 检查球形障碍物
 		auto CheckSphereCollision = [&](const TArray<FAvoiding>& Obstacles)
+		{
+			for (const FAvoiding& Avoiding : Obstacles)
 			{
-				TRACE_CPUPROFILER_EVENT_SCOPE_STR("CheckSphereCollision");
+				const FSphereObstacle* CurrentObstacle = Avoiding.SubjectHandle.GetTraitPtr<FSphereObstacle, EParadigm::Unsafe>();
+				if (!CurrentObstacle) continue;
+				if (CurrentObstacle->bExcluded) continue;
 
-				for (const FAvoiding& Avoiding : Obstacles)
+				// 计算球体到线段的最短距离平方
+				const float DistSqr = FMath::PointDistToSegmentSquared(Avoiding.Location, Start, End);
+				const float CombinedRadius = Radius + Avoiding.Radius;
+
+				// 如果距离小于合并半径，则发生碰撞
+				if (DistSqr <= FMath::Square(CombinedRadius))
 				{
-					// 计算球体到线段的最短距离平方
-					const float DistSqr = FMath::PointDistToSegmentSquared(Avoiding.Location, Start, End);
-					const float CombinedRadius = Radius + Avoiding.Radius;
-
-					// 如果距离小于合并半径，则发生碰撞
-					if (DistSqr <= FMath::Square(CombinedRadius))
-					{
-						ProcessObstacle(Avoiding, DistSqr);
-					}
+					ProcessObstacle(Avoiding, DistSqr);
 				}
-			};
+			}
+		};
 
 		// 检查静态/动态球形障碍物
 		CheckSphereCollision(Cell.SphereObstacles);
@@ -495,194 +496,194 @@ void UNeighborGridComponent::SphereSweepForObstacle(FVector Start, FVector End, 
 
 		// 检查长方体障碍物碰撞
 		auto CheckBoxCollision = [&](const TArray<FAvoiding>& Obstacles)
+		{
+			for (const FAvoiding& Avoiding : Obstacles)
 			{
-				TRACE_CPUPROFILER_EVENT_SCOPE_STR("CheckBoxCollision");
+				const FBoxObstacle* CurrentObstacle = Avoiding.SubjectHandle.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
+				if (!CurrentObstacle) continue;
+				if (CurrentObstacle->bExcluded) continue;
 
-				for (const FAvoiding& Avoiding : Obstacles)
+				const FBoxObstacle* PrevObstacle = CurrentObstacle->prevObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
+				if (!PrevObstacle) continue;
+				if (CurrentObstacle->bExcluded) continue;
+
+				const FBoxObstacle* NextObstacle = CurrentObstacle->nextObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
+				if (!NextObstacle) continue;
+				if (CurrentObstacle->bExcluded) continue;
+
+				const FBoxObstacle* NextNextObstacle = NextObstacle->nextObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
+				if (!NextNextObstacle) continue;
+				if (CurrentObstacle->bExcluded) continue;
+
+				const FVector& CurrentPos = CurrentObstacle->point3d_;
+				const FVector& PrevPos = PrevObstacle->point3d_;
+				const FVector& NextPos = NextObstacle->point3d_;
+				const FVector& NextNextPos = NextNextObstacle->point3d_;
+
+				const float Height = CurrentObstacle->height_ * 0.5f;
+				const FVector Up = FVector::UpVector;
+
+				const FVector BottomVertices[4] =
 				{
-					const FBoxObstacle* CurrentObstacle = Avoiding.SubjectHandle.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
-					if (!CurrentObstacle) continue;
+					PrevPos - Up * Height,
+					CurrentPos - Up * Height,
+					NextPos - Up * Height,
+					NextNextPos - Up * Height
+				};
 
-					const FBoxObstacle* PrevObstacle = CurrentObstacle->prevObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
-					if (!PrevObstacle) continue;
+				const FVector TopVertices[4] =
+				{
+					PrevPos + Up * Height,
+					CurrentPos + Up * Height,
+					NextPos + Up * Height,
+					NextNextPos + Up * Height
+				};
 
-					const FBoxObstacle* NextObstacle = CurrentObstacle->nextObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
-					if (!NextObstacle) continue;
-
-					const FBoxObstacle* NextNextObstacle = NextObstacle->nextObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
-					if (!NextNextObstacle) continue;
-
-					const FVector& CurrentPos = CurrentObstacle->point3d_;
-					const FVector& PrevPos = PrevObstacle->point3d_;
-					const FVector& NextPos = NextObstacle->point3d_;
-					const FVector& NextNextPos = NextNextObstacle->point3d_;
-
-					const float Height = CurrentObstacle->height_ * 0.5f;
-					const FVector Up = FVector::UpVector;
-
-					const FVector BottomVertices[4] =
+				auto SphereIntersectsBox = [](const FVector& SphereStart, const FVector& SphereEnd, float SphereRadius, const FVector BottomVerts[4], const FVector TopVerts[4]) -> bool
 					{
-						PrevPos - Up * Height,
-						CurrentPos - Up * Height,
-						NextPos - Up * Height,
-						NextNextPos - Up * Height
-					};
+						// 将球体运动轨迹视为胶囊体
+						const FVector CapsuleDir = (SphereEnd - SphereStart).GetSafeNormal();
+						const float CapsuleLength = FVector::Dist(SphereStart, SphereEnd);
 
-					const FVector TopVertices[4] =
-					{
-						PrevPos + Up * Height,
-						CurrentPos + Up * Height,
-						NextPos + Up * Height,
-						NextNextPos + Up * Height
-					};
-
-					auto SphereIntersectsBox = [](const FVector& SphereStart, const FVector& SphereEnd, float SphereRadius, const FVector BottomVerts[4], const FVector TopVerts[4]) -> bool
+						// 定义长方体的6个面
+						const TArray<TArray<FVector>> Faces = 
 						{
-							TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereIntersectsBox");
+							// 底面
+							{BottomVerts[0], BottomVerts[1], BottomVerts[2], BottomVerts[3]},
+							// 顶面
+							{TopVerts[0], TopVerts[1], TopVerts[2], TopVerts[3]},
+							// 侧面
+							{BottomVerts[0], TopVerts[0], TopVerts[1], BottomVerts[1]},
+							{BottomVerts[1], TopVerts[1], TopVerts[2], BottomVerts[2]},
+							{BottomVerts[2], TopVerts[2], TopVerts[3], BottomVerts[3]},
+							{BottomVerts[3], TopVerts[3], TopVerts[0], BottomVerts[0]}
+						};
 
-							// 将球体运动轨迹视为胶囊体
-							const FVector CapsuleDir = (SphereEnd - SphereStart).GetSafeNormal();
-							const float CapsuleLength = FVector::Dist(SphereStart, SphereEnd);
+						// 检查每个面
+						for (const auto& Face : Faces)
+						{
+							// 计算面法线
+							const FVector Edge1 = Face[1] - Face[0];
+							const FVector Edge2 = Face[2] - Face[0];
+							FVector Normal = FVector::CrossProduct(Edge1, Edge2).GetSafeNormal();
 
-							// 定义长方体的6个面
-							const TArray<TArray<FVector>> Faces = 
+							// 计算平面方程: N·X + D = 0
+							const float D = -FVector::DotProduct(Normal, Face[0]);
+
+							// 计算球体线段到平面的距离
+							const float DistStart = FVector::DotProduct(Normal, SphereStart) + D;
+							const float DistEnd = FVector::DotProduct(Normal, SphereEnd) + D;
+
+							// 检查是否与平面相交
+							if (DistStart * DistEnd > 0 &&
+								FMath::Abs(DistStart) > SphereRadius &&
+								FMath::Abs(DistEnd) > SphereRadius)
 							{
-								// 底面
-								{BottomVerts[0], BottomVerts[1], BottomVerts[2], BottomVerts[3]},
-								// 顶面
-								{TopVerts[0], TopVerts[1], TopVerts[2], TopVerts[3]},
-								// 侧面
-								{BottomVerts[0], TopVerts[0], TopVerts[1], BottomVerts[1]},
-								{BottomVerts[1], TopVerts[1], TopVerts[2], BottomVerts[2]},
-								{BottomVerts[2], TopVerts[2], TopVerts[3], BottomVerts[3]},
-								{BottomVerts[3], TopVerts[3], TopVerts[0], BottomVerts[0]}
-							};
+								continue; // 不相交
+							}
 
-							// 检查每个面
-							for (const auto& Face : Faces)
+							// 计算线段与平面的交点
+							FVector Intersection;
+							if (DistStart == DistEnd)
 							{
-								// 计算面法线
-								const FVector Edge1 = Face[1] - Face[0];
-								const FVector Edge2 = Face[2] - Face[0];
-								FVector Normal = FVector::CrossProduct(Edge1, Edge2).GetSafeNormal();
+								// 线段与平面平行
+								continue;
+							}
+							else
+							{
+								const float t = -DistStart / (DistEnd - DistStart);
+								Intersection = SphereStart + t * (SphereEnd - SphereStart);
+							}
 
-								// 计算平面方程: N·X + D = 0
-								const float D = -FVector::DotProduct(Normal, Face[0]);
+							// 手动实现点在多边形内的测试
+							bool bInside = true;
+							for (int i = 0; i < Face.Num(); ++i)
+							{
+								const FVector& CurrentVert = Face[i];
+								const FVector& NextVert = Face[(i + 1) % Face.Num()];
 
-								// 计算球体线段到平面的距离
-								const float DistStart = FVector::DotProduct(Normal, SphereStart) + D;
-								const float DistEnd = FVector::DotProduct(Normal, SphereEnd) + D;
+								// 计算边向量
+								const FVector Edge = NextVert - CurrentVert;
+								const FVector ToPoint = Intersection - CurrentVert;
 
-								// 检查是否与平面相交
-								if (DistStart * DistEnd > 0 &&
-									FMath::Abs(DistStart) > SphereRadius &&
-									FMath::Abs(DistEnd) > SphereRadius)
+								// 使用叉积检查点是否在边的"内侧"
+								if (FVector::DotProduct(FVector::CrossProduct(Edge, ToPoint), Normal) < 0)
 								{
-									continue; // 不相交
-								}
-
-								// 计算线段与平面的交点
-								FVector Intersection;
-								if (DistStart == DistEnd)
-								{
-									// 线段与平面平行
-									continue;
-								}
-								else
-								{
-									const float t = -DistStart / (DistEnd - DistStart);
-									Intersection = SphereStart + t * (SphereEnd - SphereStart);
-								}
-
-								// 手动实现点在多边形内的测试
-								bool bInside = true;
-								for (int i = 0; i < Face.Num(); ++i)
-								{
-									const FVector& CurrentVert = Face[i];
-									const FVector& NextVert = Face[(i + 1) % Face.Num()];
-
-									// 计算边向量
-									const FVector Edge = NextVert - CurrentVert;
-									const FVector ToPoint = Intersection - CurrentVert;
-
-									// 使用叉积检查点是否在边的"内侧"
-									if (FVector::DotProduct(FVector::CrossProduct(Edge, ToPoint), Normal) < 0)
-									{
-										bInside = false;
-										break;
-									}
-								}
-
-								if (bInside)
-								{
-									return true;
-								}
-
-								// 检查球体端点与面的距离
-								auto PointToFaceDistance = [](const FVector& Point, const TArray<FVector>& Face, const FVector& Normal) -> float
-									{
-										TRACE_CPUPROFILER_EVENT_SCOPE_STR("PointToFaceDistance");
-
-										// 计算点到平面的距离
-										const float PlaneDist = FMath::Abs(FVector::DotProduct(Normal, Point - Face[0]));
-
-										// 检查投影点是否在面内
-										bool bInside = true;
-										for (int i = 0; i < Face.Num(); ++i)
-										{
-											const FVector& CurrentVert = Face[i];
-											const FVector& NextVert = Face[(i + 1) % Face.Num()];
-											const FVector Edge = NextVert - CurrentVert;
-											const FVector ToPoint = Point - CurrentVert;
-
-											if (FVector::DotProduct(FVector::CrossProduct(Edge, ToPoint), Normal) < 0)
-											{
-												bInside = false;
-												break;
-											}
-										}
-
-										if (bInside)
-										{
-											return PlaneDist;
-										}
-
-										// 如果不在面内，计算到各边的最短距离
-										float MinDist = FLT_MAX;
-										for (int i = 0; i < Face.Num(); ++i)
-										{
-											const FVector& EdgeStart = Face[i];
-											const FVector& EdgeEnd = Face[(i + 1) % Face.Num()];
-
-											const FVector Edge = EdgeEnd - EdgeStart;
-											const FVector ToPoint = Point - EdgeStart;
-
-											const float EdgeLength = Edge.Size();
-											const float t = FMath::Clamp(FVector::DotProduct(ToPoint, Edge) / (EdgeLength * EdgeLength), 0.0f, 1.0f);
-											const FVector ClosestPoint = EdgeStart + t * Edge;
-
-											MinDist = FMath::Min(MinDist, FVector::Dist(Point, ClosestPoint));
-										}
-
-										return MinDist;
-									};
-
-								if (PointToFaceDistance(SphereStart, Face, Normal) <= SphereRadius || PointToFaceDistance(SphereEnd, Face, Normal) <= SphereRadius)
-								{
-									return true;
+									bInside = false;
+									break;
 								}
 							}
 
-							return false; // Simplified for brevity
-						};
+							if (bInside)
+							{
+								return true;
+							}
 
-				if (SphereIntersectsBox(Start, End, Radius, BottomVertices, TopVertices))
-				{
-					// For box obstacles, use the distance from start to the obstacle's center
-					const float DistSqr = FVector::DistSquared(Start, Avoiding.Location);
-					ProcessObstacle(Avoiding, DistSqr);
-				}
+							// 检查球体端点与面的距离
+							auto PointToFaceDistance = [](const FVector& Point, const TArray<FVector>& Face, const FVector& Normal) -> float
+								{
+									TRACE_CPUPROFILER_EVENT_SCOPE_STR("PointToFaceDistance");
+
+									// 计算点到平面的距离
+									const float PlaneDist = FMath::Abs(FVector::DotProduct(Normal, Point - Face[0]));
+
+									// 检查投影点是否在面内
+									bool bInside = true;
+									for (int i = 0; i < Face.Num(); ++i)
+									{
+										const FVector& CurrentVert = Face[i];
+										const FVector& NextVert = Face[(i + 1) % Face.Num()];
+										const FVector Edge = NextVert - CurrentVert;
+										const FVector ToPoint = Point - CurrentVert;
+
+										if (FVector::DotProduct(FVector::CrossProduct(Edge, ToPoint), Normal) < 0)
+										{
+											bInside = false;
+											break;
+										}
+									}
+
+									if (bInside)
+									{
+										return PlaneDist;
+									}
+
+									// 如果不在面内，计算到各边的最短距离
+									float MinDist = FLT_MAX;
+									for (int i = 0; i < Face.Num(); ++i)
+									{
+										const FVector& EdgeStart = Face[i];
+										const FVector& EdgeEnd = Face[(i + 1) % Face.Num()];
+
+										const FVector Edge = EdgeEnd - EdgeStart;
+										const FVector ToPoint = Point - EdgeStart;
+
+										const float EdgeLength = Edge.Size();
+										const float t = FMath::Clamp(FVector::DotProduct(ToPoint, Edge) / (EdgeLength * EdgeLength), 0.0f, 1.0f);
+										const FVector ClosestPoint = EdgeStart + t * Edge;
+
+										MinDist = FMath::Min(MinDist, FVector::Dist(Point, ClosestPoint));
+									}
+
+									return MinDist;
+								};
+
+							if (PointToFaceDistance(SphereStart, Face, Normal) <= SphereRadius || PointToFaceDistance(SphereEnd, Face, Normal) <= SphereRadius)
+							{
+								return true;
+							}
+						}
+
+						return false; // Simplified for brevity
+					};
+
+			if (SphereIntersectsBox(Start, End, Radius, BottomVertices, TopVertices))
+			{
+				// For box obstacles, use the distance from start to the obstacle's center
+				const float DistSqr = FVector::DistSquared(Start, Avoiding.Location);
+				ProcessObstacle(Avoiding, DistSqr);
 			}
+		}
 		};
 
 		// 检查静态/动态盒体障碍物
@@ -1039,9 +1040,10 @@ void UNeighborGridComponent::Decouple()
 		TArray<FIntVector> NeighbourCellCoords = GetNeighborCells(SelfLocation, SubjectRange3D);
 
 		// 使用最大堆收集最近的SubjectNeighbors
-		auto SubjectCompare = [&](const FAvoiding& A, const FAvoiding& B) {
+		auto SubjectCompare = [&](const FAvoiding& A, const FAvoiding& B) 
+		{
 			return FVector::DistSquared(SelfLocation, A.Location) > FVector::DistSquared(SelfLocation, B.Location);
-			};
+		};
 
 		TSet<uint32> SeenHashes;
 
@@ -1176,10 +1178,11 @@ void UNeighborGridComponent::Decouple()
 
 		//----------------------------Try Avoid SubjectNeighbors---------------------------------
 
-		Avoidance.MaxSpeed = Moving.DesiredVelocity.Size2D() * Moving.SpeedMult;
+		Avoidance.MaxSpeed = FMath::Clamp(Move.MoveSpeed * Moving.PassiveSpeedMult, Avoidance.RVO_MinAvoidSpeed, FLT_MAX);
 		Avoidance.DesiredVelocity = RVO::Vector2(Moving.DesiredVelocity.X, Moving.DesiredVelocity.Y);//copy into rvo trait
 		Avoidance.CurrentVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);//copy into rvo trait
-
+		
+		//float PreVelocity2D = Moving.CurrentVelocity.Size2D();
 		TArray<FAvoiding> EmptyArray;
 
 		ComputeNewVelocity(Avoidance, SubjectNeighbors, EmptyArray, DeltaTime);
@@ -1188,7 +1191,7 @@ void UNeighborGridComponent::Decouple()
 		{
 			FVector AvoidingVelocity(Avoidance.AvoidingVelocity.x(), Avoidance.AvoidingVelocity.y(), 0);
 			FVector CurrentVelocity(Avoidance.CurrentVelocity.x(), Avoidance.CurrentVelocity.y(), 0);
-			FVector InterpedVelocity = FMath::VInterpTo(CurrentVelocity, AvoidingVelocity, DeltaTime, Move.Acceleration / 100);
+			FVector InterpedVelocity = FMath::VInterpConstantTo(CurrentVelocity, AvoidingVelocity, DeltaTime, Move.Acceleration);
 			Moving.CurrentVelocity = FVector(InterpedVelocity.X, InterpedVelocity.Y, Moving.CurrentVelocity.Z); // velocity can only change so much because of inertia
 		}
 
@@ -1201,6 +1204,7 @@ void UNeighborGridComponent::Decouple()
 		ComputeNewVelocity(Avoidance, SphereObstacleNeighbors, BoxObstacleNeighbors, DeltaTime);
 
 		Moving.CurrentVelocity = FVector(Avoidance.AvoidingVelocity.x(), Avoidance.AvoidingVelocity.y(), Moving.CurrentVelocity.Z);// since obstacles are hard, we set velocity directly without any interpolation
+
 
 		//----------------------------------Set Location---------------------------------------
 

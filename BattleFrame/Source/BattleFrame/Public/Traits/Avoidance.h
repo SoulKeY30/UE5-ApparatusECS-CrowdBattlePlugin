@@ -36,6 +36,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ToolTip = "最大邻居数量", ClampMin = "1"))
     int32 MaxNeighbors = 8;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ToolTip = "保底解耦速度", ClampMin = "0"))
+    float RVO_MinAvoidSpeed = 100.f;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ToolTip = "提前躲避这个时间后会碰撞的单位", ClampMin = "0"))
     float RVO_TimeHorizon_Agent = 1.0f;
 

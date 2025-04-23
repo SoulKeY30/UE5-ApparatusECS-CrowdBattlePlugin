@@ -10,6 +10,7 @@ struct BATTLEFRAME_API FBoxObstacle
     GENERATED_BODY()
 
 public:
+
     bool isConvex_ = true;
 
     FSubjectHandle nextObstacle_;
@@ -27,5 +28,7 @@ public:
     bool bStatic = false;
 
     bool bRegistered = false;
+
+    bool bExcluded = false;
 
 };

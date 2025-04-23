@@ -8,6 +8,10 @@
 #include "SubjectHandle.h"
 #include "Traits/SubType.h"
 #include "Traits/TraceResult.h"
+#include "Traits/Patrol.h"
+#include "Traits/Collider.h"
+#include "Traits/Trace.h"
+#include "Traits/Located.h"
 #include "BattleFrameFunctionLibraryRT.generated.h"
 
 class ABattleFrameBattleControl;
@@ -26,6 +30,8 @@ class BATTLEFRAME_API UBattleFrameFunctionLibraryRT : public UBlueprintFunctionL
 	GENERATED_BODY()
 	
 public:
+
+    static FVector FindNewPatrolGoalLocation(const FPatrol& Patrol, const FCollider& Collider, const FTrace& Trace, const FLocated& Located, int32 MaxAttempts);
 
     UFUNCTION(BlueprintCallable, Category = "BattleFrame", meta = (AutoCreateRefTerm = "IgnoreSubjects"))
     static void SphereTraceForSubjects(

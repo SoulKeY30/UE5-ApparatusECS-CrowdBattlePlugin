@@ -34,6 +34,7 @@ public:
 	UNeighborGridComponent* NeighborGrid = nullptr;
 	bool bStatic = false;
 	bool bRegistered = false;
+	bool bExcluded = false;
 
 	FSphereObstacle() {};
 
@@ -46,6 +47,7 @@ public:
 		OverridingAgents = SphereObstacle.OverridingAgents;
 		bStatic = SphereObstacle.bStatic;
 		bRegistered = SphereObstacle.bRegistered;
+		bExcluded = SphereObstacle.bExcluded;
 	}
 
 	FSphereObstacle& operator=(const FSphereObstacle& SphereObstacle)
@@ -57,6 +59,7 @@ public:
 		OverridingAgents = SphereObstacle.OverridingAgents;
 		bStatic = SphereObstacle.bStatic;
 		bRegistered = SphereObstacle.bRegistered;
+		bExcluded = SphereObstacle.bExcluded;
 
 		return *this;
 	}

@@ -112,13 +112,19 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     AgentConfig.SetTrait(DataAsset->TextPop);
     AgentConfig.SetTrait(DataAsset->Curves);
     AgentConfig.SetTrait(DataAsset->CustomData);
-    //AgentConfig.SetTrait(DataAsset->Statistics);
 
     AgentConfig.SetTrait(FTracing{});
 
     UBattleFrameFunctionLibraryRT::SetSubTypeTraitByIndex(DataAsset->SubType.Index, AgentConfig);
 
+    auto& SourceAppear = AgentConfig.GetTraitRef<FAppear>();
     auto& SourceAnimation = AgentConfig.GetTraitRef<FAnimation>();
+
+    if (!SourceAppear.bEnable)
+    {
+        SourceAnimation.Dissolve = 0;
+    }
+
     SourceAnimation.AnimToTextureData = SourceAnimation.AnimToTextureDataAsset.LoadSynchronous(); // DataAsset Solid Pointer
 
     if (!IsValid(SourceAnimation.AnimToTextureData)) return SpawnedAgents;
@@ -194,6 +200,10 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
             SpawnPoint3D = FVector(SpawnPoint2D.X, SpawnPoint2D.Y, Collider.Radius + GetActorLocation().Z);
         }
 
+        auto& Patrol = Config.GetTraitRef<FPatrol>();
+        Patrol.Origin = SpawnPoint3D;
+        Move.Goal = SpawnPoint3D;
+
         FLocated spawnLocated;
         spawnLocated.Location = SpawnPoint3D;
         spawnLocated.preLocation = SpawnPoint3D;
@@ -236,7 +246,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
 
         Config.SetTrait(FDirected{ Direction });
 
-        Move.MaxSpeed *= Multipliers.SpeedMult;
+        Move.MoveSpeed *= Multipliers.SpeedMult;
 
         if (LaunchForce.Size() > 0)
         {         
@@ -262,31 +272,24 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
 
 void AAgentSpawner::ActivateAgent( FSubjectHandle Agent )
 {
-    if (Agent.GetTrait<FAppear>().bEnable)
+    auto& Appear = Agent.GetTraitRef<FAppear, EParadigm::Unsafe>();
+    auto& Sleep = Agent.GetTraitRef<FSleep, EParadigm::Unsafe>();
+    auto& Patrol = Agent.GetTraitRef<FPatrol, EParadigm::Unsafe>();
+
+    if (Appear.bEnable)
     {
         Agent.SetTrait(FAppearing());
     }
-    else
-    {
-        Agent.GetTraitRef<FAnimation, EParadigm::Unsafe>().Dissolve = 0;
-    }
 
-    if (Agent.GetTrait<FSleep>().bEnable)
+    if (Sleep.bEnable)
     {
         Agent.SetTrait(FSleeping());
     }
-
-    auto& Patrol = Agent.GetTraitRef<FPatrol,EParadigm::Unsafe>();
 
     if (Patrol.bEnable)
     {
         Agent.SetTrait(FPatrolling());
     }
-
-    auto Location = Agent.GetTrait<FLocated>().Location;
-
-    Patrol.Goal = Location;
-    Patrol.Origin = Location;
 
     Agent.SetTrait(FActivated());
 }
@@ -309,7 +312,7 @@ void AAgentSpawner::KillAgentsByIndex(int32 Index)
 {
     const auto Mechanism = UMachine::ObtainMechanism(GetWorld());
 
-    FFilter Filter = FFilter::Make<FAgent, FHealth>().Exclude<FDying>();
+    FFilter Filter = FFilter::Make<FAgent>().Exclude<FDying>();
     UBattleFrameFunctionLibraryRT::IncludeSubTypeTraitByIndex(Index, Filter);
 
     Mechanism->Operate<FUnsafeChain>(Filter,

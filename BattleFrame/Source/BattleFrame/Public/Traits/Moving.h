@@ -49,7 +49,8 @@ public:
 	  float LaunchTimer = 0;
 	  float PushBackSpeedOverride = 0;
 	  float FlyingHeight = 0;
-	  float SpeedMult = 1;
+	  float ActiveSpeedMult = 1;// the agent want to move at
+	  float PassiveSpeedMult = 1;
 
 	  FMoving() {};
 
@@ -64,11 +65,13 @@ public:
 	  	LaunchForce = Moving.LaunchForce;
 		LaunchTimer = Moving.LaunchTimer;
 		FlyingHeight = Moving.FlyingHeight;
-		SpeedMult = Moving.SpeedMult;
+		ActiveSpeedMult = Moving.ActiveSpeedMult;
+		PassiveSpeedMult = Moving.PassiveSpeedMult;
 
 		bFalling = Moving.bFalling;
 		bLaunching = Moving.bLaunching;
 		bPushedBack = Moving.bPushedBack;
+		//Goal = Moving.Goal;
 	  }
 
 	  FMoving& operator=(const FMoving& Moving)
@@ -82,11 +85,13 @@ public:
 		LaunchForce = Moving.LaunchForce;
 		LaunchTimer = Moving.LaunchTimer;
 		FlyingHeight = Moving.FlyingHeight;
-		SpeedMult = Moving.SpeedMult;
+		ActiveSpeedMult = Moving.ActiveSpeedMult;
+		PassiveSpeedMult = Moving.PassiveSpeedMult;
 
 		bFalling = Moving.bFalling;
 		bLaunching = Moving.bLaunching;
 		bPushedBack = Moving.bPushedBack;
+		//Goal = Moving.Goal;
 
 	  	return *this;
 	  }

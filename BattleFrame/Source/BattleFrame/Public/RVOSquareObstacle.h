@@ -15,6 +15,7 @@
 #include "Traits/Avoiding.h"
 #include "Traits/BoxObstacle.h"
 #include "Traits/Located.h"
+#include "Traits/Excluding.h"
 #include "RVOSquareObstacle.generated.h"
  
 UCLASS(Blueprintable)
@@ -41,6 +42,9 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RVOSquareObstacle")
     bool bInsideOut = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RVOSquareObstacle")
+    bool bExcludeFromVisibilityCheck = false;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RVOSquareObstacle")
     UBoxComponent* BoxComponent;

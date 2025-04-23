@@ -48,71 +48,71 @@ public:
 
 	GENERATED_BODY()
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "主类型标签"))
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "主类型"))
     FAgent Agent;
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "子类型属性"))
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "子类型"))
     FSubType SubType;
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "碰撞体属性"))
-    FCollider Collider;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "缩放属性"))
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "缩放"))
     FScaled Scale;
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "生命值属性"))
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "碰撞体"))
+    FCollider Collider;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "血量"))
     FHealth Health;
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "出生属性"))
-    FAppear Appear;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "索敌属性"))
-    FTrace Trace;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "休眠属性"))
-    FSleep Sleep;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "移动属性"))
-    FMove Move;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "巡逻属性"))
-    FPatrol Patrol;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "导航属性"))
-    FNavigation Navigation;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "避障属性"))
-    FAvoidance Avoidance;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "攻击属性"))
-    FAttack Attack;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "伤害属性"))
-    FDamage Damage;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "攻击造成减益效果"))
-    FDebuff Debuff;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "受击属性"))
-    FHit Hit;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "生命条属性"))
-    FHealthBar HealthBar;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "文本弹出属性"))
-    FTextPopUp TextPop;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "防御属性"))
-    FDefence Defence;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "死亡属性"))
-    FDeath Death;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "动画属性"))
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "动画"))
     FAnimation Animation;
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "曲线属性"))
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "曲线"))
     FCurves Curves;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "出生"))
+    FAppear Appear;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "休眠"))
+    FSleep Sleep;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "巡逻"))
+    FPatrol Patrol;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "索敌"))
+    FTrace Trace;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "移动"))
+    FMove Move;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "导航"))
+    FNavigation Navigation;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "避障/碰撞"))
+    FAvoidance Avoidance;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "攻击"))
+    FAttack Attack;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "伤害值"))
+    FDamage Damage;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "减益"))
+    FDebuff Debuff;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "受击"))
+    FHit Hit;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "血条"))
+    FHealthBar HealthBar;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "数字"))
+    FTextPopUp TextPop;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "抗性"))
+    FDefence Defence;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "死亡"))
+    FDeath Death;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "自定义数据"))
     FCustomData CustomData;

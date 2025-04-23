@@ -51,7 +51,8 @@ void ARVOSquareObstacle::BeginPlay()
     FLocated Located3{ Point3Location };
     FLocated Located4{ Point4Location };
 
-    FBoxObstacle BoxObstacle1{
+    FBoxObstacle BoxObstacle1
+    {
         true,
         FSubjectHandle(),
         RVO::Vector2(Point1Location.X, Point1Location.Y),
@@ -60,10 +61,12 @@ void ARVOSquareObstacle::BeginPlay()
         Point1Location,
         HeightValue,
         !bIsDynamicObstacle,
-        false
+        false,
+        bExcludeFromVisibilityCheck
     };
 
-    FBoxObstacle BoxObstacle2{
+    FBoxObstacle BoxObstacle2
+    {
         true,
         FSubjectHandle(),
         RVO::Vector2(Point2Location.X, Point2Location.Y),
@@ -72,10 +75,12 @@ void ARVOSquareObstacle::BeginPlay()
         Point2Location,
         HeightValue,
         !bIsDynamicObstacle,
-        false
+        false,
+        bExcludeFromVisibilityCheck
     };
 
-    FBoxObstacle BoxObstacle3{
+    FBoxObstacle BoxObstacle3
+    {
         true,
         FSubjectHandle(),
         RVO::Vector2(Point3Location.X, Point3Location.Y),
@@ -84,10 +89,12 @@ void ARVOSquareObstacle::BeginPlay()
         Point3Location,
         HeightValue,
         !bIsDynamicObstacle,
-        false
+        false,
+        bExcludeFromVisibilityCheck
     };
 
-    FBoxObstacle BoxObstacle4{
+    FBoxObstacle BoxObstacle4
+    {
         true,
         FSubjectHandle(),
         RVO::Vector2(Point4Location.X, Point4Location.Y),
@@ -96,10 +103,10 @@ void ARVOSquareObstacle::BeginPlay()
         Point4Location,
         HeightValue,
         !bIsDynamicObstacle,
-        false
+        false,
+        bExcludeFromVisibilityCheck
     };
 
-    // ����Subject Record
     FSubjectRecord Record1;
     FSubjectRecord Record2;
     FSubjectRecord Record3;
@@ -117,6 +124,7 @@ void ARVOSquareObstacle::BeginPlay()
 
     // Spawn Subjects
     AMechanism* Mechanism = UMachine::ObtainMechanism(GetWorld());
+
     Obstacle1 = Mechanism->SpawnSubject(Record1);
     Obstacle2 = Mechanism->SpawnSubject(Record2);
     Obstacle3 = Mechanism->SpawnSubject(Record3);
@@ -170,16 +178,16 @@ void ARVOSquareObstacle::Tick(float DeltaTime)
         Obstacle3.GetTraitPtr<FLocated, EParadigm::Unsafe>()->Location = Point3Location;
         Obstacle4.GetTraitPtr<FLocated, EParadigm::Unsafe>()->Location = Point4Location;
 
-        auto UpdateObstacle = [&](FSubjectHandle& Obstacle, const FVector& Location, const FVector& NextLocation) {
+        auto UpdateObstacle = [&](FSubjectHandle& Obstacle, const FVector& Location, const FVector& NextLocation) 
+        {
             FBoxObstacle* ObstacleData = Obstacle.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
+
             ObstacleData->point3d_ = Location;
             ObstacleData->point_ = RVO::Vector2(Location.X, Location.Y);
-            ObstacleData->unitDir_ = RVO::Vector2(
-                (NextLocation - Location).GetSafeNormal2D().X,
-                (NextLocation - Location).GetSafeNormal2D().Y
-            );
+            ObstacleData->unitDir_ = RVO::Vector2((NextLocation - Location).GetSafeNormal2D().X, (NextLocation - Location).GetSafeNormal2D().Y);
             ObstacleData->height_ = CurrentHeight;
-            };
+            ObstacleData->bExcluded = bExcludeFromVisibilityCheck;
+        };
 
         UpdateObstacle(Obstacle1, Point1Location, Point2Location);
         UpdateObstacle(Obstacle2, Point2Location, Point3Location);

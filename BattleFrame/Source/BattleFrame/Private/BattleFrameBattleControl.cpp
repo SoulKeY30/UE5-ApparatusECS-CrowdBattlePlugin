@@ -42,7 +42,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 	if (bIsGameOver || !CurrentWorld || !Mechanism || !NeighborGrid) return;
 
-	//----------------------数据统计-------------------------
+	//--------------------数据统计----------------------
 
 	// 统计Agent数量
 	#pragma region
@@ -83,7 +83,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentAppearMain");
 
-		FFilter Filter = FFilter::Make<FAgent, FRendering, FLocated, FDirected, FAppear, FAppearing, FActivated>();
+		FFilter Filter = FFilter::Make<FAgent, FRendering, FLocated, FDirected, FAppear, FAppearing, FAnimation, FActivated>();
 		auto Chain = Mechanism->EnchainSolid(Filter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
@@ -119,11 +119,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						QueueSound(Config);
 					}
 				}
-				else if (Appearing.time <= Appear.Delay)
-				{
-					// Wait
-				}
-				else if (Appearing.time > Appear.Delay && Appearing.time <= (Appear.Duration + Appear.Delay))
+				
+				if (Appearing.time >= Appear.Delay)
 				{
 					if (!Appear.bAppearStarted)
 					{
@@ -134,6 +131,10 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						{
 							Subject.SetTraitDeferred(FAppearDissolve{});
 						}
+						else
+						{
+							Animation.Dissolve = 0;// unhide
+						}
 
 						// Animation
 						if (Appear.bCanPlayAnim)
@@ -142,7 +143,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						}
 					}
 				}
-				else
+
+				if(Appearing.time >= (Appear.Duration + Appear.Delay))
 				{
 					Subject.RemoveTraitDeferred<FAppearing>();
 				}
@@ -171,9 +173,11 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				if (AppearAnim.animTime == 0)
 				{
 					// 状态机
+					Animation.PreviousSubjectState = ESubjectState::Dirty;
 					Animation.SubjectState = ESubjectState::Appearing;
 				}
-				else if (AppearAnim.animTime >= Appear.Duration)
+				
+				if (AppearAnim.animTime >= Appear.Duration)
 				{
 					Subject.RemoveTraitDeferred<FAppearAnim>();
 				}
@@ -214,118 +218,324 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	}
 	#pragma endregion
 
-
-	//----------------------移动-----------------------
-
-	// 冰冻减速
+	//----------------------索敌-----------------------
+	
+	// 巡逻
 	#pragma region
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentFrozen");
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("Patrol");
 
-		FFilter Filter = FFilter::Make<FAgent, FRendering, FAnimation, FFreezing, FActivated>();
-		Filter.Exclude<FAppearing, FDying>();
+		FFilter Filter = FFilter::Make<FAgent, FRendering, FLocated, FTrace, FPatrol, FCollider, FMove, FActivated>();
+		Filter.Exclude<FAppearing, FSleeping, FAttacking, FDying>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
+
+		// Lambda for resetting timer
+		auto ResetTimer = [](const FPatrol& Patrol, FPatrolling& Patrolling)
+		{
+			Patrolling.MoveTimeLeft = Patrol.MaxMovingTime;
+			Patrolling.WaitTimeLeft = Patrol.CoolDown;
+		};
+
+		// Lambda for resetting origin
+		auto ResetOrigin = [](FPatrol& Patrol, const FLocated& Located)
+		{
+			if (Patrol.OriginMode == EPatrolOriginMode::Previous)
+			{
+				Patrol.Origin = Located.Location; // use current loc
+			}
+			else
+			{
+				Patrol.Origin = Located.InitialLocation; // use init loc
+			}
+		};
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
-				FAnimation& Animation,
-				FFreezing& Freezing)
+				FLocated& Located,
+				FTrace& Trace,
+				FPatrol& Patrol,
+				FCollider& Collider,
+				FMove& Move)
 			{
-				// 更新计时器
-				if (Freezing.FreezeTimeout > 0.f)
+				if (!Patrol.bEnable) return;
+
+				// 巡逻逻辑
+				if (Subject.HasTrait<FPatrolling>())
 				{
-					Freezing.FreezeTimeout -= DeltaTime;
-				}
+					auto& Patrolling = Subject.GetTraitRef<FPatrolling, EParadigm::Unsafe>();
 
-				// 计时器结束
-				if (Freezing.FreezeTimeout <= 0.f)
-				{
-					// 设置DP为0，怪物颜色复原
-					Animation.FreezeFx = 0;
-					Animation.PreviousSubjectState = ESubjectState::Dirty; // 强制刷新动画状态机
+					// 检查是否到达目标点
+					const bool bHasArrived = FVector::Dist2D(Located.Location, Move.Goal) < Patrol.AcceptanceRadius;
 
-					// 怪物可以解耦
-					Subject.RemoveTraitDeferred<FFreezing>();
-				}
-
-			}, ThreadsCount, BatchSize);
-	}
-	#pragma endregion
-
-	// 速度覆盖
-	#pragma region
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("SpeedLimitOverride");
-
-		FFilter Filter = FFilter::Make<FCollider, FLocated, FSphereObstacle>();
-
-		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
-
-		Chain->OperateConcurrently(
-			[&](FCollider Collider,
-				FLocated Located,
-				FSphereObstacle& SphereObstacle)
-			{
-				TArray<FTraceResult> Results; // 改为FTraceResult数组
-
-				if (UNLIKELY(!IsValid(SphereObstacle.NeighborGrid))) return;
-
-				if (!SphereObstacle.bOverrideSpeedLimit) return;
-
-				// 调用修改后的SphereTraceForSubjects函数
-				SphereObstacle.NeighborGrid->SphereTraceForSubjects(Located.Location, Collider.Radius, TArray<FSubjectHandle>(), FFilter::Make<FAgent, FLocated, FCollider, FMoving>(), Results);
-
-				// 处理结果
-				if (!Results.IsEmpty())
-				{
-					// 清空并重新填充OverridingAgents
-					SphereObstacle.OverridingAgents.Empty();
-					for (const FTraceResult& Result : Results)
+					if (bHasArrived)
 					{
-						if (Result.Subject.IsValid())
+						// 到达目标点后的等待逻辑
+						if (Patrolling.WaitTimeLeft <= 0.f)
 						{
-							SphereObstacle.OverridingAgents.Add(Result.Subject);
+							ResetOrigin(Patrol, Located);
+							ResetTimer(Patrol, Patrolling);
+							Move.Goal = UBattleFrameFunctionLibraryRT::FindNewPatrolGoalLocation(Patrol, Collider, Trace, Located, 3);					
+						}
+						else
+						{
+							Patrolling.WaitTimeLeft -= DeltaTime;
+						}
+					}
+					else
+					{
+						// 移动超时逻辑
+						if (Patrolling.MoveTimeLeft <= 0.f)
+						{
+							ResetOrigin(Patrol, Located);
+							ResetTimer(Patrol, Patrolling);
+							Move.Goal = UBattleFrameFunctionLibraryRT::FindNewPatrolGoalLocation(Patrol, Collider, Trace, Located, 3);
+						}
+						else
+						{
+							Patrolling.MoveTimeLeft -= DeltaTime;
 						}
 					}
 				}
 
-				if (SphereObstacle.OverridingAgents.IsEmpty()) return;
-
-				TSet<FSubjectHandle> Agents = SphereObstacle.OverridingAgents;
-
-				for (const auto& Agent : Agents)
+				// 重新进入巡逻状态的逻辑
+				else if (!Trace.TraceResult.IsValid() && Patrol.OnLostTarget == EPatrolRecoverMode::Patrol)
 				{
-					if (UNLIKELY(!Agent.IsValid())) continue;
+					FPatrolling NewPatrolling;
+					ResetOrigin(Patrol, Located);
+					ResetTimer(Patrol, NewPatrolling);
+					Subject.SetTraitDeferred(NewPatrolling);
 
-					float AgentRadius = Agent.GetTrait<FCollider>().Radius;
-					float SphereObstacleRadius = Collider.Radius;
-					float CombinedRadius = AgentRadius + SphereObstacleRadius;
-					FVector AgentLocation = Agent.GetTrait<FLocated>().Location;
-					float Distance = FVector::Distance(Located.Location, AgentLocation);
-
-					FMoving& AgentMoving = Agent.GetTraitRef<FMoving, EParadigm::Unsafe>();
-
-					if (Distance < CombinedRadius)
-					{
-						AgentMoving.Lock();
-						AgentMoving.bPushedBack = true;
-						AgentMoving.PushBackSpeedOverride = SphereObstacle.NewSpeedLimit;
-						AgentMoving.Unlock();
-					}
-					else if (Distance > CombinedRadius * 1.25f)
-					{
-						AgentMoving.Lock();
-						AgentMoving.bPushedBack = false;
-						AgentMoving.Unlock();
-						SphereObstacle.OverridingAgents.Remove(Agent);
-					}
+					Move.Goal = UBattleFrameFunctionLibraryRT::FindNewPatrolGoalLocation(Patrol, Collider, Trace, Located, 3);
 				}
+
 			}, ThreadsCount, BatchSize);
 	}
 	#pragma endregion
+
+	// 索敌
+	#pragma region
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentTrace");
+
+		// Trace Player 0
+		bool bPlayerIsValid = false;
+		FVector PlayerLocation;
+		FSubjectHandle PlayerHandle;
+		APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(CurrentWorld, 0);
+
+		if (IsValid(PlayerPawn))
+		{
+			USubjectiveActorComponent* SubjectiveComponent = PlayerPawn->FindComponentByClass<USubjectiveActorComponent>();
+
+			if (IsValid(SubjectiveComponent))
+			{
+				PlayerHandle = SubjectiveComponent->GetHandle();
+
+				if (PlayerHandle.IsValid())
+				{
+					if (PlayerHandle.HasTrait<FLocated>() && PlayerHandle.HasTrait<FHealth>() && !PlayerHandle.HasTrait<FDying>())
+					{
+						PlayerLocation = PlayerPawn->GetActorLocation();
+						bPlayerIsValid = true;
+					}
+				}
+			}
+		}
+
+		// Trace By Filter
+		FFilter Filter = FFilter::Make<FAgent, FTrace, FLocated, FDirected, FCollider, FSleep, FPatrol, FActivated>();
+		Filter.Exclude<FAppearing,FAttacking, FDying>();
+
+		auto Chain = Mechanism->EnchainSolid(Filter);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, 200, ThreadsCount, BatchSize);
+
+		TArray<FValidSubjects> ValidSubjectsArray;
+		ValidSubjectsArray.SetNum(ThreadsCount);
+
+		// A workaround. Apparatus does not expose the array of iterables, so we have to gather manually
+		Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FTrace& Trace)
+			{
+				bool bShouldTrace = false;
+
+				if (Trace.TimeLeft <= 0)
+				{
+					Trace.TimeLeft = Trace.CoolDown;
+					bShouldTrace = true;
+				}
+				else
+				{
+					Trace.TimeLeft -= DeltaTime;
+				}
+
+				if (bShouldTrace)// we add iterables into separate arrays and then apend them.
+				{
+					uint32 ThreadId = FPlatformTLS::GetCurrentThreadId();
+					uint32 index = ThreadId % ThreadsCount;// this may not evenly distribute, but well enough
+
+					if (LIKELY(ValidSubjectsArray.IsValidIndex(index)))
+					{
+						ValidSubjectsArray[index].Lock();// we lock child arrays individually
+						ValidSubjectsArray[index].Subjects.Add(Subject);
+						ValidSubjectsArray[index].Unlock();
+					}
+				}
+
+			}, ThreadsCount, BatchSize);
+
+		TArray<FSolidSubjectHandle> ValidSubjects;
+
+		for (auto& CurrentArray : ValidSubjectsArray)
+		{
+			ValidSubjects.Append(CurrentArray.Subjects);
+		}
+
+		// 并行处理筛选结果
+		ParallelFor(ValidSubjects.Num(), [&](int32 Index)
+			{
+				FSolidSubjectHandle Subject = ValidSubjects[Index];
+
+				FLocated& Located = Subject.GetTraitRef<FLocated>();
+				FDirected& Directed = Subject.GetTraitRef<FDirected>();
+				FCollider& Collider = Subject.GetTraitRef<FCollider>();
+
+				FTrace& Trace = Subject.GetTraitRef<FTrace>();
+				FSleep& Sleep = Subject.GetTraitRef<FSleep>();
+				FPatrol& Patrol = Subject.GetTraitRef<FPatrol>();
+
+				const bool bIsSleeping = Subject.HasTrait<FSleeping>();
+				const bool bIsPatrolling = Subject.HasTrait<FPatrolling>();
+
+				float FinalRange = 0;
+				float FinalAngle = 0;
+				bool FinalCheckVisibility = false;
+
+				if (bIsSleeping)
+				{
+					FinalRange = Sleep.TraceRadius;
+					FinalAngle = Sleep.TraceAngle;
+					FinalCheckVisibility = Sleep.bCheckVisibility;
+				}
+				else if (bIsPatrolling)
+				{
+					FinalRange = Patrol.TraceRadius;
+					FinalAngle = Patrol.TraceAngle;
+					FinalCheckVisibility = Patrol.bCheckVisibility;
+				}
+				else
+				{
+					FinalRange = Trace.TraceRadius;
+					FinalAngle = Trace.TraceAngle;
+					FinalCheckVisibility = Trace.bCheckVisibility;
+				}
+
+				switch (Trace.Mode)
+				{
+				case ETraceMode::TargetIsPlayer_0:
+				{
+					Trace.TraceResult = FSubjectHandle{};
+
+					if (bPlayerIsValid)
+					{
+						// 计算目标半径和实际距离
+						float OtherRadius = Trace.TraceResult.HasTrait<FCollider>() ? Trace.TraceResult.GetTrait<FCollider>().Radius : 0;
+						float Distance = FMath::Clamp(FVector::Dist(Located.Location, PlayerLocation) - Collider.Radius - OtherRadius, 0, FLT_MAX);
+
+						// 距离检查
+						if (Distance <= FinalRange)
+						{
+							// 角度检查
+							const FVector ToPlayerDir = (PlayerLocation - Located.Location).GetSafeNormal();
+							const float DotValue = FVector::DotProduct(Directed.Direction, ToPlayerDir);
+							const float AngleDiff = FMath::RadiansToDegrees(FMath::Acos(DotValue));
+
+							if (AngleDiff <= FinalAngle * 0.5f)
+							{
+								if (FinalCheckVisibility && IsValid(Trace.NeighborGrid))
+								{
+									bool Hit = false;
+									FTraceResult Result;
+									Trace.NeighborGrid->SphereSweepForObstacle(Located.Location, PlayerLocation, Collider.Radius, Hit, Result);
+
+									if (!Hit)
+									{
+										Trace.TraceResult = PlayerHandle;
+									}
+								}
+								else
+								{
+									Trace.TraceResult = PlayerHandle;
+								}
+							}
+						}
+					}
+					break;
+				}
+
+				case ETraceMode::SectorTraceByTraits:
+				{
+					Trace.TraceResult = FSubjectHandle{};
+
+					if (LIKELY(IsValid(Trace.NeighborGrid)))
+					{
+						FFilter TargetFilter;
+						FSubjectHandle Result;
+
+						TargetFilter.Include(Trace.IncludeTraits);
+						TargetFilter.Exclude(Trace.ExcludeTraits);
+
+						// 使用扇形检测替换球体检测
+						const FVector TraceDirection = Directed.Direction.GetSafeNormal2D();
+						const float TraceHeight = Collider.Radius * 2.0f; // 根据实际需求调整高度
+
+						// ignore self
+						TArray<FSubjectHandle> IgnoreList;
+						IgnoreList.Add(FSubjectHandle(Subject));
+
+						Trace.NeighborGrid->SectorExpandForSubject(
+							Located.Location,   // 检测原点
+							FinalRange,         // 检测半径
+							TraceHeight,        // 检测高度
+							TraceDirection,     // 扇形方向
+							FinalAngle,         // 扇形角度
+							FinalCheckVisibility,
+							IgnoreList,
+							TargetFilter,       // 过滤条件
+							Result              // 输出结果
+						);
+
+						// 直接使用结果（扇形检测已包含角度验证）
+						if (Result.IsValid())
+						{
+							Trace.TraceResult = Result;
+						}
+					}
+					break;
+				}
+				}
+
+				// if we have a valid target, we stop sleeping or patrolling
+				if (Trace.TraceResult.IsValid())
+				{
+					if (bIsSleeping)
+					{
+						Subject.RemoveTraitDeferred<FSleeping>();
+					}
+
+					if (bIsPatrolling)
+					{
+						Subject.RemoveTraitDeferred<FPatrolling>();
+					}
+				}
+
+			}, EParallelForFlags::BackgroundPriority | EParallelForFlags::Unbalanced);
+
+		Mechanism->ApplyDeferreds();
+	}
+	#pragma endregion
+
+	//----------------------移动-----------------------
 
 	// 加载流场
 	#pragma region
@@ -394,147 +604,103 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	}
 	#pragma endregion
 
-	// 巡逻
+	// 冰冻减速
 	#pragma region
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("Patrol");
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentFrozen");
 
-		FFilter Filter = FFilter::Make<FAgent, FRendering, FLocated, FTrace, FPatrol, FCollider, FActivated>();
-		Filter.Exclude<FAppearing, FSleeping, FAttacking, FDying>();
+		FFilter Filter = FFilter::Make<FAgent, FRendering, FAnimation, FFreezing, FActivated>();
+		Filter.Exclude<FDying>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
-		// Lambda for finding a new goal location. To Do : Add pathfinding and obstacle tracing here
-		auto FindNewGoalLocation = [&](const FPatrol& Patrol, const FCollider& Collider, const FTrace& Trace, const FLocated& Located)
-		{
-			TRACE_CPUPROFILER_EVENT_SCOPE_STR("FindNewGoalLocation");
-
-			const int32 MaxAttempts = 1; // 最大尝试次数
-			FVector NewGoal = Located.Location;
-
-			// 获取NeighborGridComponent引用
-			UNeighborGridComponent* NeighborGrid = Trace.NeighborGrid;
-
-			if (!IsValid(NeighborGrid))
+		Chain->OperateConcurrently(
+			[&](FSolidSubjectHandle Subject,
+				FAnimation& Animation,
+				FFreezing& Freezing)
 			{
-				// 如果没有有效的NeighborGrid，回退到简单环形随机位置
-				float Angle = FMath::FRandRange(0.f, 2.f * PI);
-				float Distance = FMath::FRandRange(Patrol.PatrolRadiusMin, Patrol.PatrolRadiusMax); // 使用环形范围
-				return Patrol.Origin + FVector(FMath::Cos(Angle) * Distance, FMath::Sin(Angle) * Distance, 0.f);
-			}
-
-			for (int32 Attempt = 0; Attempt < MaxAttempts; ++Attempt)
-			{
-				// 随机生成环形区域内的目标位置
-				float Angle = FMath::FRandRange(0.f, 2.f * PI);
-				float Distance = FMath::FRandRange(Patrol.PatrolRadiusMin, Patrol.PatrolRadiusMax); // 确保在环形范围内
-				NewGoal = Patrol.Origin + FVector(FMath::Cos(Angle) * Distance, FMath::Sin(Angle) * Distance, 0.f);
-
-				// 使用NeighborGridComponent检查可见性
-				if (Patrol.bCheckVisibility)
+				// 更新计时器
+				if (Freezing.FreezeTimeout > 0.f)
 				{
-					bool Hit = false;
-					FTraceResult Result;
-					NeighborGrid->SphereSweepForObstacle(Located.Location, NewGoal, Collider.Radius, Hit, Result);
-
-					if (!Hit)
-					{
-						return NewGoal;
-					}
+					Freezing.FreezeTimeout -= DeltaTime;
 				}
-			}
 
-			// 如果多次尝试都找不到可见点，返回最后一次尝试的位置
-			return NewGoal;
-		};
+				// 计时器结束
+				if (Freezing.FreezeTimeout <= 0.f)
+				{
+					// 设置DP为0，怪物颜色复原
+					Animation.FreezeFx = 0;
+					Animation.PreviousSubjectState = ESubjectState::Dirty; // 强制刷新动画状态机
 
-		// Lambda for resetting timer
-		auto ResetTimer = [](const FPatrol& Patrol, FPatrolling& Patrolling) 
-		{
-			Patrolling.MoveTimeLeft = Patrol.MaxMovingTime;
-			Patrolling.WaitTimeLeft = Patrol.CoolDown;
-		};
+					// 怪物可以解耦
+					Subject.RemoveTraitDeferred<FFreezing>();
+				}
 
-		// Lambda for resetting origin
-		auto ResetOrigin = [](FPatrol& Patrol, const FLocated& Located) 
-		{
-			if (Patrol.OriginMode == EPatrolOriginMode::Previous) 
-			{
-				Patrol.Origin = Located.Location; // use current loc
-			}
-			else 
-			{
-				Patrol.Origin = Located.InitialLocation; // use init loc
-			}
-		};
+			}, ThreadsCount, BatchSize);
+	}
+	#pragma endregion
+
+	// 速度覆盖
+	#pragma region
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("SpeedLimitOverride");
+
+		FFilter Filter = FFilter::Make<FCollider, FLocated, FSphereObstacle>();
+
+		auto Chain = Mechanism->EnchainSolid(Filter);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently(
-			[&, DeltaTime = DeltaTime](FSolidSubjectHandle Subject,
-				FLocated& Located,
-				FTrace& Trace,
-				FPatrol& Patrol,
-				FCollider& Collider)
+			[&](FCollider Collider,
+				FLocated Located,
+				FSphereObstacle& SphereObstacle)
 			{
-				if (!Patrol.bEnable) return;
+				if (UNLIKELY(!IsValid(SphereObstacle.NeighborGrid))) return;
 
-				// 如果有追踪目标，使用目标位置
-				if (Trace.TraceResult.IsValid() && Trace.TraceResult.HasTrait<FLocated>())
+				if (!SphereObstacle.bOverrideSpeedLimit) return;
+
+				TArray<FTraceResult> Results;
+				SphereObstacle.NeighborGrid->SphereTraceForSubjects(Located.Location, Collider.Radius, SphereObstacle.OverridingAgents.Array(), FFilter::Make<FAgent, FLocated, FCollider, FMoving, FActivated>(), Results);
+
+				if (Results.IsEmpty()) return;
+
+				for (const FTraceResult& Result : Results)
 				{
-					Patrol.Goal = Trace.TraceResult.GetTrait<FLocated>().Location;
+					SphereObstacle.OverridingAgents.Add(Result.Subject);
 				}
 
-				// 巡逻逻辑
-				if (Subject.HasTrait<FPatrolling>())
+				TSet<FSubjectHandle> Agents = SphereObstacle.OverridingAgents;
+
+				for (const auto& Agent : Agents)
 				{
-					auto& Patrolling = Subject.GetTraitRef<FPatrolling, EParadigm::Unsafe>();
+					if (!Agent.IsValid()) continue;
 
-					// 检查是否到达目标点
-					const bool bHasArrived = FVector::Dist2D(Located.Location, Patrol.Goal) < Collider.Radius;
+					float AgentRadius = Agent.GetTrait<FCollider>().Radius;
+					float SphereObstacleRadius = Collider.Radius;
+					float CombinedRadius = AgentRadius + SphereObstacleRadius;
+					FVector AgentLocation = Agent.GetTrait<FLocated>().Location;
+					float Distance = FVector::Distance(Located.Location, AgentLocation);
 
-					if (bHasArrived)
+					FMoving& AgentMoving = Agent.GetTraitRef<FMoving, EParadigm::Unsafe>();
+
+					if (Distance < CombinedRadius)
 					{
-						// 到达目标点后的等待逻辑
-						if (Patrolling.WaitTimeLeft <= 0.f)
-						{
-							ResetTimer(Patrol, Patrolling);
-							ResetOrigin(Patrol, Located);
-							Patrol.Goal = FindNewGoalLocation(Patrol, Collider, Trace, Located);
-						}
-						else
-						{
-							Patrolling.WaitTimeLeft -= DeltaTime;
-						}
+						AgentMoving.Lock();
+						AgentMoving.bPushedBack = true;
+						AgentMoving.PushBackSpeedOverride = SphereObstacle.NewSpeedLimit;
+						AgentMoving.Unlock();
 					}
-					else
+					else if (Distance > CombinedRadius * 1.25f)
 					{
-						// 移动超时逻辑
-						if (Patrolling.MoveTimeLeft <= 0.f)
-						{
-							ResetTimer(Patrol, Patrolling);
-							ResetOrigin(Patrol, Located);
-							Patrol.Goal = FindNewGoalLocation(Patrol, Collider, Trace, Located);
-						}
-						else
-						{
-							Patrolling.MoveTimeLeft -= DeltaTime;
-						}
+						AgentMoving.Lock();
+						AgentMoving.bPushedBack = false;
+						AgentMoving.Unlock();
+						SphereObstacle.OverridingAgents.Remove(Agent);
 					}
 				}
 
-				// 重新进入巡逻状态的逻辑
-				else if (!Trace.TraceResult.IsValid() && Patrol.OnLostTarget == EPatrolRecoverMode::Patrol)
-				{
-					TRACE_CPUPROFILER_EVENT_SCOPE_STR("Re-patrol");
-
-					FPatrolling NewPatrolling;
-					ResetTimer(Patrol, NewPatrolling);
-					ResetOrigin(Patrol, Located);
-
-					Subject.SetTraitDeferred(NewPatrolling);
-				}
-
-			},ThreadsCount,BatchSize);
+			}, ThreadsCount, BatchSize);
 	}
 	#pragma endregion
 
@@ -544,7 +710,6 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentMovement");
 
 		FFilter Filter = FFilter::Make<FAgent, FRendering, FAnimation, FMove, FMoving, FDirected, FLocated, FAttack, FTrace, FNavigation, FAvoidance, FCollider, FDefence, FPatrol, FActivated>();
-		Filter.Exclude<FAppearing>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
@@ -573,100 +738,111 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					return;
 				}
 
+				const bool bIsValidFF = IsValid(Navigation.FlowField);
+
+				// 必须要有一个流场
+				if (!bIsValidFF) return;
+
+				const bool bIsAppearing = Subject.HasTrait<FAppearing>();
 				const bool bIsSleeping = Subject.HasTrait<FSleeping>();
 				const bool bIsPatrolling = Subject.HasTrait<FPatrolling>();
 				const bool bIsAttacking = Subject.HasTrait<FAttacking>();
 				const bool bIsFreezing = Subject.HasTrait<FFreezing>();
 				const bool bIsDying = Subject.HasTrait<FDying>();
 
-				const bool bIsValidFF = IsValid(Navigation.FlowField);
 				const bool bIsValidTraceResult = Trace.TraceResult.IsValid();
 				const bool bIsTraceResultHasLocated = bIsValidTraceResult ? Trace.TraceResult.HasTrait<FLocated>() : false;
 				const bool bIsTraceResultHasBindFlowField = bIsValidTraceResult ? Trace.TraceResult.HasTrait<FBindFlowField>() : false;
 
 				// 初始化
 				FVector& AgentLocation = Located.Location;
-				FVector GoalLocation = AgentLocation;
 				FVector DesiredMoveDirection = FVector::ZeroVector;
-				Moving.SpeedMult = 1;
+				Moving.ActiveSpeedMult = 1;
+				Moving.PassiveSpeedMult = 1;
 
+				// 默认流场, 必须获取因为之后要用到地面高度
 				bool bInside_BaseFF = false;
 				FCellStruct Cell_BaseFF = FCellStruct{};
-				bool bInside_TargetFF = false;
-				FCellStruct Cell_TargetFF = FCellStruct{};
+				Navigation.FlowField->GetCellAtLocation(AgentLocation, bInside_BaseFF, Cell_BaseFF);
 
 
 				//----------------------------- 寻路 ----------------------------//
 
-				// Lambda to handle direct approach logic WIP add individual navigation in here
-				auto TryApproachDirectly = [&]()
+				if (!bIsAppearing)// Appearing不寻路
 				{
-					if (bIsTraceResultHasLocated)
+					if (bIsPatrolling)// Patrolling直接向目标点移动，之后要做个体寻路
 					{
-						GoalLocation = Trace.TraceResult.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
-						DesiredMoveDirection = (GoalLocation - AgentLocation).GetSafeNormal2D();
+						DesiredMoveDirection = (Move.Goal - AgentLocation).GetSafeNormal2D();
 					}
 					else
 					{
-						Moving.SpeedMult = 0;
-					}
-				};
-
-				// 默认流场, 必须获取因为之后要用到地面高度
-				if (bIsValidFF)
-				{
-					Navigation.FlowField->GetCellAtLocation(AgentLocation, bInside_BaseFF, Cell_BaseFF);
-
-					if (!bIsPatrolling)
-					{
-						if (bInside_BaseFF)
+						if (!bIsValidTraceResult) // 无攻击目标
 						{
-							GoalLocation = Navigation.FlowField->goalLocation;
-							DesiredMoveDirection = Cell_BaseFF.dir.GetSafeNormal2D();
-						}
-						else
-						{
-							Moving.SpeedMult = 0;
-						}
-					}
-				}
-
-				if (bIsPatrolling)// if patrolling
-				{
-					GoalLocation = Patrol.Goal;
-					DesiredMoveDirection = (GoalLocation - AgentLocation).GetSafeNormal2D();
-				}
-
-				if (bIsValidTraceResult) // 有目标，目标有指向目标自己的流场
-				{
-					if (bIsTraceResultHasBindFlowField)
-					{
-						FBindFlowField BindFlowField = Trace.TraceResult.GetTrait<FBindFlowField>();
-
-						if (IsValid(BindFlowField.FlowField)) // 从目标获取指向目标的流场
-						{
-							BindFlowField.FlowField->GetCellAtLocation(AgentLocation, bInside_TargetFF, Cell_TargetFF);
-
-							if (bInside_TargetFF)
+							if (bInside_BaseFF)
 							{
-								GoalLocation = BindFlowField.FlowField->goalLocation;
-								DesiredMoveDirection = Cell_TargetFF.dir.GetSafeNormal2D();
+								Move.Goal = Navigation.FlowField->goalLocation;
+								DesiredMoveDirection = Cell_BaseFF.dir.GetSafeNormal2D();
 							}
 							else
 							{
-								TryApproachDirectly();
+								Moving.PassiveSpeedMult = 0;
 							}
 						}
 						else
 						{
-							TryApproachDirectly();
+							// 直接向攻击目标移动，之后要做个体寻路
+							auto ApproachTraceResultDirectly = [&]()
+							{
+								if (bIsTraceResultHasLocated)
+								{
+									Move.Goal = Trace.TraceResult.GetTrait<FLocated>().Location;
+									DesiredMoveDirection = (Move.Goal - AgentLocation).GetSafeNormal2D();
+								}
+								else
+								{
+									Moving.ActiveSpeedMult = 0;
+								}
+							};
+
+							if (bIsTraceResultHasLocated)
+							{
+								Move.Goal = Trace.TraceResult.GetTrait<FLocated>().Location;
+							}
+
+							if (bIsTraceResultHasBindFlowField)
+							{
+								AFlowField* BindFlowField = Trace.TraceResult.GetTrait<FBindFlowField>().FlowField;
+
+								if (IsValid(BindFlowField)) // 从目标获取指向目标的流场
+								{
+									bool bInside_TargetFF = false;
+									FCellStruct Cell_TargetFF = FCellStruct{};
+
+									BindFlowField->GetCellAtLocation(AgentLocation, bInside_TargetFF, Cell_TargetFF);
+
+									if (bInside_TargetFF)
+									{
+										Move.Goal = BindFlowField->goalLocation;
+										DesiredMoveDirection = Cell_TargetFF.dir.GetSafeNormal2D();
+									}
+									else
+									{
+										ApproachTraceResultDirectly();
+									}
+								}
+								else
+								{
+									ApproachTraceResultDirectly();
+								}
+							}
+							else
+							{
+								ApproachTraceResultDirectly();
+							}
 						}
 					}
-					else
-					{
-						TryApproachDirectly();
-					}
 				}
+				
 
 				//--------------------------- 计算水平速度 ----------------------------//
 
@@ -677,7 +853,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 					FVector XYDir = Moving.CurrentVelocity.GetSafeNormal2D();
 					float XYSpeed = Moving.CurrentVelocity.Size2D();
-					XYSpeed = FMath::Clamp(XYSpeed, 0, Move.MaxSpeed + Defence.KineticMaxImpulse);
+					XYSpeed = FMath::Clamp(XYSpeed, 0, Move.MoveSpeed + Defence.KineticMaxImpulse);
 					FVector XYVelocity = XYSpeed * XYDir;
 
 					float ZSpeed = Moving.CurrentVelocity.Z;
@@ -699,104 +875,107 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				// 速度-夹角曲线
 				const TRange<float> TurnInputRange(Move.TurnSpeedRangeMap.X, Move.TurnSpeedRangeMap.Z);
 				const TRange<float> TurnOutputRange(Move.TurnSpeedRangeMap.Y, Move.TurnSpeedRangeMap.W);
-				Moving.SpeedMult *= FMath::GetMappedRangeValueClamped(TurnInputRange, TurnOutputRange, AngleDegrees);
+				Moving.ActiveSpeedMult *= FMath::GetMappedRangeValueClamped(TurnInputRange, TurnOutputRange, AngleDegrees);
 
-				// 朝向
-				if (!bIsSleeping && !Moving.bFalling && !bIsDying)
-				{
-					float SlowFactor = 1;
-
-					if (bIsFreezing)
-					{
-						// 减速转向
-						const auto& Freezing = Subject.GetTraitRef<FFreezing, EParadigm::Unsafe>();
-						SlowFactor = 1.0f - Freezing.FreezeStr;
-					}
-
-					float DeltaV = FMath::Abs(Moving.DesiredVelocity.Size2D() - Moving.CurrentVelocity.Size2D());
-
-					if (AngleDegrees < 90.f && DeltaV > 100.f)// 一致，朝向实际移动的方向
-					{
-						if (!(bIsAttacking && Subject.GetTrait<FAttacking>().State != EAttackState::Cooling))
-						{
-							Directed.DesiredRot = Moving.CurrentVelocity.GetSafeNormal2D().ToOrientationRotator();//the current velocity direction
-						}
-
-						const FRotator CurrentRot = Directed.Direction.ToOrientationRotator();
-						const FRotator InterpolatedRot = FMath::RInterpTo(CurrentRot, Directed.DesiredRot, DeltaTime, Move.TurnSpeed * SlowFactor);
-						Directed.Direction = InterpolatedRot.Vector();
-					}
-					else// 不一致，朝向想要移动的方向
-					{
-						if (!(bIsAttacking && Subject.GetTrait<FAttacking>().State != EAttackState::Cooling))
-						{
-							Directed.DesiredRot = DesiredMoveDirection.GetSafeNormal2D().ToOrientationRotator();
-						}
-
-						const FRotator CurrentRot = Directed.Direction.ToOrientationRotator();
-						const FRotator InterpolatedRot = FMath::RInterpTo(CurrentRot, Directed.DesiredRot, DeltaTime, Move.TurnSpeed * SlowFactor);
-						Directed.Direction = InterpolatedRot.Vector();
-						DesiredMoveDirection = Directed.Direction;
-					}
-				}
+				float DistanceToGoal = FVector::Dist2D(AgentLocation, Move.Goal);
 
 				// 减速
-				if (bIsSleeping || bIsDying)
+				if (bIsAppearing || bIsSleeping || bIsDying)
 				{
-					Moving.SpeedMult = 0.0f; // 停止移动
+					Moving.ActiveSpeedMult = 0.0f; // 不移动
 				}
-				else if (bIsAttacking)
+				
+				if (bIsPatrolling)// 抵达巡逻目标点后停止移动
+				{
+					if (DistanceToGoal <= Patrol.AcceptanceRadius)
+					{
+						Moving.ActiveSpeedMult = 0;
+					}
+					else
+					{
+						Moving.ActiveSpeedMult *= Patrol.MoveSpeedMult;
+					}
+				}
+				
+				if (bIsAttacking)
 				{
 					EAttackState State = Subject.GetTraitRef<FAttacking, EParadigm::Unsafe>().State;
 
 					if (State != EAttackState::Cooling)
 					{
-						Moving.SpeedMult = 0.0f; // 停止移动
+						Moving.PassiveSpeedMult = 0.0f; // 强制停止
 					}
 				}
-				else if (bIsFreezing)
+				
+				if (bIsFreezing)
 				{
 					const auto& Freezing = Subject.GetTraitRef<FFreezing, EParadigm::Unsafe>();
-
-					if (Freezing.FreezeTimeout > 0.0f)
-					{
-						Moving.SpeedMult *= (1.0f - Freezing.FreezeStr); //冰冻时减速
-					}
+					Moving.PassiveSpeedMult *= 1.0f - Freezing.FreezeStr; // 强制减速
 				}
 
 				// 速度-距离曲线
-				float OtherRadius = Trace.TraceResult.HasTrait<FCollider>() ? Trace.TraceResult.GetTrait<FCollider>().Radius : 0;
-				const float DistanceToGoal = FMath::Clamp(FVector::Dist2D(AgentLocation, GoalLocation) - OtherRadius, 0, FLT_MAX);
-
-				if (bIsPatrolling)
+				if (!bIsPatrolling)
 				{
-					const TRange<float> PatrolInputRange(Patrol.PatrolSpeedRangeMap.X, Patrol.PatrolSpeedRangeMap.Z);
-					const TRange<float> PatrolOutputRange(Patrol.PatrolSpeedRangeMap.Y, Patrol.PatrolSpeedRangeMap.W);
+					float OtherRadius = Trace.TraceResult.HasTrait<FCollider>() ? Trace.TraceResult.GetTrait<FCollider>().Radius : 0;
+					const float DistanceToTarget = FMath::Clamp(DistanceToGoal - OtherRadius, 0, FLT_MAX);
 
-					Moving.SpeedMult *= FMath::GetMappedRangeValueClamped(PatrolInputRange, PatrolOutputRange, DistanceToGoal);
-				}
-				else
-				{
-					const TRange<float> MoveInputRange(Move.MoveSpeedRangeMap.X, Move.MoveSpeedRangeMap.Z);
-					const TRange<float> MoveOutputRange(Move.MoveSpeedRangeMap.Y, Move.MoveSpeedRangeMap.W);
+					if (DistanceToTarget <= Move.AcceptanceRadius)
+					{
+						Moving.PassiveSpeedMult = 0;
+					}
+					else
+					{
+						const TRange<float> MoveInputRange(Move.MoveSpeedRangeMap.X, Move.MoveSpeedRangeMap.Z);
+						const TRange<float> MoveOutputRange(Move.MoveSpeedRangeMap.Y, Move.MoveSpeedRangeMap.W);
 
-					Moving.SpeedMult *= FMath::GetMappedRangeValueClamped(MoveInputRange, MoveOutputRange, DistanceToGoal);
+						Moving.PassiveSpeedMult *= FMath::GetMappedRangeValueClamped(MoveInputRange, MoveOutputRange, DistanceToTarget);
+					}
 				}
 
 				// 想要达到的理想速度
-				float DesiredSpeed = Moving.SpeedMult * Move.MaxSpeed;
+				float DesiredSpeed = Move.MoveSpeed * Moving.ActiveSpeedMult * Moving.PassiveSpeedMult;
 
-				if (DesiredSpeed < Move.MinSpeed)
+				if (DesiredSpeed < Move.MinMoveSpeed)
 				{
 					DesiredSpeed = 0;
 				}
 
+				// 朝向
+				float SlowMult = 1;
+
+				if (bIsAppearing || bIsSleeping || Moving.bFalling || Moving.bLaunching || bIsDying || (bIsPatrolling && DistanceToGoal <= Patrol.AcceptanceRadius) || (bIsAttacking && Subject.GetTrait<FAttacking>().State != EAttackState::Cooling))
+				{
+					SlowMult = 0;// 不需要转向的情况
+				}
+
+				if (bIsFreezing)
+				{
+					const auto& Freezing = Subject.GetTraitRef<FFreezing, EParadigm::Unsafe>();
+					SlowMult *= 1.0f - Freezing.FreezeStr; // 冰冻时转向更慢
+				}
+
+				float Speed2D = Moving.CurrentVelocity.Size2D();
+
+				if (AngleDegrees < 90.f && Speed2D > Move.MinMoveSpeed) // 一致，朝向实际移动的方向
+				{
+					Directed.DesiredRot = Moving.CurrentVelocity.GetSafeNormal2D().ToOrientationRotator();//the current velocity direction
+				}
+				else // 不一致，朝向想要移动的方向
+				{
+					Directed.DesiredRot = DesiredMoveDirection.GetSafeNormal2D().ToOrientationRotator();
+				}
+					
+				const FRotator CurrentRot = Directed.Direction.ToOrientationRotator();
+				const FRotator InterpolatedRot = FMath::RInterpConstantTo(CurrentRot, Directed.DesiredRot, DeltaTime, FMath::Clamp(Move.TurnSpeed * SlowMult * 100, 1, FLT_MAX));
+				Directed.Direction = InterpolatedRot.Vector();
+
+				// 期望速度
 				FVector DesiredVelocity = DesiredSpeed * DesiredMoveDirection;
 				Moving.DesiredVelocity = FVector(DesiredVelocity.X, DesiredVelocity.Y, 0);
 
 				//---------------------------计算垂直速度-------------------------//
 
-				if (IsValid(Navigation.FlowField))// 没有流场则跳过，因为不知道地面高度，所以不考虑垂直运动
+				if (bIsValidFF)// 没有流场则跳过，因为不知道地面高度，所以不考虑垂直运动
 				{
 					// 寻找最高地面
 					bool bIsSet = false;
@@ -926,282 +1105,14 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	#pragma region
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("Avoidance");// agent only do avoidance in xy, not z
-		NeighborGrid->Evaluate();
-	}
-	#pragma endregion
 
-	// 移动动画
-	#pragma region
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("IdleToMoveAnim");
-
-		// 初始化过滤器
-		FFilter Filter = FFilter::Make<FAgent, FAnimation, FMove, FMoving, FDeath, FActivated>();
-		Filter.Exclude<FAppearing>();
-
-		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, 1, ThreadsCount, BatchSize);
-
-		Chain->OperateConcurrently(
-			[&](FSolidSubjectHandle Subject,
-				FAnimation& Animation,
-				FMove& Move,
-				FMoving& Moving,
-				FDeath& Death)
-			{
-				const bool bIsAttacking = Subject.HasTrait<FAttacking>();
-				const bool bIsDying = Subject.HasTrait<FDying>();
-
-				float RealSpeed2D = Moving.CurrentVelocity.Size2D();
-
-				if (bIsDying)
-				{
-					if (RealSpeed2D < 100.f && Death.bDisableCollision && !Subject.HasTrait<FCorpse>())
-					{
-						Subject.SetTraitDeferred(FCorpse{});
-					}
-				}
-				else if (bIsAttacking)
-				{
-					EAttackState State = Subject.GetTraitRef<FAttacking, EParadigm::Unsafe>().State;
-
-					if (State == EAttackState::Cooling)
-					{
-						Animation.SubjectState = (RealSpeed2D > Move.MinSpeed) ? ESubjectState::Moving : ESubjectState::Idle;
-					}
-				}
-				else
-				{
-					Animation.SubjectState = (RealSpeed2D > Move.MinSpeed) ? ESubjectState::Moving : ESubjectState::Idle;
-				}
-
-			}, ThreadsCount, BatchSize);
+		NeighborGrid->Update();
+		NeighborGrid->Decouple();
 	}
 	#pragma endregion
 
 
 	//----------------------攻击-------------------------
-
-	// 索敌
-	#pragma region
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentTrace");
-
-		// Trace Player 0
-		bool bPlayerIsValid = false;
-		FVector PlayerLocation;
-		FSubjectHandle PlayerHandle;
-		APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(CurrentWorld, 0);
-
-		if (IsValid(PlayerPawn))
-		{
-			USubjectiveActorComponent* SubjectiveComponent = PlayerPawn->FindComponentByClass<USubjectiveActorComponent>();
-
-			if (IsValid(SubjectiveComponent))
-			{
-				PlayerHandle = SubjectiveComponent->GetHandle();
-
-				if (PlayerHandle.IsValid())
-				{
-					if (PlayerHandle.HasTrait<FLocated>() && PlayerHandle.HasTrait<FHealth>() && !PlayerHandle.HasTrait<FDying>())
-					{
-						PlayerLocation = PlayerPawn->GetActorLocation();
-						bPlayerIsValid = true;
-					}
-				}
-			}
-		}
-
-		// Trace By Filter
-		FFilter Filter = FFilter::Make<FAgent, FTrace, FLocated, FDirected, FCollider, FSleep, FPatrol, FActivated>();
-		Filter.Exclude<FAppearing, FAttacking, FDying>();
-
-		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, 200, ThreadsCount, BatchSize);
-
-		TArray<FValidSubjects> ValidSubjectsArray;
-		ValidSubjectsArray.SetNum(ThreadsCount);
-
-		// A workaround. Apparatus does not expose the array of iterables, so we have to gather manually
-		Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FTrace& Trace)
-			{
-				bool bShouldTrace = false;
-
-				if (Trace.TimeLeft <= 0)
-				{
-					Trace.TimeLeft = Trace.CoolDown;
-					bShouldTrace = true;
-				}
-				else
-				{
-					Trace.TimeLeft -= DeltaTime;
-				}
-
-				if (bShouldTrace)// we add iterables into separate arrays and then apend them.
-				{
-					uint32 ThreadId = FPlatformTLS::GetCurrentThreadId();
-					uint32 index = ThreadId % ThreadsCount;// this may not evenly distribute, but well enough
-
-					if (LIKELY(ValidSubjectsArray.IsValidIndex(index)))
-					{
-						ValidSubjectsArray[index].Lock();// we lock child arrays individually
-						ValidSubjectsArray[index].Subjects.Add(Subject);
-						ValidSubjectsArray[index].Unlock();
-					}
-				}
-
-			}, ThreadsCount, BatchSize);
-
-		TArray<FSolidSubjectHandle> ValidSubjects;
-
-		for (auto& CurrentArray : ValidSubjectsArray)
-		{
-			ValidSubjects.Append(CurrentArray.Subjects);
-		}
-
-		// 并行处理筛选结果
-		ParallelFor(ValidSubjects.Num(), [&](int32 Index)
-			{
-				FSolidSubjectHandle Subject = ValidSubjects[Index];
-
-				FLocated& Located = Subject.GetTraitRef<FLocated>();
-				FDirected& Directed = Subject.GetTraitRef<FDirected>();
-				FCollider& Collider = Subject.GetTraitRef<FCollider>();
-
-				FTrace& Trace = Subject.GetTraitRef<FTrace>();
-				FSleep& Sleep = Subject.GetTraitRef<FSleep>();
-				FPatrol& Patrol = Subject.GetTraitRef<FPatrol>();
-
-				const bool bIsSleeping = Subject.HasTrait<FSleeping>();
-				const bool bIsPatrolling = Subject.HasTrait<FPatrolling>();
-
-				float FinalRange = 0;
-				float FinalAngle = 0;
-				bool FinalCheckVisibility = false;
-
-				if (bIsSleeping)
-				{
-					FinalRange = Sleep.TraceRadius;
-					FinalAngle = Sleep.TraceAngle;
-					FinalCheckVisibility = Sleep.bCheckVisibility;
-				}
-				else if (bIsPatrolling)
-				{
-					FinalRange = Patrol.TraceRadius;
-					FinalAngle = Patrol.TraceAngle;
-					FinalCheckVisibility = Patrol.bCheckVisibility;
-				}
-				else
-				{
-					FinalRange = Trace.TraceRadius;
-					FinalAngle = Trace.TraceAngle;
-					FinalCheckVisibility = Trace.bCheckVisibility;
-				}
-
-				switch (Trace.Mode)
-				{
-					case ETraceMode::TargetIsPlayer_0:
-					{
-						Trace.TraceResult = FSubjectHandle{};
-
-						if (bPlayerIsValid)
-						{
-							// 计算目标半径和实际距离
-							float OtherRadius = Trace.TraceResult.HasTrait<FCollider>() ? Trace.TraceResult.GetTrait<FCollider>().Radius : 0;
-							float Distance = FMath::Clamp(FVector::Dist(Located.Location, PlayerLocation) - Collider.Radius - OtherRadius, 0, FLT_MAX);
-
-							// 距离检查
-							if (Distance <= FinalRange)
-							{
-								// 角度检查
-								const FVector ToPlayerDir = (PlayerLocation - Located.Location).GetSafeNormal();
-								const float DotValue = FVector::DotProduct(Directed.Direction, ToPlayerDir);
-								const float AngleDiff = FMath::RadiansToDegrees(FMath::Acos(DotValue));
-
-								if (AngleDiff <= FinalAngle * 0.5f)
-								{
-									if (FinalCheckVisibility && IsValid(Trace.NeighborGrid))
-									{
-										bool Hit = false;
-										FTraceResult Result;
-										Trace.NeighborGrid->SphereSweepForObstacle(Located.Location, PlayerLocation, Collider.Radius, Hit, Result);
-
-										if (!Hit)
-										{
-											Trace.TraceResult = PlayerHandle;
-										}
-									}
-									else
-									{
-										Trace.TraceResult = PlayerHandle;
-									}
-								}
-							}
-						}
-						break;
-					}
-
-					case ETraceMode::SectorTraceByTraits:
-					{
-						Trace.TraceResult = FSubjectHandle{};
-
-						if (LIKELY(IsValid(Trace.NeighborGrid)))
-						{
-							FFilter TargetFilter;
-							FSubjectHandle Result;
-
-							TargetFilter.Include(Trace.IncludeTraits);
-							TargetFilter.Exclude(Trace.ExcludeTraits);
-
-							// 使用扇形检测替换球体检测
-							const FVector TraceDirection = Directed.Direction.GetSafeNormal2D();
-							const float TraceHeight = Collider.Radius * 2.0f; // 根据实际需求调整高度
-
-							// ignore self
-							TArray<FSubjectHandle> IgnoreList;
-							IgnoreList.Add(FSubjectHandle(Subject));
-
-							Trace.NeighborGrid->SectorExpandForSubject(
-								Located.Location,   // 检测原点
-								FinalRange,         // 检测半径
-								TraceHeight,        // 检测高度
-								TraceDirection,     // 扇形方向
-								FinalAngle,         // 扇形角度
-								FinalCheckVisibility,
-								IgnoreList,
-								TargetFilter,       // 过滤条件
-								Result              // 输出结果
-							);
-
-							// 直接使用结果（扇形检测已包含角度验证）
-							if (Result.IsValid())
-							{
-								Trace.TraceResult = Result;
-							}
-						}
-						break;
-					}
-				}
-
-				// if we have a valid target, we stop sleeping or patrolling
-				if (Trace.TraceResult.IsValid())
-				{
-					if (bIsSleeping)
-					{
-						Subject.RemoveTraitDeferred<FSleeping>();
-					}
-
-					if (bIsPatrolling)
-					{
-						Subject.RemoveTraitDeferred<FPatrolling>();
-					}
-				}
-
-			}, EParallelForFlags::BackgroundPriority | EParallelForFlags::Unbalanced);
-
-		Mechanism->ApplyDeferreds();
-	}
-	#pragma endregion
 
 	// 攻击触发 
 	#pragma region 
@@ -1209,7 +1120,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentAttackMain");
 
 		FFilter Filter = FFilter::Make<FAgent, FAttack, FRendering, FLocated, FDirected, FTrace, FCollider, FActivated>();
-		Filter.Exclude<FAppearing, FSleeping, FAttacking, FDying>();
+		Filter.Exclude<FAppearing, FSleeping, FPatrolling, FAttacking, FDying>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
@@ -1255,7 +1166,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentAttacking");
 
 		FFilter Filter = FFilter::Make<FAgent, FAttack, FRendering, FLocated, FAnimation, FAttacking, FMove, FMoving, FDirected, FTrace, FDebuff, FDamage, FActivated>();
-		Filter.Exclude<FAppearing, FSleeping, FDying>();
+		Filter.Exclude<FAppearing, FSleeping, FPatrolling, FDying>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
@@ -1378,404 +1289,402 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	// 受击发光
 	#pragma region
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentHitGlow");
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentHitGlow");
 
-		FFilter Filter = FFilter::Make<FAgent, FRendering, FHitGlow, FAnimation, FCurves, FActivated>();
-		Filter.Exclude<FAppearing, FBeingHit>();
+	FFilter Filter = FFilter::Make<FAgent, FRendering, FHitGlow, FAnimation, FCurves, FActivated>();
 
-		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
+	auto Chain = Mechanism->EnchainSolid(Filter);
+	UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
-		Chain->OperateConcurrently(
-			[&](FSolidSubjectHandle Subject,
-				FAnimation& Animation,
-				FHitGlow& HitGlow,
-				FCurves& Curves)
+	Chain->OperateConcurrently(
+		[&](FSolidSubjectHandle Subject,
+			FAnimation& Animation,
+			FHitGlow& HitGlow,
+			FCurves& Curves)
+		{
+			// 获取曲线
+			auto Curve = Curves.HitEmission.GetRichCurve();
+
+			// 检查曲线是否有关键帧
+			if (Curve->GetNumKeys() == 0)
 			{
-				// 获取曲线
-				auto Curve = Curves.HitEmission.GetRichCurve();
+				// 如果没有关键帧，添加默认关键帧
+				Curve->Reset();
+				FKeyHandle Key1 = Curve->AddKey(0.0f, 0.0f);    // 初始值
+				FKeyHandle Key2 = Curve->AddKey(0.1f, 1.0f);   // 峰值
+				FKeyHandle Key3 = Curve->AddKey(0.5f, 0.0f);   // 结束值
 
-				// 检查曲线是否有关键帧
-				if (Curve->GetNumKeys() == 0)
-				{
-					// 如果没有关键帧，添加默认关键帧
-					Curve->Reset();
-					FKeyHandle Key1 = Curve->AddKey(0.0f, 0.0f);    // 初始值
-					FKeyHandle Key2 = Curve->AddKey(0.1f, 1.0f);   // 峰值
-					FKeyHandle Key3 = Curve->AddKey(0.5f, 0.0f);   // 结束值
+				// 设置自动切线
+				Curve->SetKeyInterpMode(Key1, RCIM_Cubic);
+				Curve->SetKeyInterpMode(Key2, RCIM_Cubic);
+				Curve->SetKeyInterpMode(Key3, RCIM_Cubic);
 
-					// 设置自动切线
-					Curve->SetKeyInterpMode(Key1, RCIM_Cubic);
-					Curve->SetKeyInterpMode(Key2, RCIM_Cubic);
-					Curve->SetKeyInterpMode(Key3, RCIM_Cubic);
+				Curve->SetKeyTangentMode(Key1, RCTM_Auto);
+				Curve->SetKeyTangentMode(Key2, RCTM_Auto);
+				Curve->SetKeyTangentMode(Key3, RCTM_Auto);
+			}
 
-					Curve->SetKeyTangentMode(Key1, RCTM_Auto);
-					Curve->SetKeyTangentMode(Key2, RCTM_Auto);
-					Curve->SetKeyTangentMode(Key3, RCTM_Auto);
-				}
+			// 获取曲线的最后一个关键帧的时间
+			const auto EndTime = Curve->GetLastKey().Time;
 
-				// 获取曲线的最后一个关键帧的时间
-				const auto EndTime = Curve->GetLastKey().Time;
+			// 受击发光
+			Animation.HitGlow = Curve->Eval(HitGlow.GlowTime);
 
-				// 受击发光
-				Animation.HitGlow = Curve->Eval(HitGlow.GlowTime);
+			// 更新发光时间
+			if (HitGlow.GlowTime < EndTime)
+			{
+				HitGlow.GlowTime += DeltaTime;
+			}
 
-				// 更新发光时间
-				if (HitGlow.GlowTime < EndTime)
-				{
-					HitGlow.GlowTime += DeltaTime;
-				}
+			// 计时器完成后删除 Trait
+			if (HitGlow.GlowTime >= EndTime)
+			{
+				Animation.HitGlow = 0; // 重置发光值
+				Subject->RemoveTraitDeferred<FHitGlow>(); // 延迟删除 Trait
+			}
 
-				// 计时器完成后删除 Trait
-				if (HitGlow.GlowTime >= EndTime)
-				{
-					Animation.HitGlow = 0; // 重置发光值
-					Subject->RemoveTraitDeferred<FHitGlow>(); // 延迟删除 Trait
-				}
-
-			}, ThreadsCount, BatchSize);
+		}, ThreadsCount, BatchSize);
 	}
 	#pragma endregion
 
 	// 怪物受击形变
 	#pragma region
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentJiggle");
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentJiggle");
 
-		FFilter Filter = FFilter::Make<FAgent, FRendering, FJiggle, FScaled, FHit, FCurves, FActivated>();
-		Filter.Exclude<FAppearing, FBeingHit>();
+	FFilter Filter = FFilter::Make<FAgent, FRendering, FJiggle, FScaled, FHit, FCurves, FActivated>();
 
-		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
+	auto Chain = Mechanism->EnchainSolid(Filter);
+	UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
-		Chain->OperateConcurrently(
-			[&](FSolidSubjectHandle Subject,
-				FScaled& Scaled,
-				FJiggle& Jiggle,
-				FHit& Hit,
-				FCurves& Curves)
+	Chain->OperateConcurrently(
+		[&](FSolidSubjectHandle Subject,
+			FScaled& Scaled,
+			FJiggle& Jiggle,
+			FHit& Hit,
+			FCurves& Curves)
+		{
+			// 获取曲线
+			auto Curve = Curves.HitJiggle.GetRichCurve();
+
+			// 检查曲线是否有关键帧
+			if (Curve->GetNumKeys() == 0)
 			{
-				// 获取曲线
-				auto Curve = Curves.HitJiggle.GetRichCurve();
+				// 如果没有关键帧，添加默认关键帧
+				Curve->Reset();
+				FKeyHandle Key1 = Curve->AddKey(0.0f, 1.0f);    // 初始值
+				FKeyHandle Key2 = Curve->AddKey(0.1f, 1.75f);   // 峰值
+				FKeyHandle Key3 = Curve->AddKey(0.28f, 0.78f);   // 回弹
+				FKeyHandle Key4 = Curve->AddKey(0.4f, 1.12f);   // 二次回弹
+				FKeyHandle Key5 = Curve->AddKey(0.5f, 1.0f);     // 恢复
 
-				// 检查曲线是否有关键帧
-				if (Curve->GetNumKeys() == 0)
-				{
-					// 如果没有关键帧，添加默认关键帧
-					Curve->Reset();
-					FKeyHandle Key1 = Curve->AddKey(0.0f, 1.0f);    // 初始值
-					FKeyHandle Key2 = Curve->AddKey(0.1f, 1.75f);   // 峰值
-					FKeyHandle Key3 = Curve->AddKey(0.28f, 0.78f);   // 回弹
-					FKeyHandle Key4 = Curve->AddKey(0.4f, 1.12f);   // 二次回弹
-					FKeyHandle Key5 = Curve->AddKey(0.5f, 1.0f);     // 恢复
+				// 设置自动切线
+				Curve->SetKeyInterpMode(Key1, RCIM_Cubic);
+				Curve->SetKeyInterpMode(Key2, RCIM_Cubic);
+				Curve->SetKeyInterpMode(Key3, RCIM_Cubic);
+				Curve->SetKeyInterpMode(Key4, RCIM_Cubic);
+				Curve->SetKeyInterpMode(Key5, RCIM_Cubic);
 
-					// 设置自动切线
-					Curve->SetKeyInterpMode(Key1, RCIM_Cubic);
-					Curve->SetKeyInterpMode(Key2, RCIM_Cubic);
-					Curve->SetKeyInterpMode(Key3, RCIM_Cubic);
-					Curve->SetKeyInterpMode(Key4, RCIM_Cubic);
-					Curve->SetKeyInterpMode(Key5, RCIM_Cubic);
+				Curve->SetKeyTangentMode(Key1, RCTM_Auto);
+				Curve->SetKeyTangentMode(Key2, RCTM_Auto);
+				Curve->SetKeyTangentMode(Key3, RCTM_Auto);
+				Curve->SetKeyTangentMode(Key4, RCTM_Auto);
+				Curve->SetKeyTangentMode(Key5, RCTM_Auto);
+			}
 
-					Curve->SetKeyTangentMode(Key1, RCTM_Auto);
-					Curve->SetKeyTangentMode(Key2, RCTM_Auto);
-					Curve->SetKeyTangentMode(Key3, RCTM_Auto);
-					Curve->SetKeyTangentMode(Key4, RCTM_Auto);
-					Curve->SetKeyTangentMode(Key5, RCTM_Auto);
-				}
+			// 获取曲线的最后一个关键帧的时间
+			const auto EndTime = Curve->GetLastKey().Time;
 
-				// 获取曲线的最后一个关键帧的时间
-				const auto EndTime = Curve->GetLastKey().Time;
+			// 受击变形
+			Scaled.renderFactors.X = FMath::Lerp(Scaled.Factors.X, Scaled.Factors.X * Curve->Eval(Jiggle.JiggleTime), Hit.JiggleStr);
+			Scaled.renderFactors.Y = FMath::Lerp(Scaled.Factors.Y, Scaled.Factors.Y * Curve->Eval(Jiggle.JiggleTime), Hit.JiggleStr);
+			Scaled.renderFactors.Z = FMath::Lerp(Scaled.Factors.Z, Scaled.Factors.Z * (2.f - Curve->Eval(Jiggle.JiggleTime)), Hit.JiggleStr);
 
-				// 受击变形
-				Scaled.renderFactors.X = FMath::Lerp(Scaled.Factors.X, Scaled.Factors.X * Curve->Eval(Jiggle.JiggleTime), Hit.JiggleStr);
-				Scaled.renderFactors.Y = FMath::Lerp(Scaled.Factors.Y, Scaled.Factors.Y * Curve->Eval(Jiggle.JiggleTime), Hit.JiggleStr);
-				Scaled.renderFactors.Z = FMath::Lerp(Scaled.Factors.Z, Scaled.Factors.Z * (2.f - Curve->Eval(Jiggle.JiggleTime)), Hit.JiggleStr);
+			// 更新形变时间
+			if (Jiggle.JiggleTime < EndTime)
+			{
+				Jiggle.JiggleTime += DeltaTime;
+			}
 
-				// 更新形变时间
-				if (Jiggle.JiggleTime < EndTime)
-				{
-					Jiggle.JiggleTime += DeltaTime;
-				}
+			// 计时器完成后删除 Trait
+			if (Jiggle.JiggleTime >= EndTime)
+			{
+				Scaled.renderFactors = Scaled.Factors; // 恢复原始比例
+				Subject->RemoveTraitDeferred<FJiggle>(); // 延迟删除 Trait
+			}
 
-				// 计时器完成后删除 Trait
-				if (Jiggle.JiggleTime >= EndTime)
-				{
-					Scaled.renderFactors = Scaled.Factors; // 恢复原始比例
-					Subject->RemoveTraitDeferred<FJiggle>(); // 延迟删除 Trait
-				}
-
-			}, ThreadsCount, BatchSize);
+		}, ThreadsCount, BatchSize);
 	}
 	#pragma endregion
 
 	// 灼烧持续掉血
 	#pragma region
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentBurning");
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentBurning");
 
-		auto Filter = FFilter::Make<FTemporalDamaging>();
-		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
+	auto Filter = FFilter::Make<FTemporalDamaging>();
+	auto Chain = Mechanism->EnchainSolid(Filter);
+	UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
-		Chain->OperateConcurrently(
-			[&](FSolidSubjectHandle Subject, FTemporalDamaging& Temporal)
+	Chain->OperateConcurrently(
+		[&](FSolidSubjectHandle Subject, FTemporalDamaging& Temporal)
+		{
+			// 持续伤害结束或玩家退出，终止执行
+			if (Temporal.RemainingTemporalDamage <= 0)
 			{
-				// 持续伤害结束或玩家退出，终止执行
-				if (Temporal.RemainingTemporalDamage <= 0)
+				// 恢复颜色
+				if (Temporal.TemporalDamageTarget.IsValid())
 				{
-					// 恢复颜色
-					if (Temporal.TemporalDamageTarget.IsValid())
+					if (Temporal.TemporalDamageTarget.HasTrait<FAnimation>())
 					{
-						if (Temporal.TemporalDamageTarget.HasTrait<FAnimation>())
-						{
-							auto& TargetAnimation = Temporal.TemporalDamageTarget.GetTraitRef<FAnimation, EParadigm::Unsafe>();
-							TargetAnimation.BurnFx = 0;
-						}
-
-						if (Temporal.TemporalDamageTarget.HasTrait<FBurning>())
-						{
-							auto& TargetBurning = Temporal.TemporalDamageTarget.GetTraitRef<FBurning, EParadigm::Unsafe>();
-
-							if (TargetBurning.RemainingTemporalDamager > 1)
-							{
-								TargetBurning.Lock();
-								TargetBurning.RemainingTemporalDamager--;
-								TargetBurning.Unlock();
-							}
-							else
-							{
-								Temporal.TemporalDamageTarget.RemoveTraitDeferred<FBurning>();
-							}
-						}
+						auto& TargetAnimation = Temporal.TemporalDamageTarget.GetTraitRef<FAnimation, EParadigm::Unsafe>();
+						TargetAnimation.BurnFx = 0;
 					}
 
-					Subject.DespawnDeferred();
-					return;
+					if (Temporal.TemporalDamageTarget.HasTrait<FBurning>())
+					{
+						auto& TargetBurning = Temporal.TemporalDamageTarget.GetTraitRef<FBurning, EParadigm::Unsafe>();
+
+						if (TargetBurning.RemainingTemporalDamager > 1)
+						{
+							TargetBurning.Lock();
+							TargetBurning.RemainingTemporalDamager--;
+							TargetBurning.Unlock();
+						}
+						else
+						{
+							Temporal.TemporalDamageTarget.RemoveTraitDeferred<FBurning>();
+						}
+					}
 				}
 
-				Temporal.TemporalDamageTimeout -= DeltaTime;
+				Subject.DespawnDeferred();
+				return;
+			}
 
-				// 倒计时，每0.5秒重置，即每秒造成2段灼烧伤害
-				if (Temporal.TemporalDamageTimeout <= 0)
+			Temporal.TemporalDamageTimeout -= DeltaTime;
+
+			// 倒计时，每0.5秒重置，即每秒造成2段灼烧伤害
+			if (Temporal.TemporalDamageTimeout <= 0)
+			{
+				if (Temporal.TemporalDamageTarget.IsValid())
 				{
-					if (Temporal.TemporalDamageTarget.IsValid())
+					// 扣除目标生命值
+					if (Temporal.TemporalDamageTarget.HasTrait<FHealth>())
 					{
-						// 扣除目标生命值
-						if (Temporal.TemporalDamageTarget.HasTrait<FHealth>())
+						auto& TargetHealth = Temporal.TemporalDamageTarget.GetTraitRef<FHealth, EParadigm::Unsafe>();
+
+						if (TargetHealth.Current > 0)
 						{
-							auto& TargetHealth = Temporal.TemporalDamageTarget.GetTraitRef<FHealth, EParadigm::Unsafe>();
+							// 实际伤害值
+							float ClampedDamage = FMath::Min(Temporal.TotalTemporalDamage * 0.25f, TargetHealth.Current);
 
-							if (TargetHealth.Current > 0)
+							// 应用伤害
+							TargetHealth.DamageToTake.Enqueue(ClampedDamage);
+
+							// 记录伤害施加者
+							TargetHealth.DamageInstigator.Enqueue(Temporal.TemporalDamageInstigator);
+
+							// 生成伤害数字
+							if (Temporal.TemporalDamageTarget.HasTrait<FTextPopUp>())
 							{
-								// 实际伤害值
-								float ClampedDamage = FMath::Min(Temporal.TotalTemporalDamage * 0.25f, TargetHealth.Current);
+								const auto& TextPopUp = Temporal.TemporalDamageTarget.GetTraitRef<FTextPopUp, EParadigm::Unsafe>();
 
-								// 应用伤害
-								TargetHealth.DamageToTake.Enqueue(ClampedDamage);
-
-								// 记录伤害施加者
-								TargetHealth.DamageInstigator.Enqueue(Temporal.TemporalDamageInstigator);
-
-								// 生成伤害数字
-								if (Temporal.TemporalDamageTarget.HasTrait<FTextPopUp>())
+								if (TextPopUp.Enable)
 								{
-									const auto& TextPopUp = Temporal.TemporalDamageTarget.GetTraitRef<FTextPopUp, EParadigm::Unsafe>();
+									float Style;
 
-									if (TextPopUp.Enable)
+									if (ClampedDamage < TextPopUp.WhiteTextBelowPercent)
 									{
-										float Style;
-
-										if (ClampedDamage < TextPopUp.WhiteTextBelowPercent)
-										{
-											Style = 0;
-										}
-										else if (ClampedDamage < TextPopUp.OrangeTextAbovePercent)
-										{
-											Style = 1;
-										}
-										else
-										{
-											Style = 2;
-										}
-
-										float Radius = 0;
-
-										if (Temporal.TemporalDamageTarget.HasTrait<FCollider>())
-										{
-											Radius = Temporal.TemporalDamageTarget.GetTraitRef<FCollider, EParadigm::Unsafe>().Radius;
-										}
-
-										FVector Location = FVector::ZeroVector;
-
-										if (Temporal.TemporalDamageTarget.HasTrait<FLocated>())
-										{
-											Location = Temporal.TemporalDamageTarget.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
-										}
-
-										Location + FVector(0, 0, Radius);
-
-										QueueText(Temporal.TemporalDamageTarget, ClampedDamage, Style, TextPopUp.TextScale, Radius * 1.1, Location);
+										Style = 0;
 									}
-								}
+									else if (ClampedDamage < TextPopUp.OrangeTextAbovePercent)
+									{
+										Style = 1;
+									}
+									else
+									{
+										Style = 2;
+									}
 
-								// 让目标材质变红
-								if (Temporal.TemporalDamageTarget.HasTrait<FAnimation>())
-								{
-									auto& TargetAnimation = Temporal.TemporalDamageTarget.GetTraitRef<FAnimation, EParadigm::Unsafe>();
-									TargetAnimation.Lock();
-									TargetAnimation.BurnFx = 1;
-									TargetAnimation.Unlock();
+									float Radius = 0;
+
+									if (Temporal.TemporalDamageTarget.HasTrait<FCollider>())
+									{
+										Radius = Temporal.TemporalDamageTarget.GetTraitRef<FCollider, EParadigm::Unsafe>().Radius;
+									}
+
+									FVector Location = FVector::ZeroVector;
+
+									if (Temporal.TemporalDamageTarget.HasTrait<FLocated>())
+									{
+										Location = Temporal.TemporalDamageTarget.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
+									}
+
+									Location + FVector(0, 0, Radius);
+
+									QueueText(Temporal.TemporalDamageTarget, ClampedDamage, Style, TextPopUp.TextScale, Radius * 1.1, Location);
 								}
 							}
-						}
 
-						Temporal.RemainingTemporalDamage -= Temporal.TotalTemporalDamage * 0.25f;
-
-						if (Temporal.RemainingTemporalDamage > 0.f)
-						{
-							Temporal.TemporalDamageTimeout = 0.5f;
+							// 让目标材质变红
+							if (Temporal.TemporalDamageTarget.HasTrait<FAnimation>())
+							{
+								auto& TargetAnimation = Temporal.TemporalDamageTarget.GetTraitRef<FAnimation, EParadigm::Unsafe>();
+								TargetAnimation.Lock();
+								TargetAnimation.BurnFx = 1;
+								TargetAnimation.Unlock();
+							}
 						}
 					}
+
+					Temporal.RemainingTemporalDamage -= Temporal.TotalTemporalDamage * 0.25f;
+
+					if (Temporal.RemainingTemporalDamage > 0.f)
+					{
+						Temporal.TemporalDamageTimeout = 0.5f;
+					}
 				}
-			}, ThreadsCount, BatchSize);
+			}
+		}, ThreadsCount, BatchSize);
 	}
 	#pragma endregion
 
 	// 结算伤害
 	#pragma region
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("DecideAgentDamage");
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("DecideAgentDamage");
 
-		FFilter Filter = FFilter::Make<FHealth, FLocated>();// it processes hero and prop type too
-		Filter.Exclude<FAppearing, FDying>();
+	FFilter Filter = FFilter::Make<FHealth, FLocated>();// it processes hero and prop type too
+	Filter.Exclude<FDying>();
 
-		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
+	auto Chain = Mechanism->EnchainSolid(Filter);
+	UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
-		Chain->OperateConcurrently(
-			[&](FSolidSubjectHandle Subject,
-				FHealth& Health,
-				FLocated& Located)
+	Chain->OperateConcurrently(
+		[&](FSolidSubjectHandle Subject,
+			FHealth& Health,
+			FLocated& Located)
+		{
+			while (!Health.DamageToTake.IsEmpty() && !Health.DamageInstigator.IsEmpty())
 			{
-				while (!Health.DamageToTake.IsEmpty() && !Health.DamageInstigator.IsEmpty())
+				// 如果怪物死了，跳出循环
+				if (Health.Current <= 0) { break; }
+
+				FSubjectHandle Instigator = FSubjectHandle();
+				float damageToTake = 0.f;
+
+				// Queue为Mpsc不需要锁
+				Health.DamageInstigator.Dequeue(Instigator);
+				Health.DamageToTake.Dequeue(damageToTake);
+
+				bool bIsValidStats = false;
+				FStatistics* Stats = nullptr;
+
+				if (Instigator.IsValid())
 				{
-					// 如果怪物死了，跳出循环
-					if (Health.Current <= 0) { break; }
-
-					FSubjectHandle Instigator = FSubjectHandle();
-					float damageToTake = 0.f;
-
-					// Queue为Mpsc不需要锁
-					Health.DamageInstigator.Dequeue(Instigator);
-					Health.DamageToTake.Dequeue(damageToTake);
-
-					bool bIsValidStats = false;
-					FStatistics* Stats = nullptr;
-
-					if (Instigator.IsValid())
+					if (Instigator.HasTrait<FStatistics>())
 					{
-						if (Instigator.HasTrait<FStatistics>())
-						{
-							// 伤害与积分最后结算
-							Stats = Instigator.GetTraitPtr<FStatistics, EParadigm::Unsafe>();
+						// 伤害与积分最后结算
+						Stats = Instigator.GetTraitPtr<FStatistics, EParadigm::Unsafe>();
 
-							if (Stats->bEnable)
-							{
-								bIsValidStats = true;
-							}
+						if (Stats->bEnable)
+						{
+							bIsValidStats = true;
 						}
 					}
-
-					if (Health.Current - damageToTake > 0) // 不是致命伤害
-					{
-						// 统计数据
-						if (bIsValidStats)
-						{
-							Stats->Lock();
-							Stats->totalDamage += damageToTake;
-							Stats->Unlock();
-						}
-					}
-					else // 是致命伤害
-					{
-						Subject.SetTraitDeferred(FDying{ 0,0,Instigator });	// 标记为死亡
-
-						if (Subject.HasTrait<FMove>())
-						{
-							Subject.GetTraitRef<FMove, EParadigm::Unsafe>().bCanFly = false; // 如果在飞行会掉下来
-						}
-
-						// 统计数据
-						if (bIsValidStats)
-						{
-							int32 Score = 0;
-
-							if (Subject.HasTrait<FAgent>())
-							{
-								Score = Subject.GetTrait<FAgent>().Score;
-							}
-
-							Stats->Lock();
-							Stats->totalDamage += FMath::Min(damageToTake, Health.Current);
-							Stats->totalKills += 1;
-							Stats->totalScore += Score;
-							Stats->Unlock();
-						}
-					}
-
-					// 扣除血量
-					Health.Current -= FMath::Min(damageToTake, Health.Current);
 				}
-			}, ThreadsCount, BatchSize);
+
+				if (Health.Current - damageToTake > 0) // 不是致命伤害
+				{
+					// 统计数据
+					if (bIsValidStats)
+					{
+						Stats->Lock();
+						Stats->totalDamage += damageToTake;
+						Stats->Unlock();
+					}
+				}
+				else // 是致命伤害
+				{
+					Subject.SetTraitDeferred(FDying{ 0,0,Instigator });	// 标记为死亡
+
+					if (Subject.HasTrait<FMove>())
+					{
+						Subject.GetTraitRef<FMove, EParadigm::Unsafe>().bCanFly = false; // 如果在飞行会掉下来
+					}
+
+					// 统计数据
+					if (bIsValidStats)
+					{
+						int32 Score = 0;
+
+						if (Subject.HasTrait<FAgent>())
+						{
+							Score = Subject.GetTrait<FAgent>().Score;
+						}
+
+						Stats->Lock();
+						Stats->totalDamage += FMath::Min(damageToTake, Health.Current);
+						Stats->totalKills += 1;
+						Stats->totalScore += Score;
+						Stats->Unlock();
+					}
+				}
+
+				// 扣除血量
+				Health.Current -= FMath::Min(damageToTake, Health.Current);
+			}
+		}, ThreadsCount, BatchSize);
 	}
 	#pragma endregion
 
 	// 更新血条
 	#pragma region
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentHealthBar");
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentHealthBar");
 
-		static const auto Filter = FFilter::Make<FAgent, FRendering, FHealth, FHealthBar, FActivated>();
+	static const auto Filter = FFilter::Make<FAgent, FRendering, FHealth, FHealthBar, FActivated>();
 
-		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
+	auto Chain = Mechanism->EnchainSolid(Filter);
+	UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
-		Chain->OperateConcurrently(
-			[&](FSolidSubjectHandle Subject,
-				FHealth Health,
-				FHealthBar& HealthBar)
+	Chain->OperateConcurrently(
+		[&](FSolidSubjectHandle Subject,
+			FHealth Health,
+			FHealthBar& HealthBar)
+		{
+			if (HealthBar.bShowHealthBar)
 			{
-				if (HealthBar.bShowHealthBar)
-				{
-					HealthBar.TargetRatio = FMath::Clamp(Health.Current / Health.Maximum, 0, 1);
-					HealthBar.CurrentRatio = FMath::FInterpTo(HealthBar.CurrentRatio, HealthBar.TargetRatio, DeltaTime, HealthBar.InterpSpeed);// WIP use niagara instead
+				HealthBar.TargetRatio = FMath::Clamp(Health.Current / Health.Maximum, 0, 1);
+				HealthBar.CurrentRatio = FMath::FInterpTo(HealthBar.CurrentRatio, HealthBar.TargetRatio, DeltaTime, HealthBar.InterpSpeed);// WIP use niagara instead
 
-					if (HealthBar.HideOnFullHealth)
+				if (HealthBar.HideOnFullHealth)
+				{
+					if (Health.Current == Health.Maximum)
 					{
-						if (Health.Current == Health.Maximum)
-						{
-							HealthBar.Opacity = 0;
-						}
-						else
-						{
-							HealthBar.Opacity = 1;
-						}
+						HealthBar.Opacity = 0;
 					}
 					else
 					{
 						HealthBar.Opacity = 1;
 					}
-
-					if (HealthBar.HideOnEmptyHealth && Health.Current <= 0)
-					{
-						HealthBar.Opacity = 0;
-					}
 				}
 				else
 				{
+					HealthBar.Opacity = 1;
+				}
+
+				if (HealthBar.HideOnEmptyHealth && Health.Current <= 0)
+				{
 					HealthBar.Opacity = 0;
 				}
-			}, ThreadsCount, BatchSize);
+			}
+			else
+			{
+				HealthBar.Opacity = 0;
+			}
+		}, ThreadsCount, BatchSize);
 	}
 	#pragma endregion
 
@@ -1785,163 +1694,221 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	// 死亡总
 	#pragma region
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentDeathMain");
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentDeathMain");
 
-		FFilter Filter = FFilter::Make<FAgent, FRendering, FDeath, FLocated, FDying, FDirected, FTrace, FMove, FMoving, FActivated>();
-		Filter.Exclude<FAppearing>();
+	FFilter Filter = FFilter::Make<FAgent, FRendering, FDeath, FLocated, FDying, FDirected, FTrace, FMove, FMoving, FActivated>();
 
-		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
+	auto Chain = Mechanism->EnchainSolid(Filter);
+	UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
-		Chain->OperateConcurrently(
-			[&](FSolidSubjectHandle Subject,
-				FDeath Death,
-				FLocated Located,
-				FDying& Dying,
-				FDirected Directed,
-				FTrace& Trace,
-				FMove& Move,
-				FMoving& Moving)
+	Chain->OperateConcurrently(
+		[&](FSolidSubjectHandle Subject,
+			FDeath Death,
+			FLocated Located,
+			FDying& Dying,
+			FDirected Directed,
+			FTrace& Trace,
+			FMove& Move,
+			FMoving& Moving)
+		{
+			if (Dying.Time == 0)
 			{
-				if (Dying.Time == 0)
+				Dying.Duration = Death.DespawnDelay;
+
+				// Stop attacking
+				if (Subject.HasTrait<FAttacking>())
 				{
-					Dying.Duration = Death.DespawnDelay;
-
-					// Stop attacking
-					if (Subject.HasTrait<FAttacking>())
-					{
-						Subject.RemoveTraitDeferred<FAttacking>();
-					}
-
-					// Fade out
-					if (Death.bCanFadeout)
-					{
-						Subject.SetTraitDeferred(FDeathDissolve{});
-					}
-
-					// Anim
-					if (Death.bCanPlayAnim)
-					{
-						Subject.SetTraitDeferred(FDeathAnim{});
-					}
-
-					// Actor
-					for (FActorSpawnConfig Config : Death.SpawnActor)
-					{
-						Config.SubjectTrans = FTransform(Directed.Direction.Rotation(), Located.Location, Config.Transform.GetScale3D());
-						QueueActor(Config);
-					}
-
-					// Fx
-					for (FFxConfig Config : Death.SpawnFx)
-					{
-						Config.SubjectTrans = FTransform(Directed.Direction.Rotation(), Located.Location, Config.Transform.GetScale3D());
-						QueueFx(Config);
-					}
-
-					// Sound
-					for (FSoundConfig Config : Death.PlaySound)
-					{
-						Config.SubjectTrans = FTransform(Directed.Direction.Rotation(), Located.Location, Config.Transform.GetScale3D());
-						QueueSound(Config);
-					}
+					Subject.RemoveTraitDeferred<FAttacking>();
 				}
 
-				else if (Dying.Time > Dying.Duration)
+				// Fade out
+				if (Death.bCanFadeout)
 				{
-					// 移除	
-					Subject.DespawnDeferred();
+					Subject.SetTraitDeferred(FDeathDissolve{});
 				}
 
-				Dying.Time += DeltaTime;
+				// Anim
+				if (Death.bCanPlayAnim)
+				{
+					Subject.SetTraitDeferred(FDeathAnim{});
+				}
 
-			}, ThreadsCount, BatchSize);
+				// Actor
+				for (FActorSpawnConfig Config : Death.SpawnActor)
+				{
+					Config.SubjectTrans = FTransform(Directed.Direction.Rotation(), Located.Location, Config.Transform.GetScale3D());
+					QueueActor(Config);
+				}
+
+				// Fx
+				for (FFxConfig Config : Death.SpawnFx)
+				{
+					Config.SubjectTrans = FTransform(Directed.Direction.Rotation(), Located.Location, Config.Transform.GetScale3D());
+					QueueFx(Config);
+				}
+
+				// Sound
+				for (FSoundConfig Config : Death.PlaySound)
+				{
+					Config.SubjectTrans = FTransform(Directed.Direction.Rotation(), Located.Location, Config.Transform.GetScale3D());
+					QueueSound(Config);
+				}
+			}
+			
+			if (Dying.Time > Dying.Duration)
+			{
+				Subject.DespawnDeferred();
+			}		
+			else if (Moving.CurrentVelocity.Size2D() < Move.MinMoveSpeed && Death.bDisableCollision && !Subject.HasTrait<FCorpse>())
+			{
+				Subject.SetTraitDeferred(FCorpse{});
+			}
+
+			Dying.Time += DeltaTime;
+
+		}, ThreadsCount, BatchSize);
 	}
 	#pragma endregion
 
 	// 死亡消融
 	#pragma region
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentDeathDissolve");
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentDeathDissolve");
 
-		FFilter Filter = FFilter::Make<FAgent, FRendering, FDeathDissolve, FAnimation, FDying, FDeath, FCurves, FActivated>();
-		Filter.Exclude<FAppearing>();
+	FFilter Filter = FFilter::Make<FAgent, FRendering, FDeathDissolve, FAnimation, FDying, FDeath, FCurves, FActivated>();
 
-		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
+	auto Chain = Mechanism->EnchainSolid(Filter);
+	UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
-		Chain->OperateConcurrently(
-			[&](FSolidSubjectHandle Subject,
-				FAnimation& Animation,
-				FDeathDissolve& DeathDissolve,
-				FDeath& Death,
-				FCurves& Curves)
+	Chain->OperateConcurrently(
+		[&](FSolidSubjectHandle Subject,
+			FAnimation& Animation,
+			FDeathDissolve& DeathDissolve,
+			FDeath& Death,
+			FCurves& Curves)
+		{
+			// 获取曲线
+			auto Curve = Curves.DissolveOut.GetRichCurve();
+
+			// 检查曲线是否有关键帧
+			if (Curve->GetNumKeys() == 0)
 			{
-				// 获取曲线
-				auto Curve = Curves.DissolveOut.GetRichCurve();
+				// 如果没有关键帧，添加默认关键帧
+				Curve->Reset();
+				FKeyHandle Key1 = Curve->AddKey(0.0f, 1.0f); // 初始值
+				FKeyHandle Key2 = Curve->AddKey(1.0f, 0.0f); // 结束值
 
-				// 检查曲线是否有关键帧
-				if (Curve->GetNumKeys() == 0)
-				{
-					// 如果没有关键帧，添加默认关键帧
-					Curve->Reset();
-					FKeyHandle Key1 = Curve->AddKey(0.0f, 1.0f); // 初始值
-					FKeyHandle Key2 = Curve->AddKey(1.0f, 0.0f); // 结束值
+				// 设置自动切线
+				Curve->SetKeyInterpMode(Key1, RCIM_Cubic);
+				Curve->SetKeyInterpMode(Key2, RCIM_Cubic);
 
-					// 设置自动切线
-					Curve->SetKeyInterpMode(Key1, RCIM_Cubic);
-					Curve->SetKeyInterpMode(Key2, RCIM_Cubic);
+				Curve->SetKeyTangentMode(Key1, RCTM_Auto);
+				Curve->SetKeyTangentMode(Key2, RCTM_Auto);
+			}
 
-					Curve->SetKeyTangentMode(Key1, RCTM_Auto);
-					Curve->SetKeyTangentMode(Key2, RCTM_Auto);
-				}
+			// 获取曲线的最后一个关键帧的时间
+			const auto EndTime = Curve->GetLastKey().Time;
 
-				// 获取曲线的最后一个关键帧的时间
-				const auto EndTime = Curve->GetLastKey().Time;
+			// 计算溶解效果
+			if (DeathDissolve.dissolveTime >= Death.FadeOutDelay && (DeathDissolve.dissolveTime - Death.FadeOutDelay) < EndTime)
+			{
+				Animation.Dissolve = 1 - Curve->Eval(DeathDissolve.dissolveTime - Death.FadeOutDelay);
+			}
 
-				// 计算溶解效果
-				if (DeathDissolve.dissolveTime >= Death.FadeOutDelay && (DeathDissolve.dissolveTime - Death.FadeOutDelay) < EndTime)
-				{
-					Animation.Dissolve = 1 - Curve->Eval(DeathDissolve.dissolveTime - Death.FadeOutDelay);
-				}
+			// 更新溶解时间
+			DeathDissolve.dissolveTime += DeltaTime;
 
-				// 更新溶解时间
-				DeathDissolve.dissolveTime += DeltaTime;
-
-			}, ThreadsCount, BatchSize);
+		}, ThreadsCount, BatchSize);
 	}
 	#pragma endregion
 
 	// 死亡动画
 	#pragma region
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentDeathAnim");
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentDeathAnim");
 
-		FFilter Filter = FFilter::Make<FAgent, FRendering, FDeathAnim, FAnimation, FDying, FActivated>();
-		Filter.Exclude<FAppearing>();
+	FFilter Filter = FFilter::Make<FAgent, FRendering, FDeathAnim, FAnimation, FDying, FActivated>();
+
+	auto Chain = Mechanism->EnchainSolid(Filter);
+	UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
+
+	Chain->OperateConcurrently(
+		[&](FSolidSubjectHandle Subject,
+			FAnimation& Animation,
+			FDeathAnim& DeathAnim)
+		{
+			if (DeathAnim.animTime == 0)
+			{
+				Animation.SubjectState = ESubjectState::Dying;
+				Animation.PreviousSubjectState = ESubjectState::Dirty;
+			}
+
+			DeathAnim.animTime += DeltaTime;
+
+		}, ThreadsCount, BatchSize);
+	}
+	#pragma endregion
+
+	//-----------------------渲染------------------------
+
+	// 移动动画
+	#pragma region
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("IdleToMoveAnim");
+
+		// 初始化过滤器
+		FFilter Filter = FFilter::Make<FAgent, FAnimation, FMove, FMoving, FDeath, FActivated>().Exclude<FAppearing, FSleeping, FDying>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, 1, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
 				FAnimation& Animation,
-				FDeathAnim& DeathAnim)
+				FMove& Move,
+				FMoving& Moving,
+				FDeath& Death)
 			{
-				if (DeathAnim.animTime == 0)
-				{
-					Animation.SubjectState = ESubjectState::Dying;
-					Animation.PreviousSubjectState = ESubjectState::Dirty;
-				}
+				const bool bIsAttacking = Subject.HasTrait<FAttacking>();
 
-				DeathAnim.animTime += DeltaTime;
+				const float Speed2D = Moving.CurrentVelocity.Size2D();
+				const float MoveSpeedThresholdHigh = Move.MinMoveSpeed * 1.25f;
+				const float MoveSpeedThresholdLow = Move.MinMoveSpeed * 0.75f;
+
+				// Lambda for state transition logic
+				auto UpdateAnimationState = [&](bool bCanChangeState) 
+				{
+					if (!bCanChangeState) return;
+
+					if (Animation.SubjectState == ESubjectState::Idle) 
+					{
+						if (Speed2D > MoveSpeedThresholdHigh) 
+						{
+							Animation.SubjectState = ESubjectState::Moving;
+						}
+					}
+					else 
+					{
+						if (Speed2D < MoveSpeedThresholdLow) 
+						{
+							Animation.SubjectState = ESubjectState::Idle;
+						}
+					}
+				};
+
+				if (bIsAttacking) 
+				{
+					EAttackState State = Subject.GetTraitRef<FAttacking, EParadigm::Unsafe>().State;
+					UpdateAnimationState(State == EAttackState::Cooling);
+				}
+				else 
+				{
+					UpdateAnimationState(true);
+				}
 
 			}, ThreadsCount, BatchSize);
 	}
 	#pragma endregion
-
-
-	//-----------------------渲染------------------------
 
 	// 动画状态机
 	#pragma region
@@ -1988,20 +1955,19 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 						case ESubjectState::Appearing:
 						{
+							CopyAnimData(Anim);
 							Anim.AnimIndex1 = Anim.IndexOfAppearAnim;
 							Anim.AnimCurrentTime1 = GetGameTimeSinceCreation();
 							Anim.AnimOffsetTime1 = 0;
 							Anim.AnimPauseTime1 = Anim.AppearAnimLength;
 							Anim.AnimPlayRate1 = Anim.AppearAnimLength / Appear.Duration;
 							Anim.AnimLerp = 1;// since appearing is definitely the first anim to play
-							Anim.Dissolve = 0;
 							break;
 						}
 
 						case ESubjectState::Idle:
 						{
 							CopyAnimData(Anim);
-
 							Anim.AnimIndex1 = Anim.IndexOfIdleAnim;
 							Anim.AnimCurrentTime1 = GetGameTimeSinceCreation();
 							Anim.AnimOffsetTime1 = 0;
@@ -2514,19 +2480,21 @@ FDmgResult ABattleFrameBattleControl::ApplyDamageToSubjects(TArray<FSubjectHandl
 		const bool bHasHealth = Overlapper.HasTrait<FHealth>();
 		const bool bHasLocated = Overlapper.HasTrait<FLocated>();
 		const bool bHasDirected = Overlapper.HasTrait<FDirected>();
+		const bool bHasCollider = Overlapper.HasTrait<FCollider>();
 		const bool bHasDefence = Overlapper.HasTrait<FDefence>();
 		const bool bHasTextPopUp = Overlapper.HasTrait<FTextPopUp>();
-		const bool bHasCollider = Overlapper.HasTrait<FCollider>();
 		const bool bHasMove = Overlapper.HasTrait<FMove>();
 		const bool bHasMoving = Overlapper.HasTrait<FMoving>();
 		const bool bHasFreezing = Overlapper.HasTrait<FFreezing>();
 		const bool bHasBurning = Overlapper.HasTrait<FBurning>();
 		const bool bHasAnimation = Overlapper.HasTrait<FAnimation>();
-		const bool bHasSleeping = Overlapper.HasTrait<FSleeping>();
 		const bool bHasSleep = Overlapper.HasTrait<FSleep>();
+		const bool bHasSleeping = Overlapper.HasTrait<FSleeping>();
 		const bool bHasHit = Overlapper.HasTrait<FHit>();
 		const bool bHasHitGlow = Overlapper.HasTrait<FHitGlow>();
 		const bool bHasJiggle = Overlapper.HasTrait<FJiggle>();
+		const bool bHasPatrolling = Overlapper.HasTrait<FPatrolling>();
+		const bool bHasTrace = Overlapper.HasTrait<FTrace>();
 
 		FVector Location = bHasLocated ? Overlapper.GetTrait<FLocated>().Location : FVector::ZeroVector;
 		FVector Direction = bHasDirected ? Overlapper.GetTrait<FDirected>().Direction : FVector::ZeroVector;
@@ -2756,6 +2724,17 @@ FDmgResult ABattleFrameBattleControl::ApplyDamageToSubjects(TArray<FSubjectHandl
 				Overlapper.GetTraitRef<FSleep, EParadigm::Unsafe>().bEnable = false;
 				Overlapper.RemoveTraitDeferred<FSleeping>();
 			}
+		}
+
+		if (bHasTrace)
+		{
+			auto& Trace = Overlapper.GetTraitRef<FTrace, EParadigm::Unsafe>();
+			Trace.TraceResult = DmgInstigator;
+		}
+
+		if (bHasPatrolling)
+		{
+			Overlapper.RemoveTraitDeferred<FPatrolling>();
 		}
 
 		if (bHasHit)

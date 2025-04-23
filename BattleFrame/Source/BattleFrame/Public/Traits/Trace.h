@@ -59,6 +59,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "检测目标是不是在障碍物后面"))
 	bool bCheckVisibility = false;
 
+
 	//----------------------------------------
 
 	FSubjectHandle TraceResult = FSubjectHandle();

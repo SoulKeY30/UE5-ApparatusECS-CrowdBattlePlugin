@@ -34,8 +34,17 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	float PatrolRadiusMax = 1000;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "速度范围映射 (X: 距移动目标点最小距离, Y: 最小距离时速度乘数, Z:距移动目标点最大距离, W:最大距离时速度乘数 )"))
-	FVector4 PatrolSpeedRangeMap = FVector4(100, 0, 200, 1);
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "距离低于该值时停止移动"))
+	float AcceptanceRadius = 100;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "移动速度乘数"))
+	float MoveSpeedMult = 1;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "每轮巡逻允许移动的最大时长"))
+	float MaxMovingTime = 10.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "抵达目标点后的停留时长"))
+	float CoolDown = 2.f;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "索敌视野半径"))
 	float TraceRadius = 1000.f;
@@ -47,21 +56,11 @@ public:
 	bool bCheckVisibility = false;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	float MaxMovingTime = 5.f;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	float CoolDown = 2.f;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	EPatrolOriginMode OriginMode = EPatrolOriginMode::Initial;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	EPatrolRecoverMode OnLostTarget = EPatrolRecoverMode::Patrol;
 
-	//UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	FVector Origin = FVector::ZeroVector;
-
-	//UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	FVector Goal = FVector::ZeroVector;
 
 };
