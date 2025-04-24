@@ -34,6 +34,7 @@ void ABattleFrameActor::BeginPlay()
 
 	// if missing, add these traits
 	Subjective->ObtainTrait<FHealth>();
+	Subjective->ObtainTrait<FIsSubjective>();
 	Subjective->SetTrait(FLocated{ GetActorLocation() });
 
 	const auto Handle = Subjective->GetHandle();
@@ -41,11 +42,24 @@ void ABattleFrameActor::BeginPlay()
 	Subjective->SetTrait(FAvoiding{ GetActorLocation(),Collider.Radius, Handle, Handle.CalcHash() });
 }
 
+
 // Called every frame
 void ABattleFrameActor::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-	Subjective->GetTraitPtr<FLocated, EParadigm::Unsafe>()->Location = GetActorLocation();
+
+	if (IsValid(Subjective))
+	{
+		auto Located = Subjective->GetTraitPtr<FLocated, EParadigm::Unsafe>();
+
+		if (Located)
+		{
+			Located->Location = GetActorLocation();
+		}
+	}
 }
+
+void ABattleFrameActor::ReceiveDamage_Implementation(const FDmgResult& DmgResult){}
+
 
 

@@ -10,14 +10,14 @@ USTRUCT(BlueprintType) struct FDmgResult
 public:
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
-	TArray<FSubjectHandle> DamagedSubjects;
+	FSubjectHandle DamagedSubject = FSubjectHandle();
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
-	TArray<bool> IsCritical;
+	bool IsCritical = false;
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
-	TArray<bool> IsKill;
+	bool IsKill = false;
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
-	TArray<float> DmgDealt;
+	float DmgDealt = 0;
 };

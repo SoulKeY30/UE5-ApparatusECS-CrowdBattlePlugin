@@ -40,6 +40,9 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "对冰冻Debuff的免疫比例（0-1）"))
 	float IceDebuffImmune = 0.f;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "被冰冻是否减攻击速度"))
+	bool bSlowATKSpeedOnFreeze = false;
+
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "对百分比伤害的免疫比例（0-1）"))
 	float PercentDmgImmune = 0.f;
 };

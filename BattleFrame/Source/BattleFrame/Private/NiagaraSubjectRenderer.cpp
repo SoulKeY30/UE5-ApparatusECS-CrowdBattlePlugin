@@ -27,7 +27,7 @@ void ANiagaraSubjectRenderer::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	for (FSubjectHandle Subject : SpawnedRendererSubjects)
 	{
-		Subject->Despawn();
+		Subject->DespawnDeferred();
 	}
 
 	for (UNiagaraComponent* System : SpawnedNiagaraSystems)
@@ -77,6 +77,7 @@ void ANiagaraSubjectRenderer::Tick(float DeltaTime)
 void ANiagaraSubjectRenderer::ActivateRenderer()
 {
 	AMechanism* Mechanism = UMachine::ObtainMechanism(GetWorld());
+
 	if (Mechanism == nullptr) { return; }
 
 	for (int i = 0; i < NumRenderBatch; ++i)
@@ -90,7 +91,8 @@ void ANiagaraSubjectRenderer::ActivateRenderer()
 		Data->OffsetLocation = OffsetLocation;
 		Data->OffsetRotation = OffsetRotation;
 
-		auto System = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+		auto System = UNiagaraFunctionLibrary::SpawnSystemAtLocation
+		(
 			GetWorld(),
 			NiagaraSystemAsset,
 			GetActorLocation() + FVector(i * 250.f, 0, 0),
@@ -99,7 +101,8 @@ void ANiagaraSubjectRenderer::ActivateRenderer()
 			false, // auto destroy
 			true, // auto activate
 			ENCPoolMethod::None,
-			true);
+			true
+		);
 
 		System->SetVariableStaticMesh(TEXT("StaticMesh"), StaticMesh);
 

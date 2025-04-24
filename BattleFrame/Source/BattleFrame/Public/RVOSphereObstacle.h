@@ -32,13 +32,11 @@ public:
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
+	void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
-
-	void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
-
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RVOSphereObstacle")
 	bool bIsDynamicObstacle = true;

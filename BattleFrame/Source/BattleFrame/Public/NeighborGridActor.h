@@ -87,17 +87,22 @@ public:
     }
 
     // NeighborGridActor成员函数实现
-    void SphereTraceForSubjects(
-        const FVector Location,
+    void SphereTraceForSubjects
+    (
+        const FVector Origin,
         const float Radius,
+        const bool bCheckVisibility,
+        const FVector CheckOrigin,
+        const float CheckRadius,
         const TArray<FSubjectHandle>& IgnoreSubjects,
         const FFilter Filter,
-        TArray<FTraceResult>& Results)
+        TArray<FTraceResult>& Results
+    )
     {
         if (LIKELY(NeighborGridComponent != nullptr))
         {
             TArray<FTraceResult> LocalResults;
-            NeighborGridComponent->SphereTraceForSubjects(Location, Radius, IgnoreSubjects, Filter, LocalResults);
+            NeighborGridComponent->SphereTraceForSubjects(Origin, Radius, bCheckVisibility, CheckOrigin, CheckRadius, IgnoreSubjects, Filter, LocalResults);
             Results = MoveTemp(LocalResults);
         }
         else
@@ -106,19 +111,22 @@ public:
         }
     }
 
-    void SphereSweepForSubjects(
+    void SphereSweepForSubjects
+    (
         const FVector Start,
         const FVector End,
-        float Radius,
-        bool bCheckVisibility,
+        const float Radius,
+        const bool bCheckVisibility,
+        const float CheckRadius,
         const TArray<FSubjectHandle>& IgnoreSubjects,
         const FFilter Filter,
-        TArray<FTraceResult>& Results)
+        TArray<FTraceResult>& Results
+    )
     {
         if (LIKELY(NeighborGridComponent != nullptr))
         {
             TArray<FTraceResult> LocalResults;
-            NeighborGridComponent->SphereSweepForSubjects(Start, End, Radius, bCheckVisibility, IgnoreSubjects, Filter, LocalResults);
+            NeighborGridComponent->SphereSweepForSubjects(Start, End, Radius, bCheckVisibility, CheckRadius, IgnoreSubjects, Filter, LocalResults);
             Results = MoveTemp(LocalResults);
         }
         else
@@ -127,41 +135,26 @@ public:
         }
     }
 
-    void CylinderExpandForSubject(
+    void SectorTraceForSubject
+    (
         const FVector Origin,
-        float Radius,
-        float Height,
+        const float Radius,
+        const float Height,
+        const FVector Direction,
+        const float Angle,
+        const bool bCheckVisibility,
+        const float CheckRadius,
         const TArray<FSubjectHandle>& IgnoreSubjects,
         const FFilter Filter,
-        FSubjectHandle& Result)
+        FSubjectHandle& Result
+    )
     {
         Result = FSubjectHandle();
 
         if (LIKELY(NeighborGridComponent != nullptr))
         {
             FSubjectHandle LocalResult;
-            NeighborGridComponent->CylinderExpandForSubject(Origin, Radius, Height, IgnoreSubjects, Filter, LocalResult);
-            Result = MoveTemp(LocalResult);
-        }
-    }
-
-    void SectorExpandForSubject(
-        const FVector Origin,
-        float Radius,
-        float Height,
-        FVector Direction,
-        float Angle,
-        bool bCheckVisibility,
-        const TArray<FSubjectHandle>& IgnoreSubjects,
-        const FFilter Filter,
-        FSubjectHandle& Result)
-    {
-        Result = FSubjectHandle();
-
-        if (LIKELY(NeighborGridComponent != nullptr))
-        {
-            FSubjectHandle LocalResult;
-            NeighborGridComponent->SectorExpandForSubject(Origin, Radius, Height, Direction, Angle, bCheckVisibility, IgnoreSubjects, Filter, LocalResult);
+            NeighborGridComponent->SectorTraceForSubject(Origin, Radius, Height, Direction, Angle, bCheckVisibility, CheckRadius, IgnoreSubjects, Filter, LocalResult);
             Result = MoveTemp(LocalResult);
         }
     }

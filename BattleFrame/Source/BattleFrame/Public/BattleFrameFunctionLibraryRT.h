@@ -36,9 +36,12 @@ public:
     UFUNCTION(BlueprintCallable, Category = "BattleFrame", meta = (AutoCreateRefTerm = "IgnoreSubjects"))
     static void SphereTraceForSubjects(
         ANeighborGridActor* NeighborGridActor,
-        FVector Location,
+        FVector Origin,
         float Radius,
-        const TArray<FSubjectHandle>& IgnoreSubjects,
+        bool bCheckVisibility,
+        FVector CheckOrigin,
+        float CheckRadius,
+        TArray<FSubjectHandle> IgnoreSubjects,
         FFilter Filter,
         TArray<FTraceResult>& Results
     );
@@ -51,24 +54,14 @@ public:
         FVector End,
         float Radius,
         bool bCheckVisibility,
-        const TArray<FSubjectHandle>& IgnoreSubjects,
+        float CheckRadius,
+        TArray<FSubjectHandle> IgnoreSubjects,
         FFilter Filter,
         TArray<FTraceResult>& Results
     );
 
     UFUNCTION(BlueprintCallable, Category = "BattleFrame", meta = (AutoCreateRefTerm = "IgnoreSubjects"))
-    static void CylinderExpandForSubject(
-        ANeighborGridActor* NeighborGridActor,
-        FVector Origin,
-        float Radius,
-        float Height,
-        const TArray<FSubjectHandle>& IgnoreSubjects,
-        FFilter Filter,
-        FSubjectHandle& Result
-    );
-
-    UFUNCTION(BlueprintCallable, Category = "BattleFrame", meta = (AutoCreateRefTerm = "IgnoreSubjects"))
-    static void SectorExpandForSubject(
+    static void SectorTraceForSubject(
         ANeighborGridActor* NeighborGridActor,
         FVector Origin,
         float Radius,
@@ -76,16 +69,17 @@ public:
         FVector Direction,
         float Angle,
         bool bCheckVisibility,
-        const TArray<FSubjectHandle>& IgnoreSubjects,
+        float CheckRadius,
+        TArray<FSubjectHandle> IgnoreSubjects,
         FFilter Filter,
         FSubjectHandle& Result
     );
 
     UFUNCTION(BlueprintCallable, Category = "BattleFrame", meta = (AutoCreateRefTerm = "IgnoreSubjects"))
-    static FDmgResult ApplyDamageToSubjects(
+    static TArray<FDmgResult> ApplyDamageToSubjects(
         ABattleFrameBattleControl* BattleControl,
         TArray<FSubjectHandle> Subjects,
-        const TArray<FSubjectHandle>& IgnoreSubjects,
+        TArray<FSubjectHandle> IgnoreSubjects,
         FSubjectHandle DmgInstigator,
         FVector HitFromLocation,
         FDmgSphere DmgSphere,
@@ -134,9 +128,11 @@ public:
     FVector Start;
     FVector End;
     float Radius;
+    bool bCheckVisibility;
+    float CheckRadius;
     EAsyncSortMode SortMode;
     FVector SortOrigin;
-    int32 MaxCount;
+    int32 KeepCount;
     FFilter Filter;
     TArray<FSubjectHandle> IgnoreSubjects;
 
@@ -150,10 +146,12 @@ public:
         ANeighborGridActor* NeighborGridActor, 
         const FVector Start, 
         const FVector End, 
-        float Radius, 
-        const EAsyncSortMode SortMode, 
+        const float Radius,
+        const bool bCheckVisibility,
+        const float CheckRadius,
+        const EAsyncSortMode SortMode,
         const FVector SortOrigin, 
-        const int32 MaxCount, 
+        const int32 KeepCount, 
         const TArray<FSubjectHandle>& IgnoreSubjects, 
         const FFilter Filter
     );

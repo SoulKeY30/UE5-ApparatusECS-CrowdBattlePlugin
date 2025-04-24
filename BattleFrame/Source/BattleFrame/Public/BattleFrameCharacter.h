@@ -10,11 +10,12 @@
 #include "GameFramework/Character.h"
 #include "SubjectiveActorComponent.h"
 #include "Kismet/GameplayStatics.h"
-
+#include "DmgResultInterface.h"
+#include "Traits/DmgResult.h"
 #include "BattleFrameCharacter.generated.h"
 
 UCLASS()
-class BATTLEFRAME_API ABattleFrameCharacter : public ACharacter
+class BATTLEFRAME_API ABattleFrameCharacter : public ACharacter, public IDmgResultInterface
 {
 	GENERATED_BODY()
 
@@ -31,11 +32,15 @@ protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
+	//virtual void OnConstruction(const FTransform& Transform) override;
+
 public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+	virtual void ReceiveDamage_Implementation(const FDmgResult& DmgResult) override;
 
 };

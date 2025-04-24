@@ -14,12 +14,11 @@ ARVOSquareObstacle::ARVOSquareObstacle()
     AddTickPrerequisiteActor(ABattleFrameBattleControl::GetInstance());
     BoxComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("BoxComponent"));
     RootComponent = BoxComponent;
-    //BoxComponent->SetupAttachment(RootComponent);
 }
 
 void ARVOSquareObstacle::OnConstruction(const FTransform& Transform)
 {
-    BoxComponent->SetWorldScale3D(FVector(1,1,1));
+    //BoxComponent->SetWorldScale3D(FVector(1,1,1));
     BoxComponent->SetWorldRotation(FRotator(0,BoxComponent->GetComponentRotation().Yaw,0));
 }
 
@@ -28,13 +27,13 @@ void ARVOSquareObstacle::BeginPlay()
     Super::BeginPlay();
 
     FTransform ComponentTransform = BoxComponent->GetComponentTransform();
-    FVector BoxExtent = BoxComponent->GetScaledBoxExtent();
+    FVector BoxExtent = BoxComponent->GetUnscaledBoxExtent();
     const float HeightValue = BoxExtent.Z * 2; 
 
-    FVector LocalPoint1 = FVector(-BoxExtent.X, -BoxExtent.Y, -BoxExtent.Z);
-    FVector LocalPoint2 = FVector(BoxExtent.X, -BoxExtent.Y, -BoxExtent.Z);
-    FVector LocalPoint3 = FVector(BoxExtent.X, BoxExtent.Y, -BoxExtent.Z);
-    FVector LocalPoint4 = FVector(-BoxExtent.X, BoxExtent.Y, -BoxExtent.Z);
+    FVector LocalPoint1 = FVector(-BoxExtent.X, -BoxExtent.Y, 0);
+    FVector LocalPoint2 = FVector(BoxExtent.X, -BoxExtent.Y, 0);
+    FVector LocalPoint3 = FVector(BoxExtent.X, BoxExtent.Y, 0);
+    FVector LocalPoint4 = FVector(-BoxExtent.X, BoxExtent.Y, 0);
 
     FVector Point1Location = ComponentTransform.TransformPosition(LocalPoint1);
     FVector Point2Location = ComponentTransform.TransformPosition(LocalPoint2);
@@ -148,6 +147,29 @@ void ARVOSquareObstacle::BeginPlay()
     Obstacle4.SetTrait(FAvoiding{ Point4Location, 0, Obstacle4, Obstacle4.CalcHash() });
 }
 
+void ARVOSquareObstacle::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    if (Obstacle1.IsValid())
+    {
+        Obstacle1->DespawnDeferred();
+    }
+
+    if (Obstacle2.IsValid())
+    {
+        Obstacle2->DespawnDeferred();
+    }
+
+    if (Obstacle3.IsValid())
+    {
+        Obstacle3->DespawnDeferred();
+    }
+
+    if (Obstacle4.IsValid())
+    {
+        Obstacle4->DespawnDeferred();
+    }
+}
+
 void ARVOSquareObstacle::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
@@ -158,10 +180,10 @@ void ARVOSquareObstacle::Tick(float DeltaTime)
         FVector BoxExtent = BoxComponent->GetScaledBoxExtent();
         const float CurrentHeight = BoxExtent.Z * 2;
 
-        FVector LocalPoint1 = FVector(-BoxExtent.X, -BoxExtent.Y, -BoxExtent.Z);
-        FVector LocalPoint2 = FVector(BoxExtent.X, -BoxExtent.Y, -BoxExtent.Z);
-        FVector LocalPoint3 = FVector(BoxExtent.X, BoxExtent.Y, -BoxExtent.Z);
-        FVector LocalPoint4 = FVector(-BoxExtent.X, BoxExtent.Y, -BoxExtent.Z);
+        FVector LocalPoint1 = FVector(-BoxExtent.X, -BoxExtent.Y, 0);
+        FVector LocalPoint2 = FVector(BoxExtent.X, -BoxExtent.Y, 0);
+        FVector LocalPoint3 = FVector(BoxExtent.X, BoxExtent.Y, 0);
+        FVector LocalPoint4 = FVector(-BoxExtent.X, BoxExtent.Y, 0);
 
         FVector Point1Location = ComponentTransform.TransformPosition(LocalPoint1);
         FVector Point2Location = ComponentTransform.TransformPosition(LocalPoint2);

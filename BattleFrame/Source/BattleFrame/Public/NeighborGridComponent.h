@@ -93,13 +93,11 @@ public:
 		Cells.AddDefaulted(Size.X * Size.Y * Size.Z);
 	}
 
-	void SphereTraceForSubjects(const FVector Origin, float Radius, TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, TArray<FTraceResult>& Results) const;
+	void SphereTraceForSubjects(const FVector Origin, const float Radius, const bool bCheckVisibility, const FVector CheckOrigin, const float CheckRadius, const TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, TArray<FTraceResult>& Results) const;
 	
-	void SphereSweepForSubjects(const FVector Start, const FVector End, float Radius, bool bCheckVisibility, TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, TArray<FTraceResult>& Results);
+	void SphereSweepForSubjects(const FVector Start, const FVector End, const float Radius, const bool bCheckVisibility, const float CheckRadius, const TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, TArray<FTraceResult>& Results);
 	
-	void CylinderExpandForSubject(const FVector Origin, float Radius, float Height, TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, FSubjectHandle& Result) const;
-
-	void SectorExpandForSubject(const FVector Origin, float Radius, float Height, FVector Direction, float Angle, bool bCheckVisibility, TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, FSubjectHandle& Result) const;
+	void SectorTraceForSubject(const FVector Origin, const float Radius, const float Height, const FVector Direction, const float Angle, const bool bCheckVisibility, const float CheckRadius, const TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, FSubjectHandle& Result) const;
 
 	void SphereSweepForObstacle(FVector Start, FVector End, float Radius, bool& Hit, FTraceResult& Result) const;
 

@@ -75,6 +75,12 @@ public:
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "移动动画的索引值"))
     float IndexOfMoveAnim = 4;
 
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = ""))
+    float IdlePlayRate = 1;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = ""))
+    float MovePlayRate = 1;
+
     //-----------------------------------------------------------
 
     float AppearAnimLength = 1.f;

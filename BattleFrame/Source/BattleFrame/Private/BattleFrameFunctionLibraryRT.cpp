@@ -1247,9 +1247,12 @@ void UBattleFrameFunctionLibraryRT::ExcludeAvoGroupTraitByIndex(int32 Index, FFi
 void UBattleFrameFunctionLibraryRT::SphereTraceForSubjects
 (
 	ANeighborGridActor* NeighborGridActor,
-	FVector Location,
+	FVector Origin,
 	float Radius,
-	const TArray<FSubjectHandle>& IgnoreSubjects,
+	bool bCheckVisibility,
+	FVector CheckOrigin,
+	float CheckRadius,
+	TArray<FSubjectHandle> IgnoreSubjects,
 	FFilter Filter,
 	TArray<FTraceResult>& Results
 )
@@ -1271,7 +1274,7 @@ void UBattleFrameFunctionLibraryRT::SphereTraceForSubjects
 	if (IsValid(NeighborGridActor))
 	{
 		TArray<FTraceResult> LocalResults;
-		NeighborGridActor->SphereTraceForSubjects(Location, Radius, IgnoreSubjects, Filter, LocalResults);
+		NeighborGridActor->SphereTraceForSubjects(Origin, Radius, bCheckVisibility, CheckOrigin, CheckRadius, IgnoreSubjects, Filter, LocalResults);
 		Results = MoveTemp(LocalResults);
 	}
 }
@@ -1283,7 +1286,8 @@ void UBattleFrameFunctionLibraryRT::SphereSweepForSubjects
 	FVector End,
 	float Radius,
 	bool bCheckVisibility,
-	const TArray<FSubjectHandle>& IgnoreSubjects,
+	float CheckRadius,
+	TArray<FSubjectHandle> IgnoreSubjects,
 	FFilter Filter,
 	TArray<FTraceResult>& Results
 )
@@ -1305,45 +1309,12 @@ void UBattleFrameFunctionLibraryRT::SphereSweepForSubjects
 	if (IsValid(NeighborGridActor))
 	{
 		TArray<FTraceResult> LocalResults;
-		NeighborGridActor->SphereSweepForSubjects(Start, End, Radius, bCheckVisibility, IgnoreSubjects, Filter, LocalResults);
+		NeighborGridActor->SphereSweepForSubjects(Start, End, Radius, bCheckVisibility, CheckRadius, IgnoreSubjects, Filter, LocalResults);
 		Results = MoveTemp(LocalResults);
 	}
 }
 
-void UBattleFrameFunctionLibraryRT::CylinderExpandForSubject
-(
-	ANeighborGridActor* NeighborGridActor,
-	FVector Origin,
-	float Radius,
-	float Height,
-	const TArray<FSubjectHandle>& IgnoreSubjects,
-	FFilter Filter,
-	FSubjectHandle& Result
-)
-{
-	Result = FSubjectHandle();
-
-	if (!IsValid(NeighborGridActor))
-	{
-		if (UWorld* World = GEngine->GetCurrentPlayWorld())
-		{
-			for (TActorIterator<ANeighborGridActor> It(World); It; ++It)
-			{
-				NeighborGridActor = *It;
-				break;
-			}
-		}
-	}
-
-	if (IsValid(NeighborGridActor))
-	{
-		FSubjectHandle LocalResult;
-		NeighborGridActor->CylinderExpandForSubject(Origin, Radius, Height, IgnoreSubjects, Filter, LocalResult);
-		Result = MoveTemp(LocalResult);
-	}
-}
-
-void UBattleFrameFunctionLibraryRT::SectorExpandForSubject
+void UBattleFrameFunctionLibraryRT::SectorTraceForSubject
 (
 	ANeighborGridActor* NeighborGridActor,
 	FVector Origin,
@@ -1352,7 +1323,8 @@ void UBattleFrameFunctionLibraryRT::SectorExpandForSubject
 	FVector Direction,
 	float Angle,
 	bool bCheckVisibility,
-	const TArray<FSubjectHandle>& IgnoreSubjects,
+	float CheckRadius,
+	TArray<FSubjectHandle> IgnoreSubjects,
 	FFilter Filter,
 	FSubjectHandle& Result
 )
@@ -1374,19 +1346,21 @@ void UBattleFrameFunctionLibraryRT::SectorExpandForSubject
 	if (IsValid(NeighborGridActor))
 	{
 		FSubjectHandle LocalResult;
-		NeighborGridActor->SectorExpandForSubject(Origin, Radius, Height, Direction, Angle, bCheckVisibility, IgnoreSubjects, Filter, LocalResult);
+		NeighborGridActor->SectorTraceForSubject(Origin, Radius, Height, Direction, Angle, bCheckVisibility, CheckRadius, IgnoreSubjects, Filter, LocalResult);
 		Result = MoveTemp(LocalResult);
 	}
 }
 
-FDmgResult UBattleFrameFunctionLibraryRT::ApplyDamageToSubjects(
+TArray<FDmgResult> UBattleFrameFunctionLibraryRT::ApplyDamageToSubjects
+(
 	ABattleFrameBattleControl* BattleControl,
 	TArray<FSubjectHandle> Subjects,
-	const TArray<FSubjectHandle>& IgnoreSubjects,
+	TArray<FSubjectHandle> IgnoreSubjects,
 	FSubjectHandle DmgInstigator,
 	FVector HitFromLocation,
 	FDmgSphere DmgSphere,
-	FDebuff Debuff)
+	FDebuff Debuff
+)
 {
 	// 直接获取当前游戏世界的 World（仅限 Runtime）
 	UWorld* World = GEngine ? GEngine->GetCurrentPlayWorld() : nullptr;
@@ -1405,7 +1379,7 @@ FDmgResult UBattleFrameFunctionLibraryRT::ApplyDamageToSubjects(
 	if (!IsValid(BattleControl))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("ApplyDamageToSubjects: No valid BattleControl found!"));
-		return FDmgResult();
+		return TArray<FDmgResult>();
 	}
 
 	// 使用MoveTemp转移Subjects的所有权
@@ -1428,10 +1402,12 @@ USphereSweepForSubjectsAsyncAction* USphereSweepForSubjectsAsyncAction::SphereSw
 	ANeighborGridActor* NeighborGridActor, 
 	const FVector Start, 
 	const FVector End, 
-	float Radius, 
-	const EAsyncSortMode SortMode, 
+	const float Radius,
+	const bool bCheckVisibility,
+	const float CheckRadius,
+	const EAsyncSortMode SortMode,
 	const FVector SortOrigin, 
-	const int32 MaxCount, 
+	const int32 KeepCount,
 	const TArray<FSubjectHandle>& IgnoreSubjects, 
 	const FFilter Filter
 )
@@ -1443,9 +1419,11 @@ USphereSweepForSubjectsAsyncAction* USphereSweepForSubjectsAsyncAction::SphereSw
 	AsyncAction->Start = Start;
 	AsyncAction->End = End;
 	AsyncAction->Radius = Radius;
+	AsyncAction->bCheckVisibility = bCheckVisibility;
+	AsyncAction->CheckRadius = CheckRadius;
 	AsyncAction->SortMode = SortMode;
 	AsyncAction->SortOrigin = SortOrigin;
-	AsyncAction->MaxCount = MaxCount;
+	AsyncAction->KeepCount = KeepCount;
 	AsyncAction->Filter = Filter;
 	AsyncAction->IgnoreSubjects = IgnoreSubjects;
 
@@ -1507,6 +1485,19 @@ void USphereSweepForSubjectsAsyncAction::Activate()
 
 					if (FVector::DistSquared(NearestPoint, SubjectPos) >= CombinedRadSq) continue;
 
+					// 可见性检查
+					if (bCheckVisibility)
+					{
+						bool Hit = false;
+						FTraceResult TraceResult;
+						NeighborGrid->SphereSweepForObstacle(Start, SubjectPos, CheckRadius, Hit, TraceResult);
+
+						if (Hit)
+						{
+							continue; // 路径被阻挡，跳过该目标
+						}
+					}
+
 					// 创建FTraceResult并添加到结果数组
 					FTraceResult Result{ Subject ,SubjectPos ,FVector::DistSquared(SortOrigin, SubjectPos) };
 					TempResults.Add(Result);
@@ -1535,7 +1526,7 @@ void USphereSweepForSubjectsAsyncAction::Activate()
 					Results.Reset();
 
 					int32 ValidCount = 0;
-					const bool bRequireLimit = (MaxCount > 0);
+					const bool bRequireLimit = (KeepCount > 0);
 
 					// 按预排序顺序遍历，遇到有效项立即收集
 					for (const FTraceResult& TempResult : TempResults)
@@ -1546,7 +1537,7 @@ void USphereSweepForSubjectsAsyncAction::Activate()
 						ValidCount++;
 
 						// 达到数量限制立即终止
-						if (bRequireLimit && ValidCount >= MaxCount)
+						if (bRequireLimit && ValidCount >= KeepCount)
 						{
 							break;
 						}
