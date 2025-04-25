@@ -26,9 +26,9 @@ void ARVOSquareObstacle::BeginPlay()
 {
     Super::BeginPlay();
 
-    FTransform ComponentTransform = BoxComponent->GetComponentTransform();
+    FTransform ComponentTransform = GetActorTransform();
     FVector BoxExtent = BoxComponent->GetUnscaledBoxExtent();
-    const float HeightValue = BoxExtent.Z * 2; 
+    const float HeightValue = BoxExtent.Z * 2 * ComponentTransform.GetScale3D().Z;
 
     FVector LocalPoint1 = FVector(-BoxExtent.X, -BoxExtent.Y, 0);
     FVector LocalPoint2 = FVector(BoxExtent.X, -BoxExtent.Y, 0);
@@ -177,8 +177,8 @@ void ARVOSquareObstacle::Tick(float DeltaTime)
     if (bIsDynamicObstacle)
     {
         FTransform ComponentTransform = BoxComponent->GetComponentTransform();
-        FVector BoxExtent = BoxComponent->GetScaledBoxExtent();
-        const float CurrentHeight = BoxExtent.Z * 2;
+        FVector BoxExtent = BoxComponent->GetUnscaledBoxExtent();
+        const float CurrentHeight = BoxExtent.Z * 2 * ComponentTransform.GetScale3D().Z;
 
         FVector LocalPoint1 = FVector(-BoxExtent.X, -BoxExtent.Y, 0);
         FVector LocalPoint2 = FVector(BoxExtent.X, -BoxExtent.Y, 0);

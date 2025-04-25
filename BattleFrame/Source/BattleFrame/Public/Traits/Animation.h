@@ -158,6 +158,9 @@ public:
         IndexOfAttackAnim = Anim.IndexOfAttackAnim;
         IndexOfDeathAnim = Anim.IndexOfDeathAnim;
 
+        IdlePlayRate = Anim.IdlePlayRate;
+        MovePlayRate = Anim.MovePlayRate;
+
         SubjectState = Anim.SubjectState;
         PreviousSubjectState = Anim.PreviousSubjectState;
     }
@@ -200,6 +203,9 @@ public:
         IndexOfMoveAnim = Anim.IndexOfMoveAnim;
         IndexOfAttackAnim = Anim.IndexOfAttackAnim;
         IndexOfDeathAnim = Anim.IndexOfDeathAnim;
+
+        IdlePlayRate = Anim.IdlePlayRate;
+        MovePlayRate = Anim.MovePlayRate;
 
         SubjectState = Anim.SubjectState;
         PreviousSubjectState = Anim.PreviousSubjectState;

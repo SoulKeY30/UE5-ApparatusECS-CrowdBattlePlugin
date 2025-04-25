@@ -64,7 +64,7 @@ void UNeighborGridComponent::InitializeComponent()
 //--------------------------------------------Tracing----------------------------------------------------------------
 
 // Multi Trace For Subjects
-void UNeighborGridComponent::SphereTraceForSubjects(const FVector Origin, const float Radius, const bool bCheckVisibility, const FVector CheckOrigin, const float CheckRadius, const TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, TArray<FTraceResult>& Results) const
+void UNeighborGridComponent::SphereTraceForSubjects(const FVector Origin, const float Radius, const bool bCheckVisibility, const FVector CheckOrigin, const float CheckRadius, const TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, bool& Hit, TArray<FTraceResult>& Results) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereTraceForSubjects");
 
@@ -101,10 +101,7 @@ void UNeighborGridComponent::SphereTraceForSubjects(const FVector Origin, const 
 						const FSubjectHandle OtherSubject = Data.SubjectHandle;
 
 						// 检查是否在忽略列表中
-						if (IgnoreSet.Contains(OtherSubject))
-						{
-							continue;
-						}
+						if (IgnoreSet.Contains(OtherSubject)) continue;
 
 						if (LIKELY(OtherSubject.Matches(Filter)))
 						{
@@ -121,12 +118,14 @@ void UNeighborGridComponent::SphereTraceForSubjects(const FVector Origin, const 
 								{
 									bool bHit = false;
 									FTraceResult VisibilityResult;
-									SphereSweepForObstacle(CheckOrigin, Data.Location, CheckRadius, bHit, VisibilityResult);
 
-									if (bHit)
-									{
-										continue; // Path is blocked, skip this subject
-									}
+									// 计算目标球体表面点（考虑目标半径）
+									const FVector ToSubjectDir = (Data.Location - CheckOrigin).GetSafeNormal();
+									const FVector SubjectSurfacePoint = Data.Location - (ToSubjectDir * OtherRadius);
+
+									SphereSweepForObstacle(CheckOrigin, SubjectSurfacePoint, CheckRadius, bHit, VisibilityResult);
+
+									if (bHit) continue; // Path is blocked, skip this subject
 								}
 
 								// 创建FTraceResult并添加到结果数组
@@ -142,15 +141,95 @@ void UNeighborGridComponent::SphereTraceForSubjects(const FVector Origin, const 
 			}
 		}
 	}
+
+	Hit = !Results.IsEmpty();
+}
+
+// Multi Sweep Trace For Subjects
+void UNeighborGridComponent::SphereSweepForSubjects(const FVector Start, const FVector End, const float Radius, const bool bCheckVisibility, const FVector CheckOrigin, const float CheckRadius, const TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, bool& Hit, TArray<FTraceResult>& Results)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereSweepForSubjects");
+
+	Results.Empty(); // Clear result array
+
+	// Convert ignore list to set for fast lookup
+	TSet<FSubjectHandle> IgnoreSet(IgnoreSubjects);
+
+	TArray<FIntVector> GridCells = SphereSweepForCells(Start, End, Radius);
+
+	const FVector TraceDir = (End - Start).GetSafeNormal();
+	const float TraceLength = FVector::Distance(Start, End);
+
+	// Check subjects in each cell
+	for (const FIntVector& CellIndex : GridCells)
+	{
+		const FNeighborGridCell& CageCell = At(CellIndex.X, CellIndex.Y, CellIndex.Z);
+
+		if (!CageCell.SubjectFingerprint.Matches(Filter.GetFingerprint())) continue;
+
+		for (const FAvoiding& Data : CageCell.Subjects)
+		{
+			const FSubjectHandle Subject = Data.SubjectHandle;
+
+			// Check if in ignore list
+			if (IgnoreSet.Contains(Subject)) continue;
+
+			// Validity checks
+			if (!Subject.IsValid() || !Subject.Matches(Filter)) continue;
+
+			const FVector SubjectPos = Data.Location;
+			float SubjectRadius = Data.Radius;
+
+			// Distance calculations
+			const FVector ToSubject = SubjectPos - Start;
+			const float ProjOnTrace = FVector::DotProduct(ToSubject, TraceDir);
+
+			// Initial filtering
+			const float ProjThreshold = SubjectRadius + Radius;
+			if (ProjOnTrace < -ProjThreshold || ProjOnTrace > TraceLength + ProjThreshold) continue;
+
+			// Precise distance check
+			const float ClampedProj = FMath::Clamp(ProjOnTrace, 0.0f, TraceLength);
+			const FVector NearestPoint = Start + ClampedProj * TraceDir;
+			const float CombinedRadSq = FMath::Square(Radius + SubjectRadius);
+
+			if (FVector::DistSquared(NearestPoint, SubjectPos) < CombinedRadSq)
+			{
+				if (bCheckVisibility)
+				{
+					// Perform visibility check
+					bool bHit = false;
+					FTraceResult VisibilityResult;
+
+					// Calculate the surface point on the subject's sphere
+					const FVector ToSubjectDir = (SubjectPos - CheckOrigin).GetSafeNormal();
+					const FVector SubjectSurfacePoint = SubjectPos - (ToSubjectDir * SubjectRadius);
+
+					SphereSweepForObstacle(CheckOrigin, SubjectSurfacePoint, CheckRadius, bHit, VisibilityResult);
+
+					if (bHit) continue; // Path is blocked, skip this subject
+				}
+
+				// Create FTraceResult and add to results array
+				FTraceResult Result;
+				Result.Subject = Subject;
+				Result.Location = SubjectPos;
+				Result.CachedDistSq = FVector::DistSquared(Start, SubjectPos); // Precompute distance
+				Results.Add(Result);
+			}
+		}
+	}
+
+	Hit = !Results.IsEmpty();
 }
 
 // Single Sector Trace For Nearest Subject
-void UNeighborGridComponent::SectorTraceForSubject(const FVector Origin, const float Radius, const float Height, const FVector Direction, const float Angle, const bool bCheckVisibility, const float CheckRadius, const TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, FSubjectHandle& Result) const
+void UNeighborGridComponent::SectorTraceForSubject(const FVector Origin, const float Radius, const float Height, const FVector Direction, const float Angle, const bool bCheckVisibility, const FVector CheckOrigin, const float CheckRadius, const TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, bool& Hit, FTraceResult& Result) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SectorTraceForSubject");
 
 	float ClosestDistanceSqr = FLT_MAX;
-	FSubjectHandle ClosestSubject = FSubjectHandle();
+	FTraceResult ClosestResult;
 
 	// 将忽略列表转换为集合以便快速查找
 	TSet<FSubjectHandle> IgnoreSet(IgnoreSubjects);
@@ -211,17 +290,14 @@ void UNeighborGridComponent::SectorTraceForSubject(const FVector Origin, const f
 			const FSubjectHandle Subject = SubjectData.SubjectHandle;
 
 			// 检查是否在忽略列表中
-			if (IgnoreSet.Contains(Subject))
-			{
-				continue;
-			}
-
+			if (IgnoreSet.Contains(Subject)) continue;
 			if (!Subject.Matches(Filter)) continue;
 
 			// 精确距离检测（考虑目标半径）
 			const FVector Delta = SubjectData.Location - Origin;
 			const float DistanceSqr = Delta.SizeSquared();
 			const float CombinedRadiusSq = FMath::Square(Radius + SubjectData.Radius);
+
 			if (DistanceSqr > CombinedRadiusSq) continue;
 
 			// 精确扇形检测
@@ -241,106 +317,33 @@ void UNeighborGridComponent::SectorTraceForSubject(const FVector Origin, const f
 				if (bCheckVisibility)
 				{
 					// 执行可见性检测
-					bool Hit = false;
+					bool HitObstacle;
 					FTraceResult TraceResult;
-					SphereSweepForObstacle(Origin, SubjectData.Location, CheckRadius, Hit, TraceResult);
 
-					if (Hit)
-					{
-						continue; // 路径被阻挡，跳过该目标
-					}
+					// 计算目标球体表面点（考虑目标半径）
+					const FVector ToSubjectDir = (SubjectData.Location - CheckOrigin).GetSafeNormal();
+					const FVector SubjectSurfacePoint = SubjectData.Location - (ToSubjectDir * SubjectData.Radius);
+
+					SphereSweepForObstacle(CheckOrigin, SubjectSurfacePoint, CheckRadius, HitObstacle, TraceResult);
+
+					if (HitObstacle) continue; // 路径被阻挡，跳过该目标
 				}
 
 				ClosestDistanceSqr = DistanceSqr;
-				ClosestSubject = Subject;
+				ClosestResult.Subject = Subject;
+				ClosestResult.Location = SubjectData.Location;
 
 				if (ClosestDistanceSqr <= KINDA_SMALL_NUMBER)
 				{
-					Result = ClosestSubject;
+					Result = ClosestResult;
 					return;
 				}
 			}
 		}
 	}
 
-	Result = ClosestSubject.IsValid() ? ClosestSubject : FSubjectHandle();
-}
-
-// Multi Sweep Trace For Subjects
-void UNeighborGridComponent::SphereSweepForSubjects(const FVector Start, const FVector End, const float Radius, const bool bCheckVisibility, const float CheckRadius, const TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, TArray<FTraceResult>& Results)
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereSweepForSubjects");
-
-	Results.Empty(); // Clear result array
-
-	// Convert ignore list to set for fast lookup
-	TSet<FSubjectHandle> IgnoreSet(IgnoreSubjects);
-
-	TArray<FIntVector> GridCells = SphereSweepForCells(Start, End, Radius);
-
-	const FVector TraceDir = (End - Start).GetSafeNormal();
-	const float TraceLength = FVector::Distance(Start, End);
-
-	// Check subjects in each cell
-	for (const FIntVector& CellIndex : GridCells)
-	{
-		const FNeighborGridCell& CageCell = At(CellIndex.X, CellIndex.Y, CellIndex.Z);
-
-		if (!CageCell.SubjectFingerprint.Matches(Filter.GetFingerprint())) continue;
-
-		for (const FAvoiding& Data : CageCell.Subjects)
-		{
-			const FSubjectHandle Subject = Data.SubjectHandle;
-
-			// Check if in ignore list
-			if (IgnoreSet.Contains(Subject))
-			{
-				continue;
-			}
-
-			// Validity checks
-			if (!Subject.IsValid() || !Subject.Matches(Filter)) continue;
-
-			const FVector SubjectPos = Data.Location;
-			float SubjectRadius = Data.Radius;
-
-			// Distance calculations
-			const FVector ToSubject = SubjectPos - Start;
-			const float ProjOnTrace = FVector::DotProduct(ToSubject, TraceDir);
-
-			// Initial filtering
-			const float ProjThreshold = SubjectRadius + Radius;
-			if (ProjOnTrace < -ProjThreshold || ProjOnTrace > TraceLength + ProjThreshold) continue;
-
-			// Precise distance check
-			const float ClampedProj = FMath::Clamp(ProjOnTrace, 0.0f, TraceLength);
-			const FVector NearestPoint = Start + ClampedProj * TraceDir;
-			const float CombinedRadSq = FMath::Square(Radius + SubjectRadius);
-
-			if (FVector::DistSquared(NearestPoint, SubjectPos) < CombinedRadSq)
-			{
-				if (bCheckVisibility)
-				{
-					// Perform visibility check
-					bool bHit = false;
-					FTraceResult VisibilityResult;
-					SphereSweepForObstacle(Start, SubjectPos, CheckRadius, bHit, VisibilityResult);
-
-					if (bHit)
-					{
-						continue; // Path is blocked, skip this subject
-					}
-				}
-
-				// Create FTraceResult and add to results array
-				FTraceResult Result;
-				Result.Subject = Subject;
-				Result.Location = SubjectPos;
-				Result.CachedDistSq = FVector::DistSquared(Start, SubjectPos); // Precompute distance
-				Results.Add(Result);
-			}
-		}
-	}
+	Hit = ClosestResult.Subject.IsValid();
+	Result = Hit ? ClosestResult : FTraceResult();
 }
 
 // Single Sweep Trace For Nearest Obstacle
@@ -355,16 +358,16 @@ void UNeighborGridComponent::SphereSweepForObstacle(FVector Start, FVector End, 
 	TArray<FIntVector> PathCells = SphereSweepForCells(Start, End, Radius);
 
 	auto ProcessObstacle = [&](const FAvoiding& Obstacle, float DistSqr)
+	{
+		if (DistSqr < ClosestHitDistSq)
 		{
-			if (DistSqr < ClosestHitDistSq)
-			{
-				ClosestHitDistSq = DistSqr;
-				Hit = true;
-				Result.Subject = Obstacle.SubjectHandle;
-				Result.Location = Obstacle.Location;
-				Result.CachedDistSq = DistSqr;
-			}
-		};
+			ClosestHitDistSq = DistSqr;
+			Hit = true;
+			Result.Subject = Obstacle.SubjectHandle;
+			Result.Location = Obstacle.Location;
+			Result.CachedDistSq = DistSqr;
+		}
+	};
 
 	for (const FIntVector& CellPos : PathCells)
 	{
@@ -372,24 +375,26 @@ void UNeighborGridComponent::SphereSweepForObstacle(FVector Start, FVector End, 
 
 		// 检查球形障碍物
 		auto CheckSphereCollision = [&](const TArray<FAvoiding>& Obstacles)
+		{
+			for (const FAvoiding& Avoiding : Obstacles)
 			{
-				for (const FAvoiding& Avoiding : Obstacles)
+				if (!Avoiding.SubjectHandle.IsValid()) continue;
+
+				const FSphereObstacle* CurrentObstacle = Avoiding.SubjectHandle.GetTraitPtr<FSphereObstacle, EParadigm::Unsafe>();
+				if (!CurrentObstacle) continue;
+				if (CurrentObstacle->bExcluded) continue;
+
+				// 计算球体到线段的最短距离平方
+				const float DistSqr = FMath::PointDistToSegmentSquared(Avoiding.Location, Start, End);
+				const float CombinedRadius = Radius + Avoiding.Radius;
+
+				// 如果距离小于合并半径，则发生碰撞
+				if (DistSqr <= FMath::Square(CombinedRadius))
 				{
-					const FSphereObstacle* CurrentObstacle = Avoiding.SubjectHandle.GetTraitPtr<FSphereObstacle, EParadigm::Unsafe>();
-					if (!CurrentObstacle) continue;
-					if (CurrentObstacle->bExcluded) continue;
-
-					// 计算球体到线段的最短距离平方
-					const float DistSqr = FMath::PointDistToSegmentSquared(Avoiding.Location, Start, End);
-					const float CombinedRadius = Radius + Avoiding.Radius;
-
-					// 如果距离小于合并半径，则发生碰撞
-					if (DistSqr <= FMath::Square(CombinedRadius))
-					{
-						ProcessObstacle(Avoiding, DistSqr);
-					}
+					ProcessObstacle(Avoiding, DistSqr);
 				}
-			};
+			}
+		};
 
 		// 检查静态/动态球形障碍物
 		CheckSphereCollision(Cell.SphereObstacles);
@@ -896,7 +901,7 @@ void UNeighborGridComponent::Decouple()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("RVO2 Decouple");
 
-	const float DeltaTime = GetWorld()->GetDeltaSeconds();
+	const float DeltaTime = FMath::Clamp(GetWorld()->GetDeltaSeconds(),0,0.03f);
 
 	const FFilter SphereObstacleFilter = FFilter::Make<FSphereObstacle, FAvoiding, FAvoidance, FLocated, FCollider>();
 	const FFingerprint SphereObstacleFingerprint = SphereObstacleFilter.GetFingerprint();

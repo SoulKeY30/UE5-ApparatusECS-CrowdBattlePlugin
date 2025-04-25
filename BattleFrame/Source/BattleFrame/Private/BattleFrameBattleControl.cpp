@@ -42,6 +42,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 	if (bIsGameOver || !CurrentWorld || !Mechanism || !NeighborGrid) return;
 
+	float SafeDeltaTime = FMath::Clamp(DeltaTime, 0, 0.03f);
+
 	//--------------------数据统计----------------------
 
 	// 统计Agent数量
@@ -69,7 +71,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 			{
 				if (Stats.bEnable)
 				{
-					Stats.totalTime += DeltaTime;
+					Stats.totalTime += SafeDeltaTime;
 				}
 
 			}, ThreadsCount, BatchSize);
@@ -149,7 +151,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					Subject.RemoveTraitDeferred<FAppearing>();
 				}
 
-				Appearing.time += DeltaTime;
+				Appearing.time += SafeDeltaTime;
 
 			}, ThreadsCount, BatchSize);
 	}
@@ -182,7 +184,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					Subject.RemoveTraitDeferred<FAppearAnim>();
 				}
 
-				AppearAnim.animTime += DeltaTime;
+				AppearAnim.animTime += SafeDeltaTime;
 
 			}, ThreadsCount, BatchSize);
 	}
@@ -212,7 +214,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					Subject.RemoveTraitDeferred<FAppearDissolve>();
 				}
 
-				AppearDissolve.dissolveTime += DeltaTime;
+				AppearDissolve.dissolveTime += SafeDeltaTime;
 
 			}, ThreadsCount, BatchSize);
 	}
@@ -280,7 +282,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						}
 						else
 						{
-							Patrolling.WaitTimeLeft -= DeltaTime;
+							Patrolling.WaitTimeLeft -= SafeDeltaTime;
 						}
 					}
 					else
@@ -294,7 +296,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						}
 						else
 						{
-							Patrolling.MoveTimeLeft -= DeltaTime;
+							Patrolling.MoveTimeLeft -= SafeDeltaTime;
 						}
 					}
 				}
@@ -357,7 +359,11 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 		// A workaround. Apparatus does not expose the array of iterables, so we have to gather manually
 		Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FTrace& Trace)
 		{
-			if (!Trace.bEnable) return;
+			if (!Trace.bEnable)
+			{
+				Trace.TraceResult = FSubjectHandle();
+				return;
+			}
 
 			bool bShouldTrace = false;
 
@@ -368,7 +374,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 			}
 			else
 			{
-				Trace.TimeLeft -= DeltaTime;
+				Trace.TimeLeft -= SafeDeltaTime;
 			}
 
 			if (bShouldTrace)// we add iterables into separate arrays and then apend them.
@@ -395,45 +401,45 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 		// 并行处理筛选结果
 		ParallelFor(ValidSubjects.Num(), [&](int32 Index)
+		{
+			FSolidSubjectHandle Subject = ValidSubjects[Index];
+
+			FLocated& Located = Subject.GetTraitRef<FLocated>();
+			FDirected& Directed = Subject.GetTraitRef<FDirected>();
+			FCollider& Collider = Subject.GetTraitRef<FCollider>();
+
+			FTrace& Trace = Subject.GetTraitRef<FTrace>();
+			FSleep& Sleep = Subject.GetTraitRef<FSleep>();
+			FPatrol& Patrol = Subject.GetTraitRef<FPatrol>();
+
+			const bool bIsSleeping = Subject.HasTrait<FSleeping>();
+			const bool bIsPatrolling = Subject.HasTrait<FPatrolling>();
+
+			float FinalRange = 0;
+			float FinalAngle = 0;
+			bool FinalCheckVisibility = false;
+
+			if (bIsSleeping)
 			{
-				FSolidSubjectHandle Subject = ValidSubjects[Index];
+				FinalRange = Sleep.TraceRadius;
+				FinalAngle = Sleep.TraceAngle;
+				FinalCheckVisibility = Sleep.bCheckVisibility;
+			}
+			else if (bIsPatrolling)
+			{
+				FinalRange = Patrol.TraceRadius;
+				FinalAngle = Patrol.TraceAngle;
+				FinalCheckVisibility = Patrol.bCheckVisibility;
+			}
+			else
+			{
+				FinalRange = Trace.TraceRadius;
+				FinalAngle = Trace.TraceAngle;
+				FinalCheckVisibility = Trace.bCheckVisibility;
+			}
 
-				FLocated& Located = Subject.GetTraitRef<FLocated>();
-				FDirected& Directed = Subject.GetTraitRef<FDirected>();
-				FCollider& Collider = Subject.GetTraitRef<FCollider>();
-
-				FTrace& Trace = Subject.GetTraitRef<FTrace>();
-				FSleep& Sleep = Subject.GetTraitRef<FSleep>();
-				FPatrol& Patrol = Subject.GetTraitRef<FPatrol>();
-
-				const bool bIsSleeping = Subject.HasTrait<FSleeping>();
-				const bool bIsPatrolling = Subject.HasTrait<FPatrolling>();
-
-				float FinalRange = 0;
-				float FinalAngle = 0;
-				bool FinalCheckVisibility = false;
-
-				if (bIsSleeping)
-				{
-					FinalRange = Sleep.TraceRadius;
-					FinalAngle = Sleep.TraceAngle;
-					FinalCheckVisibility = Sleep.bCheckVisibility;
-				}
-				else if (bIsPatrolling)
-				{
-					FinalRange = Patrol.TraceRadius;
-					FinalAngle = Patrol.TraceAngle;
-					FinalCheckVisibility = Patrol.bCheckVisibility;
-				}
-				else
-				{
-					FinalRange = Trace.TraceRadius;
-					FinalAngle = Trace.TraceAngle;
-					FinalCheckVisibility = Trace.bCheckVisibility;
-				}
-
-				switch (Trace.Mode)
-				{
+			switch (Trace.Mode)
+			{
 				case ETraceMode::TargetIsPlayer_0:
 				{
 					Trace.TraceResult = FSubjectHandle{};
@@ -482,7 +488,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					if (LIKELY(IsValid(Trace.NeighborGrid)))
 					{
 						FFilter TargetFilter;
-						FSubjectHandle Result;
+						bool Hit;
+						FTraceResult Result;
 
 						TargetFilter.Include(Trace.IncludeTraits);
 						TargetFilter.Exclude(Trace.ExcludeTraits);
@@ -502,37 +509,39 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 							TraceDirection,     // 扇形方向
 							FinalAngle,         // 扇形角度
 							FinalCheckVisibility,
+							Located.Location,
 							Collider.Radius,
 							IgnoreList,
 							TargetFilter,       // 过滤条件
+							Hit,
 							Result              // 输出结果
 						);
 
 						// 直接使用结果（扇形检测已包含角度验证）
-						if (Result.IsValid())
+						if (Result.Subject.IsValid())
 						{
-							Trace.TraceResult = Result;
+							Trace.TraceResult = Result.Subject;
 						}
 					}
 					break;
 				}
-				}
+			}
 
-				// if we have a valid target, we stop sleeping or patrolling
-				if (Trace.TraceResult.IsValid())
+			// if we have a valid target, we stop sleeping or patrolling
+			if (Trace.TraceResult.IsValid())
+			{
+				if (bIsSleeping)
 				{
-					if (bIsSleeping)
-					{
-						Subject.RemoveTraitDeferred<FSleeping>();
-					}
-
-					if (bIsPatrolling)
-					{
-						Subject.RemoveTraitDeferred<FPatrolling>();
-					}
+					Subject.RemoveTraitDeferred<FSleeping>();
 				}
 
-			}, EParallelForFlags::BackgroundPriority | EParallelForFlags::Unbalanced);
+				if (bIsPatrolling)
+				{
+					Subject.RemoveTraitDeferred<FPatrolling>();
+				}
+			}
+
+		}, EParallelForFlags::BackgroundPriority | EParallelForFlags::Unbalanced);
 
 		Mechanism->ApplyDeferreds();
 	}
@@ -626,7 +635,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				// 更新计时器
 				if (Freezing.FreezeTimeout > 0.f)
 				{
-					Freezing.FreezeTimeout -= DeltaTime;
+					Freezing.FreezeTimeout -= SafeDeltaTime;
 				}
 
 				// 计时器结束
@@ -663,8 +672,9 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 				if (!SphereObstacle.bOverrideSpeedLimit) return;
 
+				bool Hit;
 				TArray<FTraceResult> Results;
-				SphereObstacle.NeighborGrid->SphereTraceForSubjects(Located.Location, Collider.Radius, false, FVector::ZeroVector, 0, SphereObstacle.OverridingAgents.Array(), FFilter::Make<FAgent, FLocated, FCollider, FMoving, FActivated>(), Results);
+				SphereObstacle.NeighborGrid->SphereTraceForSubjects(Located.Location, Collider.Radius, false, FVector::ZeroVector, 0, SphereObstacle.OverridingAgents.Array(), FFilter::Make<FAgent, FLocated, FCollider, FMoving, FActivated>(), Hit, Results);
 
 				if (Results.IsEmpty()) return;
 
@@ -969,7 +979,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				}
 					
 				const FRotator CurrentRot = Directed.Direction.ToOrientationRotator();
-				const FRotator InterpolatedRot = FMath::RInterpConstantTo(CurrentRot, Directed.DesiredRot, DeltaTime, FMath::Clamp(Move.TurnSpeed * SlowMult * 100, 1, FLT_MAX));
+				const FRotator InterpolatedRot = FMath::RInterpConstantTo(CurrentRot, Directed.DesiredRot, SafeDeltaTime, FMath::Clamp(Move.TurnSpeed * SlowMult * 100, 1, FLT_MAX));
 				Directed.Direction = InterpolatedRot.Vector();
 
 				// 期望速度
@@ -1034,7 +1044,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 							if (AgentLocation.Z - CollisionThreshold > Collider.Radius * 0.1f)// need a bit of tolerance or it will be hard to decide is it is on ground or in the air
 							{
 								// 应用重力
-								Moving.CurrentVelocity.Z += Move.Gravity * DeltaTime;
+								Moving.CurrentVelocity.Z += Move.Gravity * SafeDeltaTime;
 
 								// 进入/保持下落状态
 								if (!Moving.bFalling)
@@ -1055,7 +1065,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 								}
 
 								// 平滑移动到地面
-								AgentLocation.Z = FMath::FInterpTo(AgentLocation.Z, CollisionThreshold, DeltaTime, 25.0f);
+								AgentLocation.Z = FMath::FInterpTo(AgentLocation.Z, CollisionThreshold, SafeDeltaTime, 25.0f);
 							}
 						}
 					}
@@ -1068,7 +1078,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						else
 						{
 							// 应用重力
-							Moving.CurrentVelocity.Z += Move.Gravity * DeltaTime;
+							Moving.CurrentVelocity.Z += Move.Gravity * SafeDeltaTime;
 
 							if (!Moving.bFalling)
 							{
@@ -1088,15 +1098,15 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				{
 					FVector XYDir = Moving.CurrentVelocity.GetSafeNormal2D();
 					float XYSpeed = Moving.CurrentVelocity.Size2D();
-					XYSpeed = FMath::Clamp(XYSpeed - Move.Deceleration_Ground * DeltaTime, 0, XYSpeed);
+					XYSpeed = FMath::Clamp(XYSpeed - Move.Deceleration_Ground * SafeDeltaTime, 0, XYSpeed);
 					Moving.CurrentVelocity = XYDir * XYSpeed + FVector(0, 0, Moving.CurrentVelocity.Z);
-					XYSpeed < 10.f ? Moving.LaunchTimer = 0 : Moving.LaunchTimer -= DeltaTime;
+					XYSpeed < 10.f ? Moving.LaunchTimer = 0 : Moving.LaunchTimer -= SafeDeltaTime;
 				}
 				else if (Moving.bFalling && !Move.bCanFly)// 空气阻力
 				{
 					FVector XYDir = Moving.CurrentVelocity.GetSafeNormal();
 					float XYSpeed = Moving.CurrentVelocity.Size();
-					XYSpeed = FMath::Clamp(XYSpeed - Move.Deceleration_Air * DeltaTime, 0, XYSpeed);
+					XYSpeed = FMath::Clamp(XYSpeed - Move.Deceleration_Air * SafeDeltaTime, 0, XYSpeed);
 					Moving.CurrentVelocity = XYDir * XYSpeed;
 				}
 
@@ -1286,11 +1296,11 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 				if (Defence.bSlowATKSpeedOnFreeze && Subject.HasTrait<FFreezing>())
 				{
-					Attacking.Time += DeltaTime * (1 - Subject.GetTraitRef<FFreezing, EParadigm::Unsafe>().FreezeStr);
+					Attacking.Time += SafeDeltaTime * (1 - Subject.GetTraitRef<FFreezing, EParadigm::Unsafe>().FreezeStr);
 				}
 				else
 				{
-					Attacking.Time += DeltaTime;
+					Attacking.Time += SafeDeltaTime;
 				}									
 
 			}, ThreadsCount, BatchSize);
@@ -1347,7 +1357,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				// 更新发光时间
 				if (HitGlow.GlowTime < EndTime)
 				{
-					HitGlow.GlowTime += DeltaTime;
+					HitGlow.GlowTime += SafeDeltaTime;
 				}
 
 				// 计时器完成后删除 Trait
@@ -1417,7 +1427,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				// 更新形变时间
 				if (Jiggle.JiggleTime < EndTime)
 				{
-					Jiggle.JiggleTime += DeltaTime;
+					Jiggle.JiggleTime += SafeDeltaTime;
 				}
 
 				// 计时器完成后删除 Trait
@@ -1476,7 +1486,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					return;
 				}
 
-				Temporal.TemporalDamageTimeout -= DeltaTime;
+				Temporal.TemporalDamageTimeout -= SafeDeltaTime;
 
 				// 倒计时，每0.5秒重置，即每秒造成2段灼烧伤害
 				if (Temporal.TemporalDamageTimeout <= 0)
@@ -1671,7 +1681,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				if (HealthBar.bShowHealthBar)
 				{
 					HealthBar.TargetRatio = FMath::Clamp(Health.Current / Health.Maximum, 0, 1);
-					HealthBar.CurrentRatio = FMath::FInterpTo(HealthBar.CurrentRatio, HealthBar.TargetRatio, DeltaTime, HealthBar.InterpSpeed);// WIP use niagara instead
+					HealthBar.CurrentRatio = FMath::FInterpTo(HealthBar.CurrentRatio, HealthBar.TargetRatio, SafeDeltaTime, HealthBar.InterpSpeed);// WIP use niagara instead
 
 					if (HealthBar.HideOnFullHealth)
 					{
@@ -1780,7 +1790,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					Subject.SetTraitDeferred(FCorpse{});
 				}
 
-				Dying.Time += DeltaTime;
+				Dying.Time += SafeDeltaTime;
 
 			}, ThreadsCount, BatchSize);
 	}
@@ -1832,7 +1842,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				}
 
 				// 更新溶解时间
-				DeathDissolve.dissolveTime += DeltaTime;
+				DeathDissolve.dissolveTime += SafeDeltaTime;
 
 			}, ThreadsCount, BatchSize);
 	}
@@ -1859,7 +1869,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					Animation.PreviousSubjectState = ESubjectState::Dirty;
 				}
 
-				DeathAnim.animTime += DeltaTime;
+				DeathAnim.animTime += SafeDeltaTime;
 
 			}, ThreadsCount, BatchSize);
 	}
@@ -2025,7 +2035,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					Anim.PreviousSubjectState = Anim.SubjectState;
 				}
 
-				Anim.AnimLerp = FMath::Clamp(Anim.AnimLerp + DeltaTime * Anim.LerpSpeed, 0, 1);
+				Anim.AnimLerp = FMath::Clamp(Anim.AnimLerp + SafeDeltaTime * Anim.LerpSpeed, 0, 1);
 
 			}, ThreadsCount, BatchSize);
 	}
@@ -2314,7 +2324,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				}
 				else
 				{
-					Config.Delay -= DeltaTime;
+					Config.Delay -= SafeDeltaTime;
 				}
 			});
 	}
@@ -2391,7 +2401,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				}
 				else
 				{
-					Config.Delay -= DeltaTime;
+					Config.Delay -= SafeDeltaTime;
 				}
 			});
 	}
@@ -2418,7 +2428,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				}
 				else
 				{
-					Config.Delay -= DeltaTime;
+					Config.Delay -= SafeDeltaTime;
 				}
 			});
 
@@ -2446,23 +2456,27 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	#pragma endregion
 
 	// DmgResult Call Backs
-	while (!DamageResults.IsEmpty())
+	#pragma region
 	{
-		FDmgResult DmgResult;
-		DamageResults.Dequeue(DmgResult);
-
-		if (DmgResult.DamagedSubject.IsValid())
+		while (!DamageResults.IsEmpty())
 		{
-			AActor* DmgActor = DmgResult.DamagedSubject.GetSubjective()->GetActor();
+			FDmgResult DmgResult;
+			DamageResults.Dequeue(DmgResult);
 
-			// 检查actor是否实现了伤害接口
-			if (DmgActor && DmgActor->GetClass()->ImplementsInterface(UDmgResultInterface::StaticClass()))
+			if (DmgResult.DamagedSubject.IsValid())
 			{
-				// 调用接口方法
-				IDmgResultInterface::Execute_ReceiveDamage(DmgActor, DmgResult);
+				AActor* DmgActor = DmgResult.DamagedSubject.GetSubjective()->GetActor();
+
+				// 检查actor是否实现了伤害接口
+				if (DmgActor && DmgActor->GetClass()->ImplementsInterface(UDmgResultInterface::StaticClass()))
+				{
+					// 调用接口方法
+					IDmgResultInterface::Execute_ReceiveDamage(DmgActor, DmgResult);
+				}
 			}
 		}
 	}
+	#pragma endregion
 
 	// Draw Debug Shapes
 
@@ -2581,6 +2595,7 @@ TArray<FDmgResult> ABattleFrameBattleControl::ApplyDamageToSubjects(TArray<FSubj
 			if (DmgInstigator.IsValid())
 			{
 				Health.DamageInstigator.Enqueue(DmgInstigator);
+				DmgResult.InstigatorSubject = DmgInstigator;
 			}
 			else
 			{
@@ -2795,12 +2810,12 @@ TArray<FDmgResult> ABattleFrameBattleControl::ApplyDamageToSubjects(TArray<FSubj
 			}
 		}
 	
-		DmgResults.Add(DmgResult);
-
 		if (bHasIsSubjective)
 		{
 			DamageResults.Enqueue(DmgResult);
 		}
+
+		DmgResults.Add(DmgResult);
 	}
 
 	return DmgResults;

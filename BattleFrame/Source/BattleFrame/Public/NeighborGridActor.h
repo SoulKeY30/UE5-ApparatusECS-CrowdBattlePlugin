@@ -96,13 +96,14 @@ public:
         const float CheckRadius,
         const TArray<FSubjectHandle>& IgnoreSubjects,
         const FFilter Filter,
+        bool& Hit,
         TArray<FTraceResult>& Results
     )
     {
         if (LIKELY(NeighborGridComponent != nullptr))
         {
             TArray<FTraceResult> LocalResults;
-            NeighborGridComponent->SphereTraceForSubjects(Origin, Radius, bCheckVisibility, CheckOrigin, CheckRadius, IgnoreSubjects, Filter, LocalResults);
+            NeighborGridComponent->SphereTraceForSubjects(Origin, Radius, bCheckVisibility, CheckOrigin, CheckRadius, IgnoreSubjects, Filter, Hit, LocalResults);
             Results = MoveTemp(LocalResults);
         }
         else
@@ -116,17 +117,19 @@ public:
         const FVector Start,
         const FVector End,
         const float Radius,
-        const bool bCheckVisibility,
+        const bool bCheckVisibility, 
+        const FVector CheckOrigin,
         const float CheckRadius,
         const TArray<FSubjectHandle>& IgnoreSubjects,
         const FFilter Filter,
+        bool& Hit,
         TArray<FTraceResult>& Results
     )
     {
         if (LIKELY(NeighborGridComponent != nullptr))
         {
             TArray<FTraceResult> LocalResults;
-            NeighborGridComponent->SphereSweepForSubjects(Start, End, Radius, bCheckVisibility, CheckRadius, IgnoreSubjects, Filter, LocalResults);
+            NeighborGridComponent->SphereSweepForSubjects(Start, End, Radius, bCheckVisibility, CheckOrigin, CheckRadius, IgnoreSubjects, Filter, Hit, LocalResults);
             Results = MoveTemp(LocalResults);
         }
         else
@@ -142,19 +145,19 @@ public:
         const float Height,
         const FVector Direction,
         const float Angle,
-        const bool bCheckVisibility,
+        const bool bCheckVisibility, 
+        const FVector CheckOrigin,
         const float CheckRadius,
         const TArray<FSubjectHandle>& IgnoreSubjects,
         const FFilter Filter,
-        FSubjectHandle& Result
+        bool& Hit,
+        FTraceResult& Result
     )
     {
-        Result = FSubjectHandle();
-
         if (LIKELY(NeighborGridComponent != nullptr))
         {
-            FSubjectHandle LocalResult;
-            NeighborGridComponent->SectorTraceForSubject(Origin, Radius, Height, Direction, Angle, bCheckVisibility, CheckRadius, IgnoreSubjects, Filter, LocalResult);
+            FTraceResult LocalResult;
+            NeighborGridComponent->SectorTraceForSubject(Origin, Radius, Height, Direction, Angle, bCheckVisibility, CheckOrigin, CheckRadius, IgnoreSubjects, Filter, Hit, LocalResult);
             Result = MoveTemp(LocalResult);
         }
     }

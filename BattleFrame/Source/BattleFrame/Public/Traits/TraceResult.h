@@ -10,7 +10,7 @@ struct BATTLEFRAME_API FTraceResult
     GENERATED_BODY()
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere)
-    FSubjectHandle Subject;
+    FSubjectHandle Subject = FSubjectHandle();
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere)
     FVector Location = FVector::ZeroVector;

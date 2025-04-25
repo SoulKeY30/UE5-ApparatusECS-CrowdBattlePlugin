@@ -43,9 +43,9 @@ public:
         float CheckRadius,
         TArray<FSubjectHandle> IgnoreSubjects,
         FFilter Filter,
+        bool& Hit,
         TArray<FTraceResult>& Results
     );
-
 
     UFUNCTION(BlueprintCallable, Category = "BattleFrame", meta = (AutoCreateRefTerm = "IgnoreSubjects"))
     static void SphereSweepForSubjects(
@@ -53,10 +53,12 @@ public:
         FVector Start,
         FVector End,
         float Radius,
-        bool bCheckVisibility,
+        bool bCheckVisibility, 
+        const FVector CheckOrigin,
         float CheckRadius,
         TArray<FSubjectHandle> IgnoreSubjects,
         FFilter Filter,
+        bool& Hit,
         TArray<FTraceResult>& Results
     );
 
@@ -68,11 +70,13 @@ public:
         float Height,
         FVector Direction,
         float Angle,
-        bool bCheckVisibility,
+        bool bCheckVisibility, 
+        const FVector CheckOrigin,
         float CheckRadius,
         TArray<FSubjectHandle> IgnoreSubjects,
         FFilter Filter,
-        FSubjectHandle& Result
+        bool& Hit,
+        FTraceResult& Result
     );
 
     UFUNCTION(BlueprintCallable, Category = "BattleFrame", meta = (AutoCreateRefTerm = "IgnoreSubjects"))
@@ -112,7 +116,7 @@ enum class EAsyncSortMode : uint8
     FarToNear UMETA(DisplayName = "Far to Near", ToolTip = "从远到近")
 };
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FAsyncTraceOutput, const TArray<FTraceResult>&, Results);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FAsyncTraceOutput, bool&, Hit, const TArray<FTraceResult>&, Results);
 
 UCLASS()
 class BATTLEFRAME_API USphereSweepForSubjectsAsyncAction : public UBlueprintAsyncActionBase
@@ -129,13 +133,14 @@ public:
     FVector End;
     float Radius;
     bool bCheckVisibility;
+    FVector CheckOrigin;
     float CheckRadius;
     EAsyncSortMode SortMode;
     FVector SortOrigin;
     int32 KeepCount;
     FFilter Filter;
     TArray<FSubjectHandle> IgnoreSubjects;
-
+    bool Hit;
     TArray<FTraceResult> TempResults;
     TArray<FTraceResult> Results;
 
@@ -148,6 +153,7 @@ public:
         const FVector End, 
         const float Radius,
         const bool bCheckVisibility,
+        const FVector CheckOrigin,
         const float CheckRadius,
         const EAsyncSortMode SortMode,
         const FVector SortOrigin, 

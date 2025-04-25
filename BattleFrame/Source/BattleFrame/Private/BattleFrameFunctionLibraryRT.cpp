@@ -1253,7 +1253,8 @@ void UBattleFrameFunctionLibraryRT::SphereTraceForSubjects
 	FVector CheckOrigin,
 	float CheckRadius,
 	TArray<FSubjectHandle> IgnoreSubjects,
-	FFilter Filter,
+	FFilter Filter, 
+	bool& Hit,
 	TArray<FTraceResult>& Results
 )
 {
@@ -1274,7 +1275,7 @@ void UBattleFrameFunctionLibraryRT::SphereTraceForSubjects
 	if (IsValid(NeighborGridActor))
 	{
 		TArray<FTraceResult> LocalResults;
-		NeighborGridActor->SphereTraceForSubjects(Origin, Radius, bCheckVisibility, CheckOrigin, CheckRadius, IgnoreSubjects, Filter, LocalResults);
+		NeighborGridActor->SphereTraceForSubjects(Origin, Radius, bCheckVisibility, CheckOrigin, CheckRadius, IgnoreSubjects, Filter, Hit, LocalResults);
 		Results = MoveTemp(LocalResults);
 	}
 }
@@ -1285,10 +1286,12 @@ void UBattleFrameFunctionLibraryRT::SphereSweepForSubjects
 	FVector Start,
 	FVector End,
 	float Radius,
-	bool bCheckVisibility,
+	bool bCheckVisibility, 
+	const FVector CheckOrigin,
 	float CheckRadius,
 	TArray<FSubjectHandle> IgnoreSubjects,
 	FFilter Filter,
+	bool& Hit,
 	TArray<FTraceResult>& Results
 )
 {
@@ -1309,7 +1312,7 @@ void UBattleFrameFunctionLibraryRT::SphereSweepForSubjects
 	if (IsValid(NeighborGridActor))
 	{
 		TArray<FTraceResult> LocalResults;
-		NeighborGridActor->SphereSweepForSubjects(Start, End, Radius, bCheckVisibility, CheckRadius, IgnoreSubjects, Filter, LocalResults);
+		NeighborGridActor->SphereSweepForSubjects(Start, End, Radius, bCheckVisibility, CheckOrigin, CheckRadius, IgnoreSubjects, Filter, Hit, LocalResults);
 		Results = MoveTemp(LocalResults);
 	}
 }
@@ -1322,15 +1325,15 @@ void UBattleFrameFunctionLibraryRT::SectorTraceForSubject
 	float Height,
 	FVector Direction,
 	float Angle,
-	bool bCheckVisibility,
+	bool bCheckVisibility, 
+	const FVector CheckOrigin,
 	float CheckRadius,
 	TArray<FSubjectHandle> IgnoreSubjects,
 	FFilter Filter,
-	FSubjectHandle& Result
+	bool& Hit,
+	FTraceResult& Result
 )
 {
-	Result = FSubjectHandle();
-
 	if (!IsValid(NeighborGridActor))
 	{
 		if (UWorld* World = GEngine->GetCurrentPlayWorld())
@@ -1345,8 +1348,8 @@ void UBattleFrameFunctionLibraryRT::SectorTraceForSubject
 
 	if (IsValid(NeighborGridActor))
 	{
-		FSubjectHandle LocalResult;
-		NeighborGridActor->SectorTraceForSubject(Origin, Radius, Height, Direction, Angle, bCheckVisibility, CheckRadius, IgnoreSubjects, Filter, LocalResult);
+		FTraceResult LocalResult;
+		NeighborGridActor->SectorTraceForSubject(Origin, Radius, Height, Direction, Angle, bCheckVisibility, CheckOrigin, CheckRadius, IgnoreSubjects, Filter, Hit, LocalResult);
 		Result = MoveTemp(LocalResult);
 	}
 }
@@ -1404,6 +1407,7 @@ USphereSweepForSubjectsAsyncAction* USphereSweepForSubjectsAsyncAction::SphereSw
 	const FVector End, 
 	const float Radius,
 	const bool bCheckVisibility,
+	const FVector CheckOrigin,
 	const float CheckRadius,
 	const EAsyncSortMode SortMode,
 	const FVector SortOrigin, 
@@ -1415,11 +1419,24 @@ USphereSweepForSubjectsAsyncAction* USphereSweepForSubjectsAsyncAction::SphereSw
 	USphereSweepForSubjectsAsyncAction* AsyncAction = NewObject<USphereSweepForSubjectsAsyncAction>();
 	AsyncAction->RegisterWithGameInstance(WorldContextObject ? WorldContextObject->GetWorld() : nullptr);
 
+	if (!IsValid(NeighborGridActor))
+	{
+		if (UWorld* World = WorldContextObject->GetWorld())
+		{
+			for (TActorIterator<ANeighborGridActor> It(World); It; ++It)
+			{
+				NeighborGridActor = *It;
+				break;
+			}
+		}
+	}
+
 	AsyncAction->NeighborGridActor = NeighborGridActor;
 	AsyncAction->Start = Start;
 	AsyncAction->End = End;
 	AsyncAction->Radius = Radius;
 	AsyncAction->bCheckVisibility = bCheckVisibility;
+	AsyncAction->CheckOrigin = CheckOrigin;
 	AsyncAction->CheckRadius = CheckRadius;
 	AsyncAction->SortMode = SortMode;
 	AsyncAction->SortOrigin = SortOrigin;
@@ -1432,7 +1449,14 @@ USphereSweepForSubjectsAsyncAction* USphereSweepForSubjectsAsyncAction::SphereSw
 
 void USphereSweepForSubjectsAsyncAction::Activate()
 {
-	AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this]()
+	if (!IsValid(NeighborGridActor.Get()))
+	{
+		Hit = false;
+		Completed.Broadcast(Hit,Results);
+	}
+	else
+	{
+		AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this]()
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereSweepForSubjectsAsync");
 
@@ -1508,45 +1532,47 @@ void USphereSweepForSubjectsAsyncAction::Activate()
 			if (SortMode != EAsyncSortMode::None)
 			{
 				TempResults.Sort([this](const FTraceResult& A, const FTraceResult& B)
+				{
+					if (SortMode == EAsyncSortMode::NearToFar)
 					{
-						if (SortMode == EAsyncSortMode::NearToFar)
-						{
-							return A.CachedDistSq < B.CachedDistSq;
-						}
-						else // FarToNear
-						{
-							return A.CachedDistSq > B.CachedDistSq;
-						}
-					});
+						return A.CachedDistSq < B.CachedDistSq;
+					}
+					else // FarToNear
+					{
+						return A.CachedDistSq > B.CachedDistSq;
+					}
+				});
 			}
 
 			AsyncTask(ENamedThreads::GameThread, [this]()
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereSweepForSubjectsSync");
+				Results.Reset();
+
+				int32 ValidCount = 0;
+				const bool bRequireLimit = (KeepCount > 0);
+
+				// 按预排序顺序遍历，遇到有效项立即收集
+				for (const FTraceResult& TempResult : TempResults)
 				{
-					TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereSweepForSubjectsSync");
-					Results.Reset();
+					if (!TempResult.Subject.Matches(Filter)) continue;// this can only run on gamethread
 
-					int32 ValidCount = 0;
-					const bool bRequireLimit = (KeepCount > 0);
+					Results.Add(TempResult);
+					ValidCount++;
 
-					// 按预排序顺序遍历，遇到有效项立即收集
-					for (const FTraceResult& TempResult : TempResults)
+					// 达到数量限制立即终止
+					if (bRequireLimit && ValidCount >= KeepCount)
 					{
-						if (!TempResult.Subject.Matches(Filter)) continue;// this can only run on gamethread
-
-						Results.Add(TempResult);
-						ValidCount++;
-
-						// 达到数量限制立即终止
-						if (bRequireLimit && ValidCount >= KeepCount)
-						{
-							break;
-						}
+						break;
 					}
+				}
 
-					Completed.Broadcast(Results);
-					SetReadyToDestroy();
-				});
+				Hit = !Results.IsEmpty();
+				Completed.Broadcast(Hit, Results);
+				SetReadyToDestroy();
+			});
 		});
+	}
 }
 
 

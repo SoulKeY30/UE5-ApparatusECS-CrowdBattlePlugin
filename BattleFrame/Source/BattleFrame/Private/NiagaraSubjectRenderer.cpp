@@ -44,6 +44,8 @@ void ANiagaraSubjectRenderer::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	float SafeDeltaTime = FMath::Clamp(DeltaTime, 0, 0.03f);
+
 	if (TickEnabled)
 	{
 		if (!Initialized)
@@ -59,7 +61,7 @@ void ANiagaraSubjectRenderer::Tick(float DeltaTime)
 			Register();
 
 			// remove if no agent to render.
-			if (IdleCheckTimer -= DeltaTime <= 0)
+			if (IdleCheckTimer -= SafeDeltaTime <= 0)
 			{
 				if (IdleCheck())
 				{

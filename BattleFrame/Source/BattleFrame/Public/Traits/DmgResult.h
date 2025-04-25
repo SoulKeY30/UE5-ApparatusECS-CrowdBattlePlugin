@@ -9,15 +9,18 @@ USTRUCT(BlueprintType) struct FDmgResult
 
 public:
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	FSubjectHandle DamagedSubject = FSubjectHandle();
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FSubjectHandle InstigatorSubject = FSubjectHandle();
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	bool IsCritical = false;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	bool IsKill = false;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	float DmgDealt = 0;
 };
