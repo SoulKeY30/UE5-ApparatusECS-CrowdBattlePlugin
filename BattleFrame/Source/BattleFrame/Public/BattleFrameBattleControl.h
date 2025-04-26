@@ -124,7 +124,7 @@ public:
 	TQueue<float> VolumesToPlay;
 	EFlagmarkBit ReloadFlowFieldFlag = EFlagmarkBit::R;
 	EFlagmarkBit TracingFlag = EFlagmarkBit::T;
-	TQueue<FDmgResult, EQueueMode::Mpsc> DamageResults;
+	TQueue<FDmgResult, EQueueMode::Mpsc> DamageResultQueue;
 
 public:
 
@@ -153,7 +153,7 @@ public:
 		return Instance;
 	}
 
-	TArray<FDmgResult> ApplyDamageToSubjects(TArray<FSubjectHandle> Subjects, TArray<FSubjectHandle> IgnoreSubjects, FSubjectHandle DmgInstigator, FVector HitFromLocation, FDmgSphere DmgSphere, FDebuff Debuff);
+	void ApplyDamageToSubjects(TArray<FSubjectHandle> Subjects, TArray<FSubjectHandle> IgnoreSubjects, FSubjectHandle DmgInstigator, FVector HitFromLocation, FDmgSphere DmgSphere, FDebuff Debuff, TArray<FDmgResult>& DamageResults);
 
 	// 计算实际伤害，并返回一个pair，第一个元素是是否暴击，第二个元素是实际伤害
 	FORCEINLINE std::pair<bool, float> ProcessCritDamage(float BaseDamage, float damageMult, float Probability)

@@ -12,17 +12,12 @@
 #include "Traits/Collider.h"
 #include "Traits/Trace.h"
 #include "Traits/Located.h"
+#include "Traits/BattleFrameEnums.h"
 #include "BattleFrameFunctionLibraryRT.generated.h"
 
 class ABattleFrameBattleControl;
 class ANeighborGridActor;
 
-UENUM(BlueprintType)
-enum class ESortMode : uint8
-{
-    FarToNear UMETA(DisplayName = "Far to Near", ToolTip = "从远到近"),
-    NearToFar UMETA(DisplayName = "Near to Far", ToolTip = "从近到远")
-};
 
 UCLASS()
 class BATTLEFRAME_API UBattleFrameFunctionLibraryRT : public UBlueprintFunctionLibrary
@@ -31,24 +26,24 @@ class BATTLEFRAME_API UBattleFrameFunctionLibraryRT : public UBlueprintFunctionL
 	
 public:
 
-    static FVector FindNewPatrolGoalLocation(const FPatrol& Patrol, const FCollider& Collider, const FTrace& Trace, const FLocated& Located, int32 MaxAttempts);
-
     UFUNCTION(BlueprintCallable, Category = "BattleFrame", meta = (AutoCreateRefTerm = "IgnoreSubjects"))
-    static void SphereTraceForSubjects(
+    static void SphereTraceForSubjects
+    (
         ANeighborGridActor* NeighborGridActor,
         FVector Origin,
         float Radius,
         bool bCheckVisibility,
         FVector CheckOrigin,
         float CheckRadius,
-        TArray<FSubjectHandle> IgnoreSubjects,
-        FFilter Filter,
+        UPARAM(ref) const TArray<FSubjectHandle>& IgnoreSubjects,
+        UPARAM(ref) const FFilter& Filter,
         bool& Hit,
-        TArray<FTraceResult>& Results
+        TArray<FTraceResult>& TraceResults
     );
 
     UFUNCTION(BlueprintCallable, Category = "BattleFrame", meta = (AutoCreateRefTerm = "IgnoreSubjects"))
-    static void SphereSweepForSubjects(
+    static void SphereSweepForSubjects
+    (
         ANeighborGridActor* NeighborGridActor,
         FVector Start,
         FVector End,
@@ -56,14 +51,18 @@ public:
         bool bCheckVisibility, 
         const FVector CheckOrigin,
         float CheckRadius,
-        TArray<FSubjectHandle> IgnoreSubjects,
-        FFilter Filter,
+        ESortMode SortMode /*= ESortMode::None*/,
+        const FVector SortOrigin /*= FVector::ZeroVector*/,
+        int32 KeepCount /*= -1*/,
+        UPARAM(ref) const TArray<FSubjectHandle>& IgnoreSubjects,
+        UPARAM(ref) const FFilter& Filter,
         bool& Hit,
-        TArray<FTraceResult>& Results
+        TArray<FTraceResult>& TraceResults
     );
 
     UFUNCTION(BlueprintCallable, Category = "BattleFrame", meta = (AutoCreateRefTerm = "IgnoreSubjects"))
-    static void SectorTraceForSubject(
+    static void SectorTraceForSubjects
+    (
         ANeighborGridActor* NeighborGridActor,
         FVector Origin,
         float Radius,
@@ -73,29 +72,54 @@ public:
         bool bCheckVisibility, 
         const FVector CheckOrigin,
         float CheckRadius,
-        TArray<FSubjectHandle> IgnoreSubjects,
-        FFilter Filter,
+        ESortMode SortMode,
+        const FVector SortOrigin,
+        int32 KeepCount,
+        UPARAM(ref) const TArray<FSubjectHandle>& IgnoreSubjects,
+        UPARAM(ref) const FFilter& Filter,
         bool& Hit,
-        FTraceResult& Result
+        TArray<FTraceResult>& TraceResults
+    );
+
+    UFUNCTION(BlueprintCallable, Category = "BattleFrame")
+    static void SphereSweepForObstacle
+    (
+        ANeighborGridActor* NeighborGridActor, 
+        FVector Start, 
+        FVector End, 
+        float Radius, 
+        bool& Hit, 
+        FTraceResult& TraceResult
     );
 
     UFUNCTION(BlueprintCallable, Category = "BattleFrame", meta = (AutoCreateRefTerm = "IgnoreSubjects"))
-    static TArray<FDmgResult> ApplyDamageToSubjects(
+    static void ApplyDamageToSubjects
+    (
         ABattleFrameBattleControl* BattleControl,
-        TArray<FSubjectHandle> Subjects,
-        TArray<FSubjectHandle> IgnoreSubjects,
+        UPARAM(ref) const TArray<FSubjectHandle>& Subjects,
+        UPARAM(ref) const TArray<FSubjectHandle>& IgnoreSubjects,
         FSubjectHandle DmgInstigator,
         FVector HitFromLocation,
         FDmgSphere DmgSphere,
-        FDebuff Debuff
+        FDebuff Debuff,
+        TArray<FDmgResult>& DamageResults
     );
+
+    UFUNCTION(BlueprintCallable, Category = "BattleFrame", meta = (DisplayName = "Sort Subjects By Distance", Keywords = "Sort Distance Subject"))
+    static void SortSubjectsByDistance
+    (
+        UPARAM(ref) TArray<FTraceResult>& TraceResults,
+        const FVector& SortOrigin,
+        ESortMode SortMode = ESortMode::NearToFar
+    );
+
+    UFUNCTION(BlueprintCallable, BlueprintPure, meta = (DisplayName = "Convert to SubjectHandles", CompactNodeTitle = "->", BlueprintAutocast), Category = "BattleFrame")
+    static TArray<FSubjectHandle> ConvertDmgResultsToSubjectHandles(const TArray<FDmgResult>& DmgResults);
 
     UFUNCTION(BlueprintCallable, BlueprintPure,meta = (DisplayName = "Convert to SubjectHandles",CompactNodeTitle = "->",BlueprintAutocast),Category = "BattleFrame")
     static TArray<FSubjectHandle> ConvertTraceResultsToSubjectHandles(const TArray<FTraceResult>& TraceResults);
 
-    UFUNCTION(BlueprintCallable, Category = "BattleFrame", meta = (DisplayName = "Sort Subjects By Distance", Keywords = "Sort Distance Subject"))
-    static void SortSubjectsByDistance(UPARAM(ref) TArray<FTraceResult>& Results, const FVector& SortOrigin, ESortMode SortMode = ESortMode::NearToFar);
-
+    static FVector FindNewPatrolGoalLocation(const FPatrol& Patrol, const FCollider& Collider, const FTrace& Trace, const FLocated& Located, int32 MaxAttempts);
     static void SetSubTypeTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord);
     static void SetSubTypeTraitByEnum(ESubType SubType, FSubjectRecord& SubjectRecord);
     static void IncludeSubTypeTraitByIndex(int32 Index, FFilter& Filter);
@@ -108,15 +132,7 @@ public:
 
 //-------------------------------Async Trace-------------------------------
 
-UENUM(BlueprintType)
-enum class EAsyncSortMode : uint8
-{
-    None UMETA(DisplayName = "None", ToolTip = "不排序"),
-    NearToFar UMETA(DisplayName = "Near to Far", ToolTip = "从近到远"),
-    FarToNear UMETA(DisplayName = "Far to Near", ToolTip = "从远到近")
-};
-
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FAsyncTraceOutput, bool&, Hit, const TArray<FTraceResult>&, Results);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FAsyncTraceOutput, bool, Hit, const TArray<FTraceResult>&, TraceResults);
 
 UCLASS()
 class BATTLEFRAME_API USphereSweepForSubjectsAsyncAction : public UBlueprintAsyncActionBase
@@ -135,7 +151,7 @@ public:
     bool bCheckVisibility;
     FVector CheckOrigin;
     float CheckRadius;
-    EAsyncSortMode SortMode;
+    ESortMode SortMode;
     FVector SortOrigin;
     int32 KeepCount;
     FFilter Filter;
@@ -155,7 +171,7 @@ public:
         const bool bCheckVisibility,
         const FVector CheckOrigin,
         const float CheckRadius,
-        const EAsyncSortMode SortMode,
+        const ESortMode SortMode,
         const FVector SortOrigin, 
         const int32 KeepCount, 
         const TArray<FSubjectHandle>& IgnoreSubjects, 

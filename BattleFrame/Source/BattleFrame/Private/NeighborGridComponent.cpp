@@ -64,7 +64,18 @@ void UNeighborGridComponent::InitializeComponent()
 //--------------------------------------------Tracing----------------------------------------------------------------
 
 // Multi Trace For Subjects
-void UNeighborGridComponent::SphereTraceForSubjects(const FVector Origin, const float Radius, const bool bCheckVisibility, const FVector CheckOrigin, const float CheckRadius, const TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, bool& Hit, TArray<FTraceResult>& Results) const
+void UNeighborGridComponent::SphereTraceForSubjects
+(
+	const FVector Origin, 
+	const float Radius, 
+	const bool bCheckVisibility, 
+	const FVector CheckOrigin, 
+	const float CheckRadius, 
+	const TArray<FSubjectHandle> IgnoreSubjects, 
+	const FFilter Filter, 
+	bool& Hit, 
+	TArray<FTraceResult>& Results
+) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereTraceForSubjects");
 
@@ -146,19 +157,37 @@ void UNeighborGridComponent::SphereTraceForSubjects(const FVector Origin, const 
 }
 
 // Multi Sweep Trace For Subjects
-void UNeighborGridComponent::SphereSweepForSubjects(const FVector Start, const FVector End, const float Radius, const bool bCheckVisibility, const FVector CheckOrigin, const float CheckRadius, const TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, bool& Hit, TArray<FTraceResult>& Results)
+void UNeighborGridComponent::SphereSweepForSubjects
+(
+	const FVector& Start,
+	const FVector& End,
+	const float Radius,
+	const bool bCheckVisibility,
+	const FVector& CheckOrigin,
+	const float CheckRadius,
+	ESortMode SortMode /*= ESortMode::None*/,
+	const FVector& SortOrigin /*= FVector::ZeroVector*/,
+	int32 KeepCount /*= -1*/,
+	const TArray<FSubjectHandle>& IgnoreSubjects,
+	const FFilter& Filter,
+	bool& Hit,
+	TArray<FTraceResult>& Results
+) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereSweepForSubjects");
 
-	Results.Empty(); // Clear result array
+	Results.Reset(); // Clear result array
 
 	// Convert ignore list to set for fast lookup
-	TSet<FSubjectHandle> IgnoreSet(IgnoreSubjects);
+	const TSet<FSubjectHandle> IgnoreSet(IgnoreSubjects);
 
 	TArray<FIntVector> GridCells = SphereSweepForCells(Start, End, Radius);
 
 	const FVector TraceDir = (End - Start).GetSafeNormal();
 	const float TraceLength = FVector::Distance(Start, End);
+
+	// Temporary array to store unsorted results
+	TArray<FTraceResult> TempResults;
 
 	// Check subjects in each cell
 	for (const FIntVector& CellIndex : GridCells)
@@ -210,70 +239,155 @@ void UNeighborGridComponent::SphereSweepForSubjects(const FVector Start, const F
 					if (bHit) continue; // Path is blocked, skip this subject
 				}
 
-				// Create FTraceResult and add to results array
+				// Create FTraceResult and add to temp results array
 				FTraceResult Result;
 				Result.Subject = Subject;
 				Result.Location = SubjectPos;
-				Result.CachedDistSq = FVector::DistSquared(Start, SubjectPos); // Precompute distance
-				Results.Add(Result);
+				Result.CachedDistSq = FVector::DistSquared(SortOrigin, SubjectPos); // Store distance to sort origin
+				TempResults.Add(Result);
 			}
+		}
+	}
+
+	// Sorting logic
+	if (SortMode != ESortMode::None)
+	{
+		TempResults.Sort([SortMode](const FTraceResult& A, const FTraceResult& B)
+			{
+				if (SortMode == ESortMode::NearToFar)
+				{
+					return A.CachedDistSq < B.CachedDistSq;
+				}
+				else // FarToNear
+				{
+					return A.CachedDistSq > B.CachedDistSq;
+				}
+			});
+	}
+
+	// Apply KeepCount limit
+	const bool bHasLimit = (KeepCount > 0);
+	int32 Count = 0;
+
+	for (const FTraceResult& Result : TempResults)
+	{
+		Results.Add(Result);
+		Count++;
+
+		if (bHasLimit && Count >= KeepCount)
+		{
+			break;
 		}
 	}
 
 	Hit = !Results.IsEmpty();
 }
 
-// Single Sector Trace For Nearest Subject
-void UNeighborGridComponent::SectorTraceForSubject(const FVector Origin, const float Radius, const float Height, const FVector Direction, const float Angle, const bool bCheckVisibility, const FVector CheckOrigin, const float CheckRadius, const TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, bool& Hit, FTraceResult& Result) const
+void UNeighborGridComponent::SectorTraceForSubjects(
+	const FVector& Origin,
+	const float Radius,
+	const float Height,
+	const FVector& Direction,
+	const float Angle,
+	const bool bCheckVisibility,
+	const FVector& CheckOrigin,
+	const float CheckRadius,
+	ESortMode SortMode,
+	const FVector& SortOrigin,
+	int32 KeepCount,
+	const TArray<FSubjectHandle>& IgnoreSubjects,
+	const FFilter& Filter,
+	bool& Hit,
+	TArray<FTraceResult>& Results
+) const
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SectorTraceForSubject");
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SectorTraceForSubjects");
+	Results.Reset();
 
-	float ClosestDistanceSqr = FLT_MAX;
-	FTraceResult ClosestResult;
+	// 特殊处理标志
+	const bool bFullCircle = FMath::IsNearlyEqual(Angle, 360.0f, KINDA_SMALL_NUMBER);
+	const bool bSingleResult = (KeepCount == 1);
+	const bool bNoCountLimit = (KeepCount == -1);  // 新增加的特殊处理标志
 
 	// 将忽略列表转换为集合以便快速查找
-	TSet<FSubjectHandle> IgnoreSet(IgnoreSubjects);
+	const TSet<FSubjectHandle> IgnoreSet(IgnoreSubjects);
 
 	const FVector NormalizedDir = Direction.GetSafeNormal2D();
 	const float HalfAngleRad = FMath::DegreesToRadians(Angle * 0.5f);
 	const float CosHalfAngle = FMath::Cos(HalfAngleRad);
 
-	// 扩展搜索范围以包含可能相交的格子
-	const float CellSizeXY = CellSize; // 假设CellSize是成员变量，表示格子尺寸
-	const float CellRadiusXY = CellSizeXY * 0.5f * FMath::Sqrt(2.0f); // 对角线缓冲
+	// 计算扇形的两个边界方向（如果不是全圆）
+	FVector LeftBoundDir, RightBoundDir;
+	if (!bFullCircle)
+	{
+		LeftBoundDir = NormalizedDir.RotateAngleAxis(Angle * 0.5f, FVector::UpVector);
+		RightBoundDir = NormalizedDir.RotateAngleAxis(-Angle * 0.5f, FVector::UpVector);
+	}
+
+	// 扩展搜索范围
+	const float CellSizeXY = CellSize;
+	const float CellRadiusXY = CellSizeXY * 0.5f * FMath::Sqrt(2.0f);
 	const float ExpandedRadius = Radius + CellRadiusXY;
-	const FVector Range(ExpandedRadius, ExpandedRadius, Height / 2.0f + CellSize * 0.5f); // 三维缓冲
+	const FVector Range(ExpandedRadius, ExpandedRadius, Height / 2.0f + CellSize * 0.5f);
 
 	const FIntVector CagePosMin = WorldToCage(Origin - Range);
 	const FIntVector CagePosMax = WorldToCage(Origin + Range);
 
 	const FFingerprint FilterFingerprint = Filter.GetFingerprint();
 
-	// 预收集候选格子（只做扩展距离检查）
+	// 跟踪最佳结果（用于KeepCount=1的情况）
+	FTraceResult BestResult;
+	float BestDistSq = (SortMode == ESortMode::NearToFar) ? FLT_MAX : -FLT_MAX;
+
+	// 临时存储所有结果（用于需要排序或随机的情况）
+	TArray<FTraceResult> TempResults;
+
+	// 预收集候选格子
 	TArray<FIntVector> CandidateCells;
 	for (int32 z = CagePosMin.Z; z <= CagePosMax.Z; ++z) {
 		for (int32 x = CagePosMin.X; x <= CagePosMax.X; ++x) {
 			for (int32 y = CagePosMin.Y; y <= CagePosMax.Y; ++y) {
 				const FIntVector CellPos(x, y, z);
-				if (IsInside(CellPos)) {
-					const FVector CellCenter = CageToWorld(CellPos);
+				if (!IsInside(CellPos)) continue;
 
-					// 扩展距离检查
-					const FVector DeltaXY = (CellCenter - Origin) * FVector(1, 1, 0);
-					if (DeltaXY.SizeSquared() > FMath::Square(ExpandedRadius)) continue;
+				const FVector CellCenter = CageToWorld(CellPos);
+				const FVector DeltaXY = (CellCenter - Origin) * FVector(1, 1, 0);
+				const float DistSqXY = DeltaXY.SizeSquared();
 
-					CandidateCells.Add(CellPos);
+				if (DistSqXY > FMath::Square(ExpandedRadius)) continue;
+
+				const float VerticalDist = FMath::Abs(CellCenter.Z - Origin.Z);
+				if (VerticalDist > (Height / 2.0f + CellRadiusXY)) continue;
+
+				if (!bFullCircle && DistSqXY > SMALL_NUMBER)
+				{
+					const FVector ToCellDirXY = DeltaXY.GetSafeNormal();
+					const float DotProduct = FVector::DotProduct(NormalizedDir, ToCellDirXY);
+
+					if (DotProduct < CosHalfAngle)
+					{
+						FVector ClosestPoint;
+						float DistToLeftBound = FMath::PointDistToLine(CellCenter, Origin, LeftBoundDir, ClosestPoint);
+						if (DistToLeftBound >= CellRadiusXY)
+						{
+							float DistToRightBound = FMath::PointDistToLine(CellCenter, Origin, RightBoundDir, ClosestPoint);
+							if (DistToRightBound >= CellRadiusXY)
+							{
+								const FVector CellMin = CageToWorld(CellPos) - FVector(CellSizeXY * 0.5f, CellSizeXY * 0.5f, 0);
+								const FVector CellMax = CageToWorld(CellPos) + FVector(CellSizeXY * 0.5f, CellSizeXY * 0.5f, 0);
+								if (!(CellMin.X <= Origin.X && Origin.X <= CellMax.X &&
+									CellMin.Y <= Origin.Y && Origin.Y <= CellMax.Y))
+								{
+									continue;
+								}
+							}
+						}
+					}
 				}
+				CandidateCells.Add(CellPos);
 			}
 		}
 	}
-
-	// 按距离排序（使用原始半径排序）
-	CandidateCells.Sort([&](const FIntVector& A, const FIntVector& B)
-		{
-			return FVector::DistSquared2D(CageToWorld(A), Origin) <
-				FVector::DistSquared2D(CageToWorld(B), Origin);
-		});
 
 	// 遍历检测
 	for (const FIntVector& CellPos : CandidateCells)
@@ -281,70 +395,130 @@ void UNeighborGridComponent::SectorTraceForSubject(const FVector Origin, const f
 		const auto& CellData = At(CellPos);
 		if (!CellData.SubjectFingerprint.Matches(FilterFingerprint)) continue;
 
-		// 提前终止检查
-		const float CellDistSqr = FVector::DistSquared2D(CageToWorld(CellPos), Origin);
-		if (CellDistSqr > ClosestDistanceSqr + FMath::Square(CellSize)) break;
-
 		for (const FAvoiding& SubjectData : CellData.Subjects)
 		{
 			const FSubjectHandle Subject = SubjectData.SubjectHandle;
-
-			// 检查是否在忽略列表中
 			if (IgnoreSet.Contains(Subject)) continue;
 			if (!Subject.Matches(Filter)) continue;
 
-			// 精确距离检测（考虑目标半径）
-			const FVector Delta = SubjectData.Location - Origin;
-			const float DistanceSqr = Delta.SizeSquared();
-			const float CombinedRadiusSq = FMath::Square(Radius + SubjectData.Radius);
+			const FVector SubjectPos = SubjectData.Location;
+			const float SubjectRadius = SubjectData.Radius;
 
-			if (DistanceSqr > CombinedRadiusSq) continue;
+			// 高度检查
+			const float VerticalDist = FMath::Abs(SubjectPos.Z - Origin.Z);
+			if (VerticalDist > (Height / 2.0f + SubjectRadius)) continue;
 
-			// 精确扇形检测
-			const FVector DeltaXY = Delta * FVector(1, 1, 0);
+			// 距离检查
+			const FVector DeltaXY = (SubjectPos - Origin) * FVector(1, 1, 0);
+			const float DistSqXY = DeltaXY.SizeSquared();
+			const float CombinedRadius = Radius + SubjectRadius;
+			if (DistSqXY > FMath::Square(CombinedRadius)) continue;
 
-			if (!DeltaXY.IsNearlyZero())
+			// 角度检查
+			if (!bFullCircle && DistSqXY > SMALL_NUMBER)
 			{
-				const FVector NormalizedDelta = DeltaXY.GetSafeNormal();
-				const float CosTheta = FVector::DotProduct(NormalizedDelta, NormalizedDir);
-				if (CosTheta < CosHalfAngle) continue;
+				const FVector ToSubjectDirXY = DeltaXY.GetSafeNormal();
+				const float DotProduct = FVector::DotProduct(NormalizedDir, ToSubjectDirXY);
+				if (DotProduct < CosHalfAngle) continue;
 			}
 
-			// 更新最近目标 (原有逻辑)
-			if (DistanceSqr < ClosestDistanceSqr)
+			if (bCheckVisibility)
 			{
-				/** 新增可见性检查逻辑 **/
-				if (bCheckVisibility)
+				bool bVisibilityHit = false;
+				FTraceResult VisibilityResult;
+
+				const FVector ToSubjectDir = (SubjectPos - CheckOrigin).GetSafeNormal();
+				const FVector SubjectSurfacePoint = SubjectPos - (ToSubjectDir * SubjectRadius);
+
+				SphereSweepForObstacle(CheckOrigin, SubjectSurfacePoint, CheckRadius, bVisibilityHit, VisibilityResult);
+
+				if (bVisibilityHit) continue;
+			}
+
+			const float CurrentDistSq = FVector::DistSquared(SortOrigin, SubjectPos);
+
+			if (bSingleResult)
+			{
+				bool bIsBetter = false;
+				if (SortMode == ESortMode::NearToFar)
 				{
-					// 执行可见性检测
-					bool HitObstacle;
-					FTraceResult TraceResult;
-
-					// 计算目标球体表面点（考虑目标半径）
-					const FVector ToSubjectDir = (SubjectData.Location - CheckOrigin).GetSafeNormal();
-					const FVector SubjectSurfacePoint = SubjectData.Location - (ToSubjectDir * SubjectData.Radius);
-
-					SphereSweepForObstacle(CheckOrigin, SubjectSurfacePoint, CheckRadius, HitObstacle, TraceResult);
-
-					if (HitObstacle) continue; // 路径被阻挡，跳过该目标
+					bIsBetter = (CurrentDistSq < BestDistSq);
+				}
+				else if (SortMode == ESortMode::FarToNear)
+				{
+					bIsBetter = (CurrentDistSq > BestDistSq);
+				}
+				else // ESortMode::None
+				{
+					bIsBetter = true;
 				}
 
-				ClosestDistanceSqr = DistanceSqr;
-				ClosestResult.Subject = Subject;
-				ClosestResult.Location = SubjectData.Location;
-
-				if (ClosestDistanceSqr <= KINDA_SMALL_NUMBER)
+				if (bIsBetter)
 				{
-					Result = ClosestResult;
-					return;
+					BestResult.Subject = Subject;
+					BestResult.Location = SubjectPos;
+					BestResult.CachedDistSq = CurrentDistSq;
+					BestDistSq = CurrentDistSq;
 				}
+			}
+			else
+			{
+				// 添加到临时数组，后续统一处理
+				FTraceResult Result;
+				Result.Subject = Subject;
+				Result.Location = SubjectPos;
+				Result.CachedDistSq = CurrentDistSq;
+				TempResults.Add(Result);
 			}
 		}
 	}
 
-	Hit = ClosestResult.Subject.IsValid();
-	Result = Hit ? ClosestResult : FTraceResult();
+	// 处理结果
+	if (bSingleResult)
+	{
+		if (BestDistSq != FLT_MAX && BestDistSq != -FLT_MAX)
+		{
+			Results.Add(BestResult);
+		}
+	}
+	else if (TempResults.Num() > 0)
+	{
+		// 处理排序或随机化
+		if (SortMode != ESortMode::None)
+		{
+			// 应用排序（无论KeepCount是否为-1）
+			TempResults.Sort([SortMode](const FTraceResult& A, const FTraceResult& B) {
+				return SortMode == ESortMode::NearToFar ?
+					A.CachedDistSq < B.CachedDistSq :
+					A.CachedDistSq > B.CachedDistSq;
+				});
+		}
+		else
+		{
+			// 随机打乱结果
+			if (TempResults.Num() > 1)
+			{
+				for (int32 i = TempResults.Num() - 1; i > 0; --i)
+				{
+					const int32 j = FMath::Rand() % (i + 1);
+					TempResults.Swap(i, j);
+				}
+			}
+		}
+
+		// 应用数量限制（只有当KeepCount>0时）
+		if (!bNoCountLimit && KeepCount > 0 && TempResults.Num() > KeepCount)
+		{
+			TempResults.SetNum(KeepCount);
+		}
+
+		Results.Append(TempResults);
+	}
+
+	Hit = !Results.IsEmpty();
 }
+
+
 
 // Single Sweep Trace For Nearest Obstacle
 void UNeighborGridComponent::SphereSweepForObstacle(FVector Start, FVector End, float Radius, bool& Hit, FTraceResult& Result) const
@@ -991,6 +1165,7 @@ void UNeighborGridComponent::Decouple()
 					else
 					{
 						const float HeapTopDist = FVector::DistSquared(SelfLocation, SubjectNeighbors.HeapTop().Location);
+
 						if (DistSqr < HeapTopDist)
 						{
 							// 弹出时同步移除哈希记录
@@ -1070,11 +1245,6 @@ void UNeighborGridComponent::Decouple()
 						for (const FAvoiding& AvoData : Obstacles)
 						{
 							if (UNLIKELY(!AvoData.SubjectHandle.Matches(SphereObstacleFilter))) continue;
-
-							const float DistSqr = FVector::DistSquared(SelfLocation, AvoData.Location);
-							const float RadiusSqr = FMath::Square(AvoData.Radius) + TotalRangeSqr;
-
-							if (UNLIKELY(DistSqr > RadiusSqr)) continue;
 
 							SphereObstacleNeighbors.Add(AvoData);
 						}

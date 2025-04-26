@@ -11,95 +11,213 @@
 #include "NeighborGridActor.h"
 #include "Async/Async.h"
 
+//-------------------------------Sync Traces-------------------------------
 
-FVector UBattleFrameFunctionLibraryRT::FindNewPatrolGoalLocation(const FPatrol& Patrol, const FCollider& Collider, const FTrace& Trace, const FLocated& Located, int32 MaxAttempts /*= 3*/)
+void UBattleFrameFunctionLibraryRT::SphereTraceForSubjects
+(
+	ANeighborGridActor* NeighborGridActor,
+	FVector Origin,
+	float Radius,
+	bool bCheckVisibility,
+	FVector CheckOrigin,
+	float CheckRadius,
+	UPARAM(ref) const TArray<FSubjectHandle>& IgnoreSubjects,
+	UPARAM(ref) const FFilter& Filter,
+	bool& Hit,
+	TArray<FTraceResult>& TraceResults
+)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE_STR("FindNewPatrolGoalLocation");
+	TraceResults.Reset();
 
-	// Early out if no neighbor grid available
-	if (!IsValid(Trace.NeighborGrid))
+	if (!IsValid(NeighborGridActor))
 	{
-		const float Angle = FMath::FRandRange(0.f, 2.f * PI);
-		const float Distance = FMath::FRandRange(Patrol.PatrolRadiusMin, Patrol.PatrolRadiusMax);
-		return Patrol.Origin + FVector(FMath::Cos(Angle) * Distance, FMath::Sin(Angle) * Distance, 0.f);
-	}
-
-	FVector BestCandidate = Patrol.Origin;
-	float BestDistanceSq = 0.f;
-
-	for (int32 Attempt = 0; Attempt < MaxAttempts; ++Attempt)
-	{
-		// Generate random position in patrol ring
-		const float Angle = FMath::FRandRange(0.f, 2.f * PI);
-		const float Distance = FMath::FRandRange(Patrol.PatrolRadiusMin, Patrol.PatrolRadiusMax);
-		const FVector Candidate = Patrol.Origin + FVector(FMath::Cos(Angle) * Distance, FMath::Sin(Angle) * Distance, 0.f);
-
-		// Skip visibility check if not required
-		if (!Patrol.bCheckVisibility)
+		if (UWorld* World = GEngine->GetCurrentPlayWorld())
 		{
-			return Candidate;
-		}
-
-		// Check visibility through neighbor grid
-		bool bHit = false;
-		FTraceResult Result;
-		Trace.NeighborGrid->SphereSweepForObstacle(Located.Location, Candidate, Collider.Radius, bHit, Result);
-
-		// Return first valid candidate found
-		if (!bHit)
-		{
-			return Candidate;
-		}
-
-		// Track farthest candidate as fallback
-		const float CurrentDistanceSq = (Candidate - Located.Location).SizeSquared();
-
-		if (CurrentDistanceSq > BestDistanceSq)
-		{
-			BestCandidate = Candidate;
-			BestDistanceSq = CurrentDistanceSq;
+			for (TActorIterator<ANeighborGridActor> It(World); It; ++It)
+			{
+				NeighborGridActor = *It;
+				break;
+			}
 		}
 	}
 
-	// Return best candidate if all attempts hit obstacles
-	return BestCandidate;
+	if (!IsValid(NeighborGridActor)) return;
+
+	UNeighborGridComponent* NeighborGrid = NeighborGridActor->GetComponentByClass<UNeighborGridComponent>();
+
+	NeighborGrid->SphereTraceForSubjects(Origin, Radius, bCheckVisibility, CheckOrigin, CheckRadius, IgnoreSubjects, Filter, Hit, TraceResults);
 }
 
-TArray<FSubjectHandle> UBattleFrameFunctionLibraryRT::ConvertTraceResultsToSubjectHandles(const TArray<FTraceResult>& TraceResults)
+void UBattleFrameFunctionLibraryRT::SphereSweepForSubjects
+(
+	ANeighborGridActor* NeighborGridActor,
+	FVector Start,
+	FVector End,
+	float Radius,
+	bool bCheckVisibility,
+	const FVector CheckOrigin,
+	float CheckRadius,
+	ESortMode SortMode,
+	const FVector SortOrigin,
+	int32 KeepCount,
+	UPARAM(ref) const TArray<FSubjectHandle>& IgnoreSubjects,
+	UPARAM(ref) const FFilter& Filter,
+	bool& Hit,
+	TArray<FTraceResult>& TraceResults
+)
 {
-	TArray<FSubjectHandle> SubjectHandles;
-	SubjectHandles.Reserve(TraceResults.Num());
+	TraceResults.Reset();
 
-	for (const FTraceResult& Result : TraceResults)
+	if (!IsValid(NeighborGridActor))
 	{
-		SubjectHandles.Add(Result.Subject);
+		if (UWorld* World = GEngine->GetCurrentPlayWorld())
+		{
+			for (TActorIterator<ANeighborGridActor> It(World); It; ++It)
+			{
+				NeighborGridActor = *It;
+				break;
+			}
+		}
 	}
 
-	return SubjectHandles;
+	if (!IsValid(NeighborGridActor)) return;
+
+	UNeighborGridComponent* NeighborGrid = NeighborGridActor->GetComponentByClass<UNeighborGridComponent>();
+
+	NeighborGrid->SphereSweepForSubjects(Start, End, Radius, bCheckVisibility, CheckOrigin, CheckRadius, SortMode, SortOrigin, KeepCount, IgnoreSubjects, Filter, Hit, TraceResults);
 }
 
-void UBattleFrameFunctionLibraryRT::SortSubjectsByDistance(UPARAM(ref) TArray<FTraceResult>& Results, const FVector& SortOrigin, ESortMode SortMode)
+void UBattleFrameFunctionLibraryRT::SectorTraceForSubjects
+(
+	ANeighborGridActor* NeighborGridActor,
+	FVector Origin,
+	float Radius,
+	float Height,
+	FVector Direction,
+	float Angle,
+	bool bCheckVisibility,
+	const FVector CheckOrigin,
+	float CheckRadius,
+	ESortMode SortMode,
+	const FVector SortOrigin,
+	int32 KeepCount,
+	UPARAM(ref) const TArray<FSubjectHandle>& IgnoreSubjects,
+	UPARAM(ref) const FFilter& Filter,
+	bool& Hit,
+	TArray<FTraceResult>& TraceResults
+)
+{
+	if (!IsValid(NeighborGridActor))
+	{
+		if (UWorld* World = GEngine->GetCurrentPlayWorld())
+		{
+			for (TActorIterator<ANeighborGridActor> It(World); It; ++It)
+			{
+				NeighborGridActor = *It;
+				break;
+			}
+		}
+	}
+
+	if (!IsValid(NeighborGridActor)) return;
+
+	UNeighborGridComponent* NeighborGrid = NeighborGridActor->GetComponentByClass<UNeighborGridComponent>();
+
+	NeighborGrid->SectorTraceForSubjects(Origin, Radius, Height, Direction, Angle, bCheckVisibility, CheckOrigin, CheckRadius, SortMode, SortOrigin, KeepCount, IgnoreSubjects, Filter, Hit, TraceResults);
+}
+
+void UBattleFrameFunctionLibraryRT::SphereSweepForObstacle
+(
+	ANeighborGridActor* NeighborGridActor,
+	FVector Start,
+	FVector End,
+	float Radius,
+	bool& Hit,
+	FTraceResult& TraceResult
+)
+{
+	if (!IsValid(NeighborGridActor))
+	{
+		if (UWorld* World = GEngine->GetCurrentPlayWorld())
+		{
+			for (TActorIterator<ANeighborGridActor> It(World); It; ++It)
+			{
+				NeighborGridActor = *It;
+				break;
+			}
+		}
+	}
+
+	if (!IsValid(NeighborGridActor)) return;
+
+	UNeighborGridComponent* NeighborGrid = NeighborGridActor->GetComponentByClass<UNeighborGridComponent>();
+
+	NeighborGrid->SphereSweepForObstacle(Start, End, Radius, Hit, TraceResult);
+}
+
+void UBattleFrameFunctionLibraryRT::ApplyDamageToSubjects
+(
+	ABattleFrameBattleControl* BattleControl,
+	UPARAM(ref) const TArray<FSubjectHandle>& Subjects,
+	UPARAM(ref) const TArray<FSubjectHandle>& IgnoreSubjects,
+	FSubjectHandle DmgInstigator,
+	FVector HitFromLocation,
+	FDmgSphere DmgSphere,
+	FDebuff Debuff,
+	TArray<FDmgResult>& DamageResults
+)
+{
+	DamageResults.Reset();
+
+	// 如果 BattleControl 无效，尝试从 World 查找
+	if (!IsValid(BattleControl))
+	{
+		UWorld* World = GEngine ? GEngine->GetCurrentPlayWorld() : nullptr;
+
+		if (World)
+		{
+			for (TActorIterator<ABattleFrameBattleControl> It(World); It; ++It)
+			{
+				BattleControl = *It;
+				break; // 只取第一个
+			}
+		}
+	}
+
+	// 仍然无效则返回空结果
+	if (!IsValid(BattleControl)) return;
+
+	// 直接填充 DamageResults
+	BattleControl->ApplyDamageToSubjects(Subjects, IgnoreSubjects, DmgInstigator, HitFromLocation, DmgSphere, Debuff, DamageResults);
+}
+
+void UBattleFrameFunctionLibraryRT::SortSubjectsByDistance
+(
+	UPARAM(ref) TArray<FTraceResult>& TraceResults,
+	const FVector& SortOrigin,
+	ESortMode SortMode
+)
 {
 	// 1. 首先移除所有无效的Subject
-	Results.RemoveAll([](const FTraceResult& Result) 
+	TraceResults.RemoveAll([](const FTraceResult& TraceResult)
 	{
-		return !Result.Subject.IsValid();
+		return !TraceResult.Subject.IsValid();
 	});
 
 	// 2. 检查剩余元素数量
-	if (Results.Num() <= 1)
+	if (TraceResults.Num() <= 1)
 	{
 		return; // 不需要排序
 	}
 
 	// 3. 预计算距离（可选优化）
-	for (auto& Result : Results)
+	for (auto& Result : TraceResults)
 	{
 		Result.CachedDistSq = FVector::DistSquared(SortOrigin, Result.Location);
 	}
 
 	// 4. 根据模式排序
-	Results.Sort([SortMode](const FTraceResult& A, const FTraceResult& B)
+	TraceResults.Sort([SortMode](const FTraceResult& A, const FTraceResult& B)
 	{
 		if (SortMode == ESortMode::NearToFar)
 		{
@@ -110,6 +228,175 @@ void UBattleFrameFunctionLibraryRT::SortSubjectsByDistance(UPARAM(ref) TArray<FT
 			return A.CachedDistSq > B.CachedDistSq;  // 从远到近
 		}
 	});
+}
+
+
+//-------------------------------Async Trace-------------------------------
+
+USphereSweepForSubjectsAsyncAction* USphereSweepForSubjectsAsyncAction::SphereSweepForSubjectsAsync
+(
+	const UObject* WorldContextObject,
+	ANeighborGridActor* NeighborGridActor,
+	const FVector Start,
+	const FVector End,
+	const float Radius,
+	const bool bCheckVisibility,
+	const FVector CheckOrigin,
+	const float CheckRadius,
+	const ESortMode SortMode,
+	const FVector SortOrigin,
+	const int32 KeepCount,
+	const TArray<FSubjectHandle>& IgnoreSubjects,
+	const FFilter Filter
+)
+{
+	USphereSweepForSubjectsAsyncAction* AsyncAction = NewObject<USphereSweepForSubjectsAsyncAction>();
+	AsyncAction->RegisterWithGameInstance(WorldContextObject ? WorldContextObject->GetWorld() : nullptr);
+
+	if (!IsValid(NeighborGridActor))
+	{
+		if (UWorld* World = WorldContextObject->GetWorld())
+		{
+			for (TActorIterator<ANeighborGridActor> It(World); It; ++It)
+			{
+				NeighborGridActor = *It;
+				break;
+			}
+		}
+	}
+
+	AsyncAction->NeighborGridActor = NeighborGridActor;
+	AsyncAction->Start = Start;
+	AsyncAction->End = End;
+	AsyncAction->Radius = Radius;
+	AsyncAction->bCheckVisibility = bCheckVisibility;
+	AsyncAction->CheckOrigin = CheckOrigin;
+	AsyncAction->CheckRadius = CheckRadius;
+	AsyncAction->SortMode = SortMode;
+	AsyncAction->SortOrigin = SortOrigin;
+	AsyncAction->KeepCount = KeepCount;
+	AsyncAction->Filter = Filter;
+	AsyncAction->IgnoreSubjects = IgnoreSubjects;
+
+	return AsyncAction;
+}
+
+void USphereSweepForSubjectsAsyncAction::Activate()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereSweepForSubjectsAsync");
+
+	if (!IsValid(NeighborGridActor.Get()))
+	{
+		Hit = false;
+		Completed.Broadcast(Hit, Results);
+	}
+	else
+	{
+		AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this]()
+			{
+				//TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereSweepForSubjectsAsync");
+
+				TWeakObjectPtr<UNeighborGridComponent> NeighborGrid = NeighborGridActor->FindComponentByClass<UNeighborGridComponent>();
+				TArray<FIntVector> CellCoords = NeighborGrid->SphereSweepForCells(Start, End, Radius);
+
+				const FVector TraceDir = (End - Start).GetSafeNormal();
+				const float TraceLength = FVector::Distance(Start, End);
+
+				// 创建忽略列表的哈希集合以便快速查找
+				TSet<FSubjectHandle> IgnoreSet;
+
+				for (const FSubjectHandle& Subject : IgnoreSubjects) IgnoreSet.Add(Subject);
+
+				// 检查每个单元中的subject
+				for (FIntVector CellCoord : CellCoords)
+				{
+					const FNeighborGridCell& CageCell = NeighborGrid->Cells[NeighborGrid->GetIndexAt(CellCoord)];
+
+					if (!CageCell.SubjectFingerprint.Matches(Filter.GetFingerprint())) continue;
+
+					for (const FAvoiding& Data : CageCell.Subjects)
+					{
+						const FSubjectHandle Subject = Data.SubjectHandle;
+
+						// 检查是否在忽略列表中
+						if (IgnoreSet.Contains(Subject)) continue;
+
+						const FVector SubjectPos = Data.Location;
+						float SubjectRadius = Data.Radius;
+
+						// 距离计算
+						const FVector ToSubject = SubjectPos - Start;
+						const float ProjOnTrace = FVector::DotProduct(ToSubject, TraceDir);
+
+						// 初步筛选
+						const float ProjThreshold = SubjectRadius + Radius;
+						if (ProjOnTrace < -ProjThreshold || ProjOnTrace > TraceLength + ProjThreshold) continue;
+
+						// 精确距离检查
+						const float ClampedProj = FMath::Clamp(ProjOnTrace, 0.0f, TraceLength);
+						const FVector NearestPoint = Start + ClampedProj * TraceDir;
+						const float CombinedRadSq = FMath::Square(Radius + SubjectRadius);
+
+						if (FVector::DistSquared(NearestPoint, SubjectPos) >= CombinedRadSq) continue;
+
+						// 可见性检查
+						if (bCheckVisibility)
+						{
+							bool HitObstacle = false;
+							FTraceResult TraceResult;
+							NeighborGrid->SphereSweepForObstacle(Start, SubjectPos, CheckRadius, HitObstacle, TraceResult);
+
+							if (HitObstacle) continue; // 路径被阻挡，跳过该目标
+						}
+
+						// 创建FTraceResult并添加到结果数组
+						FTraceResult Result{ Subject ,SubjectPos ,FVector::DistSquared(SortOrigin, SubjectPos) };
+						TempResults.Add(Result);
+					}
+				}
+
+				// 排序逻辑（在后台线程执行）
+				if (SortMode != ESortMode::None)
+				{
+					TempResults.Sort([this](const FTraceResult& A, const FTraceResult& B)
+					{
+						if (SortMode == ESortMode::NearToFar)
+						{
+							return A.CachedDistSq < B.CachedDistSq;
+						}
+						else // FarToNear
+						{
+							return A.CachedDistSq > B.CachedDistSq;
+						}
+					});
+				}
+
+				AsyncTask(ENamedThreads::GameThread, [this]()
+				{
+					//TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereSweepForSubjectsSync");
+					Results.Reset();
+
+					int32 ValidCount = 0;
+					const bool bRequireLimit = (KeepCount > 0);
+
+					// 按预排序顺序遍历，遇到有效项立即收集
+					for (const FTraceResult& TempResult : TempResults)
+					{
+						if (!TempResult.Subject.Matches(Filter)) continue;// this can only run on gamethread
+
+						Results.Add(TempResult);
+						ValidCount++;
+
+						// 达到数量限制立即终止
+						if (bRequireLimit && ValidCount >= KeepCount) break;
+					}
+
+					Hit = !Results.IsEmpty();
+					Completed.Broadcast(Hit, Results);
+					SetReadyToDestroy();
+				});
+			});
+	}
 }
 
 void UBattleFrameFunctionLibraryRT::SetSubTypeTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord)
@@ -1241,339 +1528,93 @@ void UBattleFrameFunctionLibraryRT::ExcludeAvoGroupTraitByIndex(int32 Index, FFi
 	}
 }
 
-
-//-------------------------------Sync Traces-------------------------------
-
-void UBattleFrameFunctionLibraryRT::SphereTraceForSubjects
-(
-	ANeighborGridActor* NeighborGridActor,
-	FVector Origin,
-	float Radius,
-	bool bCheckVisibility,
-	FVector CheckOrigin,
-	float CheckRadius,
-	TArray<FSubjectHandle> IgnoreSubjects,
-	FFilter Filter, 
-	bool& Hit,
-	TArray<FTraceResult>& Results
-)
+FVector UBattleFrameFunctionLibraryRT::FindNewPatrolGoalLocation(const FPatrol& Patrol, const FCollider& Collider, const FTrace& Trace, const FLocated& Located, int32 MaxAttempts /*= 3*/)
 {
-	Results.Empty();
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("FindNewPatrolGoalLocation");
 
-	if (!IsValid(NeighborGridActor))
+	// Early out if no neighbor grid available
+	if (!IsValid(Trace.NeighborGrid))
 	{
-		if (UWorld* World = GEngine->GetCurrentPlayWorld())
+		const float Angle = FMath::FRandRange(0.f, 2.f * PI);
+		const float Distance = FMath::FRandRange(Patrol.PatrolRadiusMin, Patrol.PatrolRadiusMax);
+		return Patrol.Origin + FVector(FMath::Cos(Angle) * Distance, FMath::Sin(Angle) * Distance, 0.f);
+	}
+
+	FVector BestCandidate = Patrol.Origin;
+	float BestDistanceSq = 0.f;
+
+	for (int32 Attempt = 0; Attempt < MaxAttempts; ++Attempt)
+	{
+		// Generate random position in patrol ring
+		const float Angle = FMath::FRandRange(0.f, 2.f * PI);
+		const float Distance = FMath::FRandRange(Patrol.PatrolRadiusMin, Patrol.PatrolRadiusMax);
+		const FVector Candidate = Patrol.Origin + FVector(FMath::Cos(Angle) * Distance, FMath::Sin(Angle) * Distance, 0.f);
+
+		// Skip visibility check if not required
+		if (!Patrol.bCheckVisibility)
 		{
-			for (TActorIterator<ANeighborGridActor> It(World); It; ++It)
-			{
-				NeighborGridActor = *It;
-				break;
-			}
+			return Candidate;
+		}
+
+		// Check visibility through neighbor grid
+		bool bHit = false;
+		FTraceResult Result;
+		Trace.NeighborGrid->SphereSweepForObstacle(Located.Location, Candidate, Collider.Radius, bHit, Result);
+
+		// Return first valid candidate found
+		if (!bHit)
+		{
+			return Candidate;
+		}
+
+		// Track farthest candidate as fallback
+		const float CurrentDistanceSq = (Candidate - Located.Location).SizeSquared();
+
+		if (CurrentDistanceSq > BestDistanceSq)
+		{
+			BestCandidate = Candidate;
+			BestDistanceSq = CurrentDistanceSq;
 		}
 	}
 
-	if (IsValid(NeighborGridActor))
-	{
-		TArray<FTraceResult> LocalResults;
-		NeighborGridActor->SphereTraceForSubjects(Origin, Radius, bCheckVisibility, CheckOrigin, CheckRadius, IgnoreSubjects, Filter, Hit, LocalResults);
-		Results = MoveTemp(LocalResults);
-	}
+	// Return best candidate if all attempts hit obstacles
+	return BestCandidate;
 }
 
-void UBattleFrameFunctionLibraryRT::SphereSweepForSubjects
-(
-	ANeighborGridActor* NeighborGridActor,
-	FVector Start,
-	FVector End,
-	float Radius,
-	bool bCheckVisibility, 
-	const FVector CheckOrigin,
-	float CheckRadius,
-	TArray<FSubjectHandle> IgnoreSubjects,
-	FFilter Filter,
-	bool& Hit,
-	TArray<FTraceResult>& Results
-)
+TArray<FSubjectHandle> UBattleFrameFunctionLibraryRT::ConvertDmgResultsToSubjectHandles(const TArray<FDmgResult>& DmgResults)
 {
-	Results.Empty();
+	TArray<FSubjectHandle> SubjectHandles;
+	SubjectHandles.Reserve(DmgResults.Num() * 2); // Reserve space for both Damaged and Instigator subjects
 
-	if (!IsValid(NeighborGridActor))
+	for (const FDmgResult& Result : DmgResults)
 	{
-		if (UWorld* World = GEngine->GetCurrentPlayWorld())
+		// Add both DamagedSubject and InstigatorSubject to the array
+		SubjectHandles.Add(Result.DamagedSubject);
+
+		// Only add Instigator if it's valid (not empty)
+		if (Result.InstigatorSubject.IsValid())
 		{
-			for (TActorIterator<ANeighborGridActor> It(World); It; ++It)
-			{
-				NeighborGridActor = *It;
-				break;
-			}
+			SubjectHandles.Add(Result.InstigatorSubject);
 		}
 	}
 
-	if (IsValid(NeighborGridActor))
-	{
-		TArray<FTraceResult> LocalResults;
-		NeighborGridActor->SphereSweepForSubjects(Start, End, Radius, bCheckVisibility, CheckOrigin, CheckRadius, IgnoreSubjects, Filter, Hit, LocalResults);
-		Results = MoveTemp(LocalResults);
-	}
+	return SubjectHandles;
 }
 
-void UBattleFrameFunctionLibraryRT::SectorTraceForSubject
-(
-	ANeighborGridActor* NeighborGridActor,
-	FVector Origin,
-	float Radius,
-	float Height,
-	FVector Direction,
-	float Angle,
-	bool bCheckVisibility, 
-	const FVector CheckOrigin,
-	float CheckRadius,
-	TArray<FSubjectHandle> IgnoreSubjects,
-	FFilter Filter,
-	bool& Hit,
-	FTraceResult& Result
-)
+TArray<FSubjectHandle> UBattleFrameFunctionLibraryRT::ConvertTraceResultsToSubjectHandles(const TArray<FTraceResult>& TraceResults)
 {
-	if (!IsValid(NeighborGridActor))
+	TArray<FSubjectHandle> SubjectHandles;
+	SubjectHandles.Reserve(TraceResults.Num());
+
+	for (const FTraceResult& Result : TraceResults)
 	{
-		if (UWorld* World = GEngine->GetCurrentPlayWorld())
-		{
-			for (TActorIterator<ANeighborGridActor> It(World); It; ++It)
-			{
-				NeighborGridActor = *It;
-				break;
-			}
-		}
+		SubjectHandles.Add(Result.Subject);
 	}
 
-	if (IsValid(NeighborGridActor))
-	{
-		FTraceResult LocalResult;
-		NeighborGridActor->SectorTraceForSubject(Origin, Radius, Height, Direction, Angle, bCheckVisibility, CheckOrigin, CheckRadius, IgnoreSubjects, Filter, Hit, LocalResult);
-		Result = MoveTemp(LocalResult);
-	}
-}
-
-TArray<FDmgResult> UBattleFrameFunctionLibraryRT::ApplyDamageToSubjects
-(
-	ABattleFrameBattleControl* BattleControl,
-	TArray<FSubjectHandle> Subjects,
-	TArray<FSubjectHandle> IgnoreSubjects,
-	FSubjectHandle DmgInstigator,
-	FVector HitFromLocation,
-	FDmgSphere DmgSphere,
-	FDebuff Debuff
-)
-{
-	// 直接获取当前游戏世界的 World（仅限 Runtime）
-	UWorld* World = GEngine ? GEngine->GetCurrentPlayWorld() : nullptr;
-
-	// 如果 BattleControl 无效，尝试查找场景中的第一个实例
-	if (!IsValid(BattleControl) && World)
-	{
-		for (TActorIterator<ABattleFrameBattleControl> It(World); It; ++It)
-		{
-			BattleControl = *It;
-			break; // 只取第一个
-		}
-	}
-
-	// 仍然无效则返回空结果
-	if (!IsValid(BattleControl))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("ApplyDamageToSubjects: No valid BattleControl found!"));
-		return TArray<FDmgResult>();
-	}
-
-	// 使用MoveTemp转移Subjects的所有权
-	return BattleControl->ApplyDamageToSubjects(
-		MoveTemp(Subjects),
-		IgnoreSubjects,
-		MoveTemp(DmgInstigator),
-		HitFromLocation,
-		MoveTemp(DmgSphere),
-		MoveTemp(Debuff)
-	);
+	return SubjectHandles;
 }
 
 
-//-------------------------------Async Trace-------------------------------
-
-USphereSweepForSubjectsAsyncAction* USphereSweepForSubjectsAsyncAction::SphereSweepForSubjectsAsync
-(
-	const UObject* WorldContextObject, 
-	ANeighborGridActor* NeighborGridActor, 
-	const FVector Start, 
-	const FVector End, 
-	const float Radius,
-	const bool bCheckVisibility,
-	const FVector CheckOrigin,
-	const float CheckRadius,
-	const EAsyncSortMode SortMode,
-	const FVector SortOrigin, 
-	const int32 KeepCount,
-	const TArray<FSubjectHandle>& IgnoreSubjects, 
-	const FFilter Filter
-)
-{
-	USphereSweepForSubjectsAsyncAction* AsyncAction = NewObject<USphereSweepForSubjectsAsyncAction>();
-	AsyncAction->RegisterWithGameInstance(WorldContextObject ? WorldContextObject->GetWorld() : nullptr);
-
-	if (!IsValid(NeighborGridActor))
-	{
-		if (UWorld* World = WorldContextObject->GetWorld())
-		{
-			for (TActorIterator<ANeighborGridActor> It(World); It; ++It)
-			{
-				NeighborGridActor = *It;
-				break;
-			}
-		}
-	}
-
-	AsyncAction->NeighborGridActor = NeighborGridActor;
-	AsyncAction->Start = Start;
-	AsyncAction->End = End;
-	AsyncAction->Radius = Radius;
-	AsyncAction->bCheckVisibility = bCheckVisibility;
-	AsyncAction->CheckOrigin = CheckOrigin;
-	AsyncAction->CheckRadius = CheckRadius;
-	AsyncAction->SortMode = SortMode;
-	AsyncAction->SortOrigin = SortOrigin;
-	AsyncAction->KeepCount = KeepCount;
-	AsyncAction->Filter = Filter;
-	AsyncAction->IgnoreSubjects = IgnoreSubjects;
-
-	return AsyncAction;
-}
-
-void USphereSweepForSubjectsAsyncAction::Activate()
-{
-	if (!IsValid(NeighborGridActor.Get()))
-	{
-		Hit = false;
-		Completed.Broadcast(Hit,Results);
-	}
-	else
-	{
-		AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this]()
-		{
-			TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereSweepForSubjectsAsync");
-
-			TWeakObjectPtr<UNeighborGridComponent> NeighborGrid = NeighborGridActor->FindComponentByClass<UNeighborGridComponent>();
-			TArray<FIntVector> CellCoords = NeighborGrid->SphereSweepForCells(Start, End, Radius);
-
-			const FVector TraceDir = (End - Start).GetSafeNormal();
-			const float TraceLength = FVector::Distance(Start, End);
-
-			// 创建忽略列表的哈希集合以便快速查找
-			TSet<FSubjectHandle> IgnoreSet;
-
-			for (const FSubjectHandle& Subject : IgnoreSubjects)
-			{
-				IgnoreSet.Add(Subject);
-			}
-
-			// 检查每个单元中的subject
-			for (FIntVector CellCoord : CellCoords)
-			{
-				const FNeighborGridCell& CageCell = NeighborGrid->Cells[NeighborGrid->GetIndexAt(CellCoord)];
-
-				if (!CageCell.SubjectFingerprint.Matches(Filter.GetFingerprint())) continue;
-
-				for (const FAvoiding& Data : CageCell.Subjects)
-				{
-					const FSubjectHandle Subject = Data.SubjectHandle;
-
-					// 检查是否在忽略列表中
-					if (IgnoreSet.Contains(Subject))
-					{
-						continue;
-					}
-
-					const FVector SubjectPos = Data.Location;
-					float SubjectRadius = Data.Radius;
-
-					// 距离计算
-					const FVector ToSubject = SubjectPos - Start;
-					const float ProjOnTrace = FVector::DotProduct(ToSubject, TraceDir);
-
-					// 初步筛选
-					const float ProjThreshold = SubjectRadius + Radius;
-					if (ProjOnTrace < -ProjThreshold || ProjOnTrace > TraceLength + ProjThreshold) continue;
-
-					// 精确距离检查
-					const float ClampedProj = FMath::Clamp(ProjOnTrace, 0.0f, TraceLength);
-					const FVector NearestPoint = Start + ClampedProj * TraceDir;
-					const float CombinedRadSq = FMath::Square(Radius + SubjectRadius);
-
-					if (FVector::DistSquared(NearestPoint, SubjectPos) >= CombinedRadSq) continue;
-
-					// 可见性检查
-					if (bCheckVisibility)
-					{
-						bool Hit = false;
-						FTraceResult TraceResult;
-						NeighborGrid->SphereSweepForObstacle(Start, SubjectPos, CheckRadius, Hit, TraceResult);
-
-						if (Hit)
-						{
-							continue; // 路径被阻挡，跳过该目标
-						}
-					}
-
-					// 创建FTraceResult并添加到结果数组
-					FTraceResult Result{ Subject ,SubjectPos ,FVector::DistSquared(SortOrigin, SubjectPos) };
-					TempResults.Add(Result);
-				}
-			}
-
-			// 排序逻辑（在后台线程执行）
-			if (SortMode != EAsyncSortMode::None)
-			{
-				TempResults.Sort([this](const FTraceResult& A, const FTraceResult& B)
-				{
-					if (SortMode == EAsyncSortMode::NearToFar)
-					{
-						return A.CachedDistSq < B.CachedDistSq;
-					}
-					else // FarToNear
-					{
-						return A.CachedDistSq > B.CachedDistSq;
-					}
-				});
-			}
-
-			AsyncTask(ENamedThreads::GameThread, [this]()
-			{
-				TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereSweepForSubjectsSync");
-				Results.Reset();
-
-				int32 ValidCount = 0;
-				const bool bRequireLimit = (KeepCount > 0);
-
-				// 按预排序顺序遍历，遇到有效项立即收集
-				for (const FTraceResult& TempResult : TempResults)
-				{
-					if (!TempResult.Subject.Matches(Filter)) continue;// this can only run on gamethread
-
-					Results.Add(TempResult);
-					ValidCount++;
-
-					// 达到数量限制立即终止
-					if (bRequireLimit && ValidCount >= KeepCount)
-					{
-						break;
-					}
-				}
-
-				Hit = !Results.IsEmpty();
-				Completed.Broadcast(Hit, Results);
-				SetReadyToDestroy();
-			});
-		});
-	}
-}
 
 
 

@@ -448,7 +448,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					{
 						// 计算目标半径和实际距离
 						float OtherRadius = Trace.TraceResult.HasTrait<FCollider>() ? Trace.TraceResult.GetTrait<FCollider>().Radius : 0;
-						float Distance = FMath::Clamp(FVector::Dist(Located.Location, PlayerLocation) - Collider.Radius - OtherRadius, 0, FLT_MAX);
+						float Distance = FMath::Clamp(FVector::Dist(Located.Location, PlayerLocation) - OtherRadius, 0, FLT_MAX);// we only take into account the radius of the trace target
 
 						// 距离检查
 						if (Distance <= FinalRange)
@@ -489,7 +489,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					{
 						FFilter TargetFilter;
 						bool Hit;
-						FTraceResult Result;
+						TArray<FTraceResult> Results;
 
 						TargetFilter.Include(Trace.IncludeTraits);
 						TargetFilter.Exclude(Trace.ExcludeTraits);
@@ -502,7 +502,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						TArray<FSubjectHandle> IgnoreList;
 						IgnoreList.Add(FSubjectHandle(Subject));
 
-						Trace.NeighborGrid->SectorTraceForSubject(
+						Trace.NeighborGrid->SectorTraceForSubjects
+						(
 							Located.Location,   // 检测原点
 							FinalRange,         // 检测半径
 							TraceHeight,        // 检测高度
@@ -511,16 +512,19 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 							FinalCheckVisibility,
 							Located.Location,
 							Collider.Radius,
+							ESortMode::NearToFar,
+							Located.Location,
+							1,
 							IgnoreList,
 							TargetFilter,       // 过滤条件
 							Hit,
-							Result              // 输出结果
+							Results              // 输出结果
 						);
 
 						// 直接使用结果（扇形检测已包含角度验证）
-						if (Result.Subject.IsValid())
+						if (Hit && Results[0].Subject.IsValid())
 						{
-							Trace.TraceResult = Result.Subject;
+							Trace.TraceResult = Results[0].Subject;
 						}
 					}
 					break;
@@ -956,7 +960,23 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				// 朝向
 				float SlowMult = 1;
 
-				if (!Move.bEnable || bIsAppearing || bIsSleeping || Moving.bFalling || Moving.bLaunching || bIsDying || (bIsPatrolling && DistanceToGoal <= Patrol.AcceptanceRadius) || (bIsAttacking && Subject.GetTrait<FAttacking>().State != EAttackState::Cooling))
+				if (
+					!Move.bEnable 
+					|| 
+					bIsAppearing 
+					|| 
+					bIsSleeping 
+					|| 
+					Moving.bFalling 
+					|| 
+					Moving.bLaunching 
+					|| 
+					bIsDying 
+					|| 
+					(bIsPatrolling && DistanceToGoal <= Patrol.AcceptanceRadius) 
+					|| 
+					(bIsAttacking && Subject.GetTrait<FAttacking>().State == EAttackState::PreCast)
+				)
 				{
 					SlowMult = 0;// 不需要转向的情况
 				}
@@ -1191,7 +1211,6 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				FAnimation& Animation,
 				FAttack& Attack,
 				FAttacking& Attacking,
-				//FMove& Move,
 				FMoving& Moving,
 				FDirected& Directed,
 				FTrace& Trace,
@@ -1250,6 +1269,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 							FVector ToTargetDir = (TargetPos - AttackerPos).GetSafeNormal();
 							float Angle = FMath::RadiansToDegrees(FMath::Acos(FVector::DotProduct(AttackerForward, ToTargetDir)));
 
+							TArray<FDmgResult> DmgResults;
+
 							// Melee ATK
 							if (Attack.TimeOfHitAction == EAttackMode::ApplyDMG)
 							{
@@ -1258,7 +1279,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 									if (Distance <= Attack.Range && Angle <= Attack.AngleTolerance)
 									{
 										FDmgSphere DmgSphere = { Damage.Damage,Damage.KineticDmg,Damage.FireDmg,Damage.IceDmg,Damage.PercentDmg,Damage.CritProbability,Damage.CritMult };
-										ApplyDamageToSubjects(TArray<FSubjectHandle>{Trace.TraceResult}, TArray<FSubjectHandle>{}, FSubjectHandle{ Subject }, Located.Location, DmgSphere, Debuff);
+										ApplyDamageToSubjects(TArray<FSubjectHandle>{Trace.TraceResult}, TArray<FSubjectHandle>{}, FSubjectHandle{ Subject }, Located.Location, DmgSphere, Debuff, DmgResults);
 									}
 								}
 							}
@@ -1271,7 +1292,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 									if (Distance <= Attack.Range)
 									{
 										FDmgSphere DmgSphere = { Damage.Damage,Damage.KineticDmg,Damage.FireDmg,Damage.IceDmg,Damage.PercentDmg,Damage.CritProbability,Damage.CritMult };
-										ApplyDamageToSubjects(TArray<FSubjectHandle>{Trace.TraceResult}, TArray<FSubjectHandle>{}, FSubjectHandle{ Subject }, Located.Location, DmgSphere, Debuff);
+										ApplyDamageToSubjects(TArray<FSubjectHandle>{Trace.TraceResult}, TArray<FSubjectHandle>{}, FSubjectHandle{ Subject }, Located.Location, DmgSphere, Debuff, DmgResults);
 									}
 								}
 								Subject.DespawnDeferred();
@@ -2458,10 +2479,10 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	// DmgResult Call Backs
 	#pragma region
 	{
-		while (!DamageResults.IsEmpty())
+		while (!DamageResultQueue.IsEmpty())
 		{
 			FDmgResult DmgResult;
-			DamageResults.Dequeue(DmgResult);
+			DamageResultQueue.Dequeue(DmgResult);
 
 			if (DmgResult.DamagedSubject.IsValid())
 			{
@@ -2486,7 +2507,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TArray<FDmgResult> ABattleFrameBattleControl::ApplyDamageToSubjects(TArray<FSubjectHandle> Subjects, TArray<FSubjectHandle> IgnoreSubjects, FSubjectHandle DmgInstigator, FVector HitFromLocation, FDmgSphere DmgSphere, FDebuff Debuff)
+void ABattleFrameBattleControl::ApplyDamageToSubjects(TArray<FSubjectHandle> Subjects, TArray<FSubjectHandle> IgnoreSubjects, FSubjectHandle DmgInstigator, FVector HitFromLocation, FDmgSphere DmgSphere, FDebuff Debuff, TArray<FDmgResult>& DamageResults)
 {
 	// Record for deferred spawning of TemporalDamager
 	FTemporalDamaging TemporalDamaging;
@@ -2496,8 +2517,6 @@ TArray<FDmgResult> ABattleFrameBattleControl::ApplyDamageToSubjects(TArray<FSubj
 
 	// 将IgnoreSubjects转换为TSet以提高查找效率
 	const TSet<FSubjectHandle> IgnoreSet(IgnoreSubjects);
-
-	TArray<FDmgResult> DmgResults;
 
 	for (const auto& Overlapper : Subjects)
 	{
@@ -2812,11 +2831,9 @@ TArray<FDmgResult> ABattleFrameBattleControl::ApplyDamageToSubjects(TArray<FSubj
 	
 		if (bHasIsSubjective)
 		{
-			DamageResults.Enqueue(DmgResult);
+			DamageResultQueue.Enqueue(DmgResult);
 		}
 
-		DmgResults.Add(DmgResult);
+		DamageResults.Add(DmgResult);
 	}
-
-	return DmgResults;
 }

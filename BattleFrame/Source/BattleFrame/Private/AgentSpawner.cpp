@@ -117,13 +117,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
 
     UBattleFrameFunctionLibraryRT::SetSubTypeTraitByIndex(DataAsset->SubType.Index, AgentConfig);
 
-    auto& SourceAppear = AgentConfig.GetTraitRef<FAppear>();
     auto& SourceAnimation = AgentConfig.GetTraitRef<FAnimation>();
-
-    if (!SourceAppear.bEnable)
-    {
-        SourceAnimation.Dissolve = 0;
-    }
 
     SourceAnimation.AnimToTextureData = SourceAnimation.AnimToTextureDataAsset.LoadSynchronous(); // DataAsset Solid Pointer
 
@@ -275,10 +269,15 @@ void AAgentSpawner::ActivateAgent( FSubjectHandle Agent )
     auto& Appear = Agent.GetTraitRef<FAppear, EParadigm::Unsafe>();
     auto& Sleep = Agent.GetTraitRef<FSleep, EParadigm::Unsafe>();
     auto& Patrol = Agent.GetTraitRef<FPatrol, EParadigm::Unsafe>();
+    auto& Animation = Agent.GetTraitRef<FAnimation, EParadigm::Unsafe>();
 
     if (Appear.bEnable)
     {
         Agent.SetTrait(FAppearing());
+    }
+    else
+    {
+        Animation.Dissolve = 0;
     }
 
     if (Sleep.bEnable)

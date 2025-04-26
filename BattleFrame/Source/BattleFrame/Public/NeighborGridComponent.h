@@ -23,6 +23,7 @@
 #include "Traits/Avoidance.h"
 #include "Traits/OccupiedCells.h"
 #include "Traits/TraceResult.h"
+#include "Traits/BattleFrameEnums.h"
 #include "RVOSimulator.h"
 #include "RVOVector2.h"
 #include "Kismet/BlueprintAsyncActionBase.h"
@@ -93,13 +94,62 @@ public:
 		Cells.AddDefaulted(Size.X * Size.Y * Size.Z);
 	}
 
-	void SphereTraceForSubjects(const FVector Origin, const float Radius, const bool bCheckVisibility, const FVector CheckOrigin, const float CheckRadius, const TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, bool& Hit, TArray<FTraceResult>& Results) const;
-	
-	void SphereSweepForSubjects(const FVector Start, const FVector End, const float Radius, const bool bCheckVisibility, const FVector CheckOrigin, const float CheckRadius, const TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, bool& Hit, TArray<FTraceResult>& Results);
-	
-	void SectorTraceForSubject(const FVector Origin, const float Radius, const float Height, const FVector Direction, const float Angle, const bool bCheckVisibility, const FVector CheckOrigin, const float CheckRadius, const TArray<FSubjectHandle> IgnoreSubjects, const FFilter Filter, bool& Hit, FTraceResult& Result) const;
+	void SphereTraceForSubjects
+	(
+		const FVector Origin, 
+		const float Radius, 
+		const bool bCheckVisibility, 
+		const FVector CheckOrigin, 
+		const float CheckRadius, 
+		const TArray<FSubjectHandle> IgnoreSubjects, 
+		const FFilter Filter, 
+		bool& Hit, 
+		TArray<FTraceResult>& Results
+	) const;
 
-	void SphereSweepForObstacle(FVector Start, FVector End, float Radius, bool& Hit, FTraceResult& Result) const;
+	void SphereSweepForSubjects
+	(
+		const FVector& Start, 
+		const FVector& End, 
+		const float Radius, 
+		const bool bCheckVisibility, 
+		const FVector& CheckOrigin, 
+		const float CheckRadius, 
+		ESortMode SortMode, 
+		const FVector& SortOrigin,
+		int32 KeepCount, 
+		const TArray<FSubjectHandle>& IgnoreSubjects, 
+		const FFilter& Filter, bool& Hit, 
+		TArray<FTraceResult>& Results
+	) const;
+
+	void SectorTraceForSubjects
+	(
+		const FVector& Origin, 
+		const float Radius, 
+		const float Height, 
+		const FVector& Direction, 
+		const float Angle, 
+		const bool bCheckVisibility, 
+		const FVector& CheckOrigin, 
+		const float CheckRadius, 
+		ESortMode SortMode, 
+		const FVector& SortOrigin, 
+		int32 KeepCount, 
+		const TArray<FSubjectHandle>& IgnoreSubjects, 
+		const FFilter& Filter, 
+		bool& Hit, 
+		TArray<FTraceResult>& Results
+	) const;	
+
+	void SphereSweepForObstacle
+	(
+		FVector Start, 
+		FVector End, 
+		float Radius, 
+		bool& Hit, 
+		FTraceResult& Result
+	) const;
 
 	void Update();
 	void Decouple();
