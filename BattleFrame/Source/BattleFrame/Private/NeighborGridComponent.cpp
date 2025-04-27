@@ -307,7 +307,7 @@ void UNeighborGridComponent::SectorTraceForSubjects(
 	// 特殊处理标志
 	const bool bFullCircle = FMath::IsNearlyEqual(Angle, 360.0f, KINDA_SMALL_NUMBER);
 	const bool bSingleResult = (KeepCount == 1);
-	const bool bNoCountLimit = (KeepCount == -1);  // 新增加的特殊处理标志
+	const bool bNoCountLimit = (KeepCount == -1);
 
 	// 将忽略列表转换为集合以便快速查找
 	const TSet<FSubjectHandle> IgnoreSet(IgnoreSubjects);
@@ -342,7 +342,7 @@ void UNeighborGridComponent::SectorTraceForSubjects(
 	// 临时存储所有结果（用于需要排序或随机的情况）
 	TArray<FTraceResult> TempResults;
 
-	// 预收集候选格子
+	// 预收集候选格子并按距离排序
 	TArray<FIntVector> CandidateCells;
 	for (int32 z = CagePosMin.Z; z <= CagePosMax.Z; ++z) {
 		for (int32 x = CagePosMin.X; x <= CagePosMax.X; ++x) {
@@ -389,9 +389,40 @@ void UNeighborGridComponent::SectorTraceForSubjects(
 		}
 	}
 
+	// 根据SortMode对格子进行排序
+	if (SortMode != ESortMode::None)
+	{
+		CandidateCells.Sort([this, SortOrigin, SortMode](const FIntVector& A, const FIntVector& B) {
+			const float DistSqA = FVector::DistSquared(CageToWorld(A), SortOrigin);
+			const float DistSqB = FVector::DistSquared(CageToWorld(B), SortOrigin);
+			return SortMode == ESortMode::NearToFar ? DistSqA < DistSqB : DistSqA > DistSqB;
+			});
+	}
+
+	// 计算提前终止阈值
+	float ThresholdDistanceSq = FLT_MAX;
+	if (!bNoCountLimit && KeepCount > 0 && SortMode != ESortMode::None)
+	{
+		// 计算阈值：当前最远结果的距离 + 2倍格子对角线距离
+		// 这样确保不会漏掉可能更近的subject
+		const float ThresholdDistance = FMath::Sqrt(BestDistSq) + 2.0f * CellSizeXY * FMath::Sqrt(2.0f);
+		ThresholdDistanceSq = FMath::Square(ThresholdDistance);
+	}
+
 	// 遍历检测
 	for (const FIntVector& CellPos : CandidateCells)
 	{
+		// 提前终止检查
+		if (!bNoCountLimit && KeepCount > 0 && SortMode != ESortMode::None)
+		{
+			const float CellDistSq = FVector::DistSquared(CageToWorld(CellPos), SortOrigin);
+			if ((SortMode == ESortMode::NearToFar && CellDistSq > ThresholdDistanceSq) ||
+				(SortMode == ESortMode::FarToNear && CellDistSq < ThresholdDistanceSq))
+			{
+				break;
+			}
+		}
+
 		const auto& CellData = At(CellPos);
 		if (!CellData.SubjectFingerprint.Matches(FilterFingerprint)) continue;
 
@@ -459,16 +490,41 @@ void UNeighborGridComponent::SectorTraceForSubjects(
 					BestResult.Location = SubjectPos;
 					BestResult.CachedDistSq = CurrentDistSq;
 					BestDistSq = CurrentDistSq;
+
+					// 更新阈值
+					if (!bNoCountLimit && KeepCount > 0)
+					{
+						const float ThresholdDistance = FMath::Sqrt(BestDistSq) + 2.0f * CellSizeXY * FMath::Sqrt(2.0f);
+						ThresholdDistanceSq = FMath::Square(ThresholdDistance);
+					}
 				}
 			}
 			else
 			{
-				// 添加到临时数组，后续统一处理
 				FTraceResult Result;
 				Result.Subject = Subject;
 				Result.Location = SubjectPos;
 				Result.CachedDistSq = CurrentDistSq;
 				TempResults.Add(Result);
+
+				// 当收集到足够结果时更新阈值
+				if (!bNoCountLimit && KeepCount > 0 && SortMode != ESortMode::None && TempResults.Num() >= KeepCount)
+				{
+					// 找到当前第KeepCount个最佳结果的距离
+					float CurrentThresholdDistSq = 0.0f;
+					if (SortMode == ESortMode::NearToFar)
+					{
+						CurrentThresholdDistSq = TempResults[KeepCount - 1].CachedDistSq;
+					}
+					else // FarToNear
+					{
+						CurrentThresholdDistSq = TempResults.Last().CachedDistSq;
+					}
+
+					// 更新阈值
+					const float ThresholdDistance = FMath::Sqrt(CurrentThresholdDistSq) + 2.0f * CellSizeXY * FMath::Sqrt(2.0f);
+					ThresholdDistanceSq = FMath::Square(ThresholdDistance);
+				}
 			}
 		}
 	}
@@ -517,6 +573,7 @@ void UNeighborGridComponent::SectorTraceForSubjects(
 
 	Hit = !Results.IsEmpty();
 }
+
 
 
 
@@ -576,197 +633,162 @@ void UNeighborGridComponent::SphereSweepForObstacle(FVector Start, FVector End, 
 
 		// 检查长方体障碍物碰撞
 		auto CheckBoxCollision = [&](const TArray<FAvoiding>& Obstacles)
-		{
-			for (const FAvoiding& Avoiding : Obstacles)
 			{
-				if (!Avoiding.SubjectHandle.IsValid()) continue;
-
-				const FBoxObstacle* CurrentObstacle = Avoiding.SubjectHandle.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
-				if (!CurrentObstacle) continue;
-				if (CurrentObstacle->bExcluded) continue;
-
-				const FBoxObstacle* PrevObstacle = CurrentObstacle->prevObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
-				if (!PrevObstacle) continue;
-				if (CurrentObstacle->bExcluded) continue;
-
-				const FBoxObstacle* NextObstacle = CurrentObstacle->nextObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
-				if (!NextObstacle) continue;
-				if (CurrentObstacle->bExcluded) continue;
-
-				const FBoxObstacle* NextNextObstacle = NextObstacle->nextObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
-				if (!NextNextObstacle) continue;
-				if (CurrentObstacle->bExcluded) continue;
-
-				const FVector& CurrentPos = CurrentObstacle->point3d_;
-				const FVector& PrevPos = PrevObstacle->point3d_;
-				const FVector& NextPos = NextObstacle->point3d_;
-				const FVector& NextNextPos = NextNextObstacle->point3d_;
-
-				const float HalfHeight = CurrentObstacle->height_ * 0.5f;
+				TRACE_CPUPROFILER_EVENT_SCOPE_STR("CheckBoxCollision");
+				// 预计算常用向量
 				const FVector Up = FVector::UpVector;
+				const FVector SphereDir = (End - Start).GetSafeNormal();
+				const float SphereRadiusSq = Radius * Radius;
 
-				const FVector BottomVertices[4] =
+				for (const FAvoiding& Avoiding : Obstacles)
 				{
-					PrevPos - Up * HalfHeight,
-					CurrentPos - Up * HalfHeight,
-					NextPos - Up * HalfHeight,
-					NextNextPos - Up * HalfHeight
-				};
+					if (!Avoiding.SubjectHandle.IsValid()) continue;
 
-				const FVector TopVertices[4] =
-				{
-					PrevPos + Up * HalfHeight,
-					CurrentPos + Up * HalfHeight,
-					NextPos + Up * HalfHeight,
-					NextNextPos + Up * HalfHeight
-				};
+					const FBoxObstacle* CurrentObstacle = Avoiding.SubjectHandle.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
+					if (!CurrentObstacle || CurrentObstacle->bExcluded) continue;
 
-				auto SphereIntersectsBox = [](const FVector& SphereStart, const FVector& SphereEnd, float SphereRadius, const FVector BottomVerts[4], const FVector TopVerts[4]) -> bool
-				{
-					// 将球体运动轨迹视为胶囊体
-					const FVector CapsuleDir = (SphereEnd - SphereStart).GetSafeNormal();
-					const float CapsuleLength = FVector::Dist(SphereStart, SphereEnd);
+					// 检查并获取前一个障碍物
+					const FBoxObstacle* PrevObstacle = CurrentObstacle->prevObstacle_.IsValid() ?
+						CurrentObstacle->prevObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>() : nullptr;
+					if (!PrevObstacle || PrevObstacle->bExcluded) continue;
 
-					// 定义长方体的6个面
-					const TArray<TArray<FVector>> Faces =
+					// 检查并获取下一个障碍物
+					const FBoxObstacle* NextObstacle = CurrentObstacle->nextObstacle_.IsValid() ?
+						CurrentObstacle->nextObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>() : nullptr;
+					if (!NextObstacle || NextObstacle->bExcluded) continue;
+
+					// 检查并获取下下个障碍物
+					const FBoxObstacle* NextNextObstacle = NextObstacle->nextObstacle_.IsValid() ?
+						NextObstacle->nextObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>() : nullptr;
+					if (!NextNextObstacle || NextNextObstacle->bExcluded) continue;
+
+					// 获取所有位置并计算高度相关向量
+					const FVector& CurrentPos = CurrentObstacle->point3d_;
+					const FVector& PrevPos = PrevObstacle->point3d_;
+					const FVector& NextPos = NextObstacle->point3d_;
+					const FVector& NextNextPos = NextNextObstacle->point3d_;
+
+					const float HalfHeight = CurrentObstacle->height_ * 0.5f;
+					const FVector HalfHeightVec = Up * HalfHeight;
+
+					// 预计算所有顶点
+					const FVector BottomVertices[4] =
 					{
-						// 底面
-						{BottomVerts[0], BottomVerts[1], BottomVerts[2], BottomVerts[3]},
-						// 顶面
-						{TopVerts[0], TopVerts[1], TopVerts[2], TopVerts[3]},
-						// 侧面
-						{BottomVerts[0], TopVerts[0], TopVerts[1], BottomVerts[1]},
-						{BottomVerts[1], TopVerts[1], TopVerts[2], BottomVerts[2]},
-						{BottomVerts[2], TopVerts[2], TopVerts[3], BottomVerts[3]},
-						{BottomVerts[3], TopVerts[3], TopVerts[0], BottomVerts[0]}
+						PrevPos - HalfHeightVec,
+						CurrentPos - HalfHeightVec,
+						NextPos - HalfHeightVec,
+						NextNextPos - HalfHeightVec
 					};
 
-					// 检查每个面
-					for (const auto& Face : Faces)
+					const FVector TopVertices[4] =
 					{
-						// 计算面法线
-						const FVector Edge1 = Face[1] - Face[0];
-						const FVector Edge2 = Face[2] - Face[0];
-						FVector Normal = FVector::CrossProduct(Edge1, Edge2).GetSafeNormal();
+						PrevPos + HalfHeightVec,
+						CurrentPos + HalfHeightVec,
+						NextPos + HalfHeightVec,
+						NextNextPos + HalfHeightVec
+					};
 
-						// 计算平面方程: N·X + D = 0
-						const float D = -FVector::DotProduct(Normal, Face[0]);
-
-						// 计算球体线段到平面的距离
-						const float DistStart = FVector::DotProduct(Normal, SphereStart) + D;
-						const float DistEnd = FVector::DotProduct(Normal, SphereEnd) + D;
-
-						// 检查是否与平面相交
-						if (DistStart * DistEnd > 0 &&
-							FMath::Abs(DistStart) > SphereRadius &&
-							FMath::Abs(DistEnd) > SphereRadius)
+					// 优化后的球体与长方体相交检测
+					auto SphereIntersectsBox = [&](const FVector& SphereStart, const FVector& SphereEnd, float SphereRadius,
+						const FVector BottomVerts[4], const FVector TopVerts[4]) -> bool
 						{
-							continue; // 不相交
-						}
+							TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereIntersectsBox");
 
-						// 计算线段与平面的交点
-						FVector Intersection;
-						if (DistStart == DistEnd)
-						{
-							// 线段与平面平行
-							continue;
-						}
-						else
-						{
-							const float t = -DistStart / (DistEnd - DistStart);
-							Intersection = SphereStart + t * (SphereEnd - SphereStart);
-						}
-
-						// 手动实现点在多边形内的测试
-						bool bInside = true;
-						for (int i = 0; i < Face.Num(); ++i)
-						{
-							const FVector& CurrentVert = Face[i];
-							const FVector& NextVert = Face[(i + 1) % Face.Num()];
-
-							// 计算边向量
-							const FVector Edge = NextVert - CurrentVert;
-							const FVector ToPoint = Intersection - CurrentVert;
-
-							// 使用叉积检查点是否在边的"内侧"
-							if (FVector::DotProduct(FVector::CrossProduct(Edge, ToPoint), Normal) < 0)
+							// 1. 快速AABB测试
+							FVector BoxMin = BottomVerts[0];
+							FVector BoxMax = TopVerts[0];
+							for (int i = 1; i < 4; ++i)
 							{
-								bInside = false;
-								break;
+								BoxMin = BoxMin.ComponentMin(BottomVerts[i]);
+								BoxMin = BoxMin.ComponentMin(TopVerts[i]);
+								BoxMax = BoxMax.ComponentMax(BottomVerts[i]);
+								BoxMax = BoxMax.ComponentMax(TopVerts[i]);
 							}
-						}
 
-						if (bInside)
-						{
-							return true;
-						}
+							// 扩展AABB以包含球体半径
+							BoxMin -= FVector(SphereRadius);
+							BoxMax += FVector(SphereRadius);
 
-						// 检查球体端点与面的距离
-						auto PointToFaceDistance = [](const FVector& Point, const TArray<FVector>& Face, const FVector& Normal) -> float
+							// 快速拒绝测试
+							if (SphereStart.X > BoxMax.X && SphereEnd.X > BoxMax.X) return false;
+							if (SphereStart.X < BoxMin.X && SphereEnd.X < BoxMin.X) return false;
+							if (SphereStart.Y > BoxMax.Y && SphereEnd.Y > BoxMax.Y) return false;
+							if (SphereStart.Y < BoxMin.Y && SphereEnd.Y < BoxMin.Y) return false;
+							if (SphereStart.Z > BoxMax.Z && SphereEnd.Z > BoxMax.Z) return false;
+							if (SphereStart.Z < BoxMin.Z && SphereEnd.Z < BoxMin.Z) return false;
+
+							// 2. 分离轴定理(SAT)测试
+							// 定义长方体的边
+							const FVector BottomEdges[4] =
 							{
-								TRACE_CPUPROFILER_EVENT_SCOPE_STR("PointToFaceDistance");
-
-								// 计算点到平面的距离
-								const float PlaneDist = FMath::Abs(FVector::DotProduct(Normal, Point - Face[0]));
-
-								// 检查投影点是否在面内
-								bool bInside = true;
-								for (int i = 0; i < Face.Num(); ++i)
-								{
-									const FVector& CurrentVert = Face[i];
-									const FVector& NextVert = Face[(i + 1) % Face.Num()];
-									const FVector Edge = NextVert - CurrentVert;
-									const FVector ToPoint = Point - CurrentVert;
-
-									if (FVector::DotProduct(FVector::CrossProduct(Edge, ToPoint), Normal) < 0)
-									{
-										bInside = false;
-										break;
-									}
-								}
-
-								if (bInside)
-								{
-									return PlaneDist;
-								}
-
-								// 如果不在面内，计算到各边的最短距离
-								float MinDist = FLT_MAX;
-								for (int i = 0; i < Face.Num(); ++i)
-								{
-									const FVector& EdgeStart = Face[i];
-									const FVector& EdgeEnd = Face[(i + 1) % Face.Num()];
-
-									const FVector Edge = EdgeEnd - EdgeStart;
-									const FVector ToPoint = Point - EdgeStart;
-
-									const float EdgeLength = Edge.Size();
-									const float t = FMath::Clamp(FVector::DotProduct(ToPoint, Edge) / (EdgeLength * EdgeLength), 0.0f, 1.0f);
-									const FVector ClosestPoint = EdgeStart + t * Edge;
-
-									MinDist = FMath::Min(MinDist, FVector::Dist(Point, ClosestPoint));
-								}
-
-								return MinDist;
+								BottomVerts[1] - BottomVerts[0],
+								BottomVerts[2] - BottomVerts[1],
+								BottomVerts[3] - BottomVerts[2],
+								BottomVerts[0] - BottomVerts[3]
 							};
 
-						if (PointToFaceDistance(SphereStart, Face, Normal) <= SphereRadius || PointToFaceDistance(SphereEnd, Face, Normal) <= SphereRadius)
-						{
+							const FVector SideEdges[4] =
+							{
+								TopVerts[0] - BottomVerts[0],
+								TopVerts[1] - BottomVerts[1],
+								TopVerts[2] - BottomVerts[2],
+								TopVerts[3] - BottomVerts[3]
+							};
+
+							// 测试方向包括: 3个坐标轴、4个底面边与胶囊方向的叉积、4个侧边与胶囊方向的叉积
+							const FVector TestDirs[11] =
+							{
+								FVector(1, 0, 0),  // X轴
+								FVector(0, 1, 0),  // Y轴
+								FVector(0, 0, 1),  // Z轴
+								FVector::CrossProduct(BottomEdges[0], SphereDir).GetSafeNormal(),
+								FVector::CrossProduct(BottomEdges[1], SphereDir).GetSafeNormal(),
+								FVector::CrossProduct(BottomEdges[2], SphereDir).GetSafeNormal(),
+								FVector::CrossProduct(BottomEdges[3], SphereDir).GetSafeNormal(),
+								FVector::CrossProduct(SideEdges[0], SphereDir).GetSafeNormal(),
+								FVector::CrossProduct(SideEdges[1], SphereDir).GetSafeNormal(),
+								FVector::CrossProduct(SideEdges[2], SphereDir).GetSafeNormal(),
+								FVector::CrossProduct(SideEdges[3], SphereDir).GetSafeNormal()
+							};
+
+							for (const FVector& Axis : TestDirs)
+							{
+								if (Axis.IsNearlyZero()) continue;
+
+								// 计算长方体在轴上的投影范围
+								float BoxMinProj = FLT_MAX, BoxMaxProj = -FLT_MAX;
+								for (int i = 0; i < 4; ++i)
+								{
+									float BottomProj = FVector::DotProduct(BottomVerts[i], Axis);
+									float TopProj = FVector::DotProduct(TopVerts[i], Axis);
+									BoxMinProj = FMath::Min(BoxMinProj, FMath::Min(BottomProj, TopProj));
+									BoxMaxProj = FMath::Max(BoxMaxProj, FMath::Max(BottomProj, TopProj));
+								}
+
+								// 计算胶囊在轴上的投影范围
+								float CapsuleProj1 = FVector::DotProduct(SphereStart, Axis);
+								float CapsuleProj2 = FVector::DotProduct(SphereEnd, Axis);
+								float CapsuleMin = FMath::Min(CapsuleProj1, CapsuleProj2) - SphereRadius;
+								float CapsuleMax = FMath::Max(CapsuleProj1, CapsuleProj2) + SphereRadius;
+
+								// 检查是否分离
+								if (CapsuleMax < BoxMinProj || CapsuleMin > BoxMaxProj)
+								{
+									return false;
+								}
+							}
+
 							return true;
-						}
+						};
+
+					if (SphereIntersectsBox(Start, End, Radius, BottomVertices, TopVertices))
+					{
+						// 使用距离平方避免开方计算
+						const float DistSqr = FVector::DistSquared(Start, Avoiding.Location);
+						ProcessObstacle(Avoiding, DistSqr);
 					}
-
-					return false; // Simplified for brevity
-				};
-
-				if (SphereIntersectsBox(Start, End, Radius, BottomVertices, TopVertices))
-				{
-					// For box obstacles, use the distance from start to the obstacle's center
-					const float DistSqr = FVector::DistSquared(Start, Avoiding.Location);
-					ProcessObstacle(Avoiding, DistSqr);
 				}
-			}
-		};
+			};
 
 		// 检查静态/动态盒体障碍物
 		CheckBoxCollision(Cell.BoxObstacles);
@@ -1091,208 +1113,214 @@ void UNeighborGridComponent::Decouple()
 
 	Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FMove& Move, FLocated& Located, FCollider& Collider, FMoving& Moving, FAvoidance& Avoidance, FAvoiding& Avoiding)
 	{
-		//if (UNLIKELY(!Move.bEnable)) return;
-
-		const auto SelfLocation = Located.Location;
-		const auto SelfRadius = Collider.Radius;
-		const auto NeighborDist = Avoidance.NeighborDist;
-		const float TotalRangeSqr = FMath::Square(SelfRadius + NeighborDist);
-		const int32 MaxNeighbors = Avoidance.MaxNeighbors;
-
-		TArray<FAvoiding> SubjectNeighbors;
-		TArray<FAvoiding> SphereObstacleNeighbors;
-		TArray<FAvoiding> BoxObstacleNeighbors;
-
-		SubjectNeighbors.Reserve(MaxNeighbors);
-		SphereObstacleNeighbors.Reserve(MaxNeighbors);
-		BoxObstacleNeighbors.Reserve(MaxNeighbors);
-
-		//--------------------------Collect Subject Neighbors--------------------------------
-
-		FFilter SubjectFilter = FFilter::Make<FAgent, FActivated, FLocated, FCollider, FAvoidance, FAvoiding>().Exclude<FSphereObstacle, FCorpse>();
-
-		// 碰撞组
-		if (!Avoidance.IgnoreGroups.IsEmpty())
+		if (!Avoidance.bEnable)
 		{
-			const int32 ClampedGroups = FMath::Clamp(Avoidance.IgnoreGroups.Num(), 0, 9);
-
-			for (int32 i = 0; i < ClampedGroups; ++i)
-			{
-				UBattleFrameFunctionLibraryRT::ExcludeAvoGroupTraitByIndex(Avoidance.IgnoreGroups[i], SubjectFilter);
-			}
+			Located.Location += Moving.CurrentVelocity * DeltaTime;
 		}
-
-		const FFingerprint SubjectFingerprint = SubjectFilter.GetFingerprint();
-
-		const FVector SubjectRange3D(NeighborDist + SelfRadius, NeighborDist + SelfRadius, SelfRadius);
-		TArray<FIntVector> NeighbourCellCoords = GetNeighborCells(SelfLocation, SubjectRange3D);
-
-		// 使用最大堆收集最近的SubjectNeighbors
-		auto SubjectCompare = [&](const FAvoiding& A, const FAvoiding& B) 
+		else
 		{
-			return FVector::DistSquared(SelfLocation, A.Location) > FVector::DistSquared(SelfLocation, B.Location);
-		};
 
-		TSet<uint32> SeenHashes;
+			const auto SelfLocation = Located.Location;
+			const auto SelfRadius = Collider.Radius;
+			const auto NeighborDist = Avoidance.NeighborDist;
+			const float TotalRangeSqr = FMath::Square(SelfRadius + NeighborDist);
+			const int32 MaxNeighbors = Avoidance.MaxNeighbors;
 
-		for (const FIntVector& Coord : NeighbourCellCoords)
-		{
-			const auto& Cell = At(Coord);
+			TArray<FAvoiding> SubjectNeighbors;
+			TArray<FAvoiding> SphereObstacleNeighbors;
+			TArray<FAvoiding> BoxObstacleNeighbors;
 
-			// Subject Neighbors
-			if (Cell.SubjectFingerprint.Matches(SubjectFingerprint))
+			SubjectNeighbors.Reserve(MaxNeighbors);
+			SphereObstacleNeighbors.Reserve(MaxNeighbors);
+			BoxObstacleNeighbors.Reserve(MaxNeighbors);
+
+			//--------------------------Collect Subject Neighbors--------------------------------
+
+			FFilter SubjectFilter = FFilter::Make<FAgent, FActivated, FLocated, FCollider, FAvoidance, FAvoiding>().Exclude<FSphereObstacle, FCorpse>();
+
+			// 碰撞组
+			if (!Avoidance.IgnoreGroups.IsEmpty())
 			{
-				for (const FAvoiding& AvoData : Cell.Subjects)
+				const int32 ClampedGroups = FMath::Clamp(Avoidance.IgnoreGroups.Num(), 0, 9);
+
+				for (int32 i = 0; i < ClampedGroups; ++i)
 				{
-					// 基础过滤条件
-					if (UNLIKELY(!AvoData.SubjectHandle.Matches(SubjectFilter))) continue;
-					if (AvoData.SubjectHash == Avoiding.SubjectHash) continue;
-
-					// 距离检查
-					const float DistSqr = FVector::DistSquared(SelfLocation, AvoData.Location);
-					const float RadiusSqr = FMath::Square(AvoData.Radius) + TotalRangeSqr;
-					if (UNLIKELY(DistSqr > RadiusSqr)) continue;
-
-					// 高效去重（基于栈内存的TSet）
-					if (SeenHashes.Contains(AvoData.SubjectHash)) continue;
-					SeenHashes.Add(AvoData.SubjectHash);
-
-					// 动态维护堆
-					if (SubjectNeighbors.Num() < MaxNeighbors)
-					{
-						SubjectNeighbors.HeapPush(AvoData, SubjectCompare);
-					}
-					else
-					{
-						const float HeapTopDist = FVector::DistSquared(SelfLocation, SubjectNeighbors.HeapTop().Location);
-
-						if (DistSqr < HeapTopDist)
-						{
-							// 弹出时同步移除哈希记录
-							SeenHashes.Remove(SubjectNeighbors.HeapTop().SubjectHash);
-							SubjectNeighbors.HeapPopDiscard(SubjectCompare);
-							SubjectNeighbors.HeapPush(AvoData, SubjectCompare);
-						}
-					}
+					UBattleFrameFunctionLibraryRT::ExcludeAvoGroupTraitByIndex(Avoidance.IgnoreGroups[i], SubjectFilter);
 				}
 			}
-		}
 
-		//---------------------------Collect Obstacle Neighbors--------------------------------
+			const FFingerprint SubjectFingerprint = SubjectFilter.GetFingerprint();
 
-		TSet<FAvoiding> ValidSphereObstacleNeighbors;
-		ValidSphereObstacleNeighbors.Reserve(MaxNeighbors);
+			const FVector SubjectRange3D(NeighborDist + SelfRadius, NeighborDist + SelfRadius, SelfRadius);
+			TArray<FIntVector> NeighbourCellCoords = GetNeighborCells(SelfLocation, SubjectRange3D);
 
-		const float ObstacleRange = Avoidance.RVO_TimeHorizon_Obstacle * Avoidance.MaxSpeed + Avoidance.Radius;
-		const FVector ObstacleRange3D(ObstacleRange, ObstacleRange, Avoidance.Radius);
-		TArray<FIntVector> ObstacleCellCoords = GetNeighborCells(SelfLocation, ObstacleRange3D);
-
-		for (const FIntVector& Coord : ObstacleCellCoords)
-		{
-			const auto& Cell = At(Coord);
-
-			// 定义处理 BoxObstacles 的 Lambda 函数
-			auto ProcessBoxObstacles = [&](const TArray<FAvoiding>& Obstacles, const FFingerprint& Fingerprint)
+			// 使用最大堆收集最近的SubjectNeighbors
+			auto SubjectCompare = [&](const FAvoiding& A, const FAvoiding& B)
 			{
-				if (Fingerprint.Matches(BoxObstacleFingerprint))
-				{
-					for (FAvoiding AvoData : Obstacles)
-					{
-						const FSubjectHandle OtherObstacle = AvoData.SubjectHandle;
-
-						if (UNLIKELY(!OtherObstacle.Matches(BoxObstacleFilter))) continue;
-
-						const auto& ObstacleTrait = OtherObstacle.GetTrait<FBoxObstacle>();
-						const FVector ObstaclePoint = ObstacleTrait.point3d_;
-						const FBoxObstacle* NextObstaclePtr = ObstacleTrait.nextObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
-
-						if (UNLIKELY(NextObstaclePtr == nullptr)) continue;
-
-						const FVector NextPoint = NextObstaclePtr->point3d_;
-						const float ObstacleHalfHeight = ObstacleTrait.height_ * 0.5f;
-
-						// Z 轴范围检查
-						const float ObstacleZMin = ObstaclePoint.Z - ObstacleHalfHeight;
-						const float ObstacleZMax = ObstaclePoint.Z + ObstacleHalfHeight;
-						const float SubjectZMin = SelfLocation.Z - SelfRadius;
-						const float SubjectZMax = SelfLocation.Z + SelfRadius;
-
-						if (SubjectZMax < ObstacleZMin || SubjectZMin > ObstacleZMax) continue;
-
-						// 2D 碰撞检测（RVO）
-						RVO::Vector2 currentPos(Located.Location.X, Located.Location.Y);
-						RVO::Vector2 obstacleStart(ObstaclePoint.X, ObstaclePoint.Y);
-						RVO::Vector2 obstacleEnd(NextPoint.X, NextPoint.Y);
-
-						float leftOfValue = RVO::leftOf(obstacleStart, obstacleEnd, currentPos);
-
-						if (leftOfValue < 0.0f)
-						{
-							BoxObstacleNeighbors.Add(AvoData);
-						}
-					}
-				}
+				return FVector::DistSquared(SelfLocation, A.Location) > FVector::DistSquared(SelfLocation, B.Location);
 			};
 
-			ProcessBoxObstacles(Cell.BoxObstacles, Cell.BoxObstacleFingerprint);
-			ProcessBoxObstacles(Cell.BoxObstaclesStatic, Cell.BoxObstacleFingerprintStatic);
+			TSet<uint32> SeenHashes;
 
-			// 定义处理 SphereObstacles 的 Lambda 函数
-			auto ProcessSphereObstacles = [&](const TArray<FAvoiding>& Obstacles, const FFingerprint& Fingerprint)
+			for (const FIntVector& Coord : NeighbourCellCoords)
+			{
+				const auto& Cell = At(Coord);
+
+				// Subject Neighbors
+				if (Cell.SubjectFingerprint.Matches(SubjectFingerprint))
 				{
-					if (Fingerprint.Matches(SphereObstacleFingerprint))
+					for (const FAvoiding& AvoData : Cell.Subjects)
 					{
-						for (const FAvoiding& AvoData : Obstacles)
-						{
-							if (UNLIKELY(!AvoData.SubjectHandle.Matches(SphereObstacleFilter))) continue;
+						// 基础过滤条件
+						if (UNLIKELY(!AvoData.SubjectHandle.Matches(SubjectFilter))) continue;
+						if (AvoData.SubjectHash == Avoiding.SubjectHash) continue;
 
-							SphereObstacleNeighbors.Add(AvoData);
+						// 距离检查
+						const float DistSqr = FVector::DistSquared(SelfLocation, AvoData.Location);
+						const float RadiusSqr = FMath::Square(AvoData.Radius) + TotalRangeSqr;
+						if (UNLIKELY(DistSqr > RadiusSqr)) continue;
+
+						// 高效去重（基于栈内存的TSet）
+						if (SeenHashes.Contains(AvoData.SubjectHash)) continue;
+						SeenHashes.Add(AvoData.SubjectHash);
+
+						// 动态维护堆
+						if (SubjectNeighbors.Num() < MaxNeighbors)
+						{
+							SubjectNeighbors.HeapPush(AvoData, SubjectCompare);
+						}
+						else
+						{
+							const float HeapTopDist = FVector::DistSquared(SelfLocation, SubjectNeighbors.HeapTop().Location);
+
+							if (DistSqr < HeapTopDist)
+							{
+								// 弹出时同步移除哈希记录
+								SeenHashes.Remove(SubjectNeighbors.HeapTop().SubjectHash);
+								SubjectNeighbors.HeapPopDiscard(SubjectCompare);
+								SubjectNeighbors.HeapPush(AvoData, SubjectCompare);
+							}
 						}
 					}
-				};
+				}
+			}
 
-			ProcessSphereObstacles(Cell.SphereObstacles, Cell.SphereObstacleFingerprint);
-			ProcessSphereObstacles(Cell.SphereObstaclesStatic, Cell.SphereObstacleFingerprintStatic);
+			//---------------------------Collect Obstacle Neighbors--------------------------------
+
+			TSet<FAvoiding> ValidSphereObstacleNeighbors;
+			ValidSphereObstacleNeighbors.Reserve(MaxNeighbors);
+
+			const float ObstacleRange = Avoidance.RVO_TimeHorizon_Obstacle * Avoidance.MaxSpeed + Avoidance.Radius;
+			const FVector ObstacleRange3D(ObstacleRange, ObstacleRange, Avoidance.Radius);
+			TArray<FIntVector> ObstacleCellCoords = GetNeighborCells(SelfLocation, ObstacleRange3D);
+
+			for (const FIntVector& Coord : ObstacleCellCoords)
+			{
+				const auto& Cell = At(Coord);
+
+				// 定义处理 BoxObstacles 的 Lambda 函数
+				auto ProcessBoxObstacles = [&](const TArray<FAvoiding>& Obstacles, const FFingerprint& Fingerprint)
+					{
+						if (Fingerprint.Matches(BoxObstacleFingerprint))
+						{
+							for (FAvoiding AvoData : Obstacles)
+							{
+								const FSubjectHandle OtherObstacle = AvoData.SubjectHandle;
+
+								if (UNLIKELY(!OtherObstacle.Matches(BoxObstacleFilter))) continue;
+
+								const auto& ObstacleTrait = OtherObstacle.GetTrait<FBoxObstacle>();
+								const FVector ObstaclePoint = ObstacleTrait.point3d_;
+								const FBoxObstacle* NextObstaclePtr = ObstacleTrait.nextObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
+
+								if (UNLIKELY(NextObstaclePtr == nullptr)) continue;
+
+								const FVector NextPoint = NextObstaclePtr->point3d_;
+								const float ObstacleHalfHeight = ObstacleTrait.height_ * 0.5f;
+
+								// Z 轴范围检查
+								const float ObstacleZMin = ObstaclePoint.Z - ObstacleHalfHeight;
+								const float ObstacleZMax = ObstaclePoint.Z + ObstacleHalfHeight;
+								const float SubjectZMin = SelfLocation.Z - SelfRadius;
+								const float SubjectZMax = SelfLocation.Z + SelfRadius;
+
+								if (SubjectZMax < ObstacleZMin || SubjectZMin > ObstacleZMax) continue;
+
+								// 2D 碰撞检测（RVO）
+								RVO::Vector2 currentPos(Located.Location.X, Located.Location.Y);
+								RVO::Vector2 obstacleStart(ObstaclePoint.X, ObstaclePoint.Y);
+								RVO::Vector2 obstacleEnd(NextPoint.X, NextPoint.Y);
+
+								float leftOfValue = RVO::leftOf(obstacleStart, obstacleEnd, currentPos);
+
+								if (leftOfValue < 0.0f)
+								{
+									BoxObstacleNeighbors.Add(AvoData);
+								}
+							}
+						}
+					};
+
+				ProcessBoxObstacles(Cell.BoxObstacles, Cell.BoxObstacleFingerprint);
+				ProcessBoxObstacles(Cell.BoxObstaclesStatic, Cell.BoxObstacleFingerprintStatic);
+
+				// 定义处理 SphereObstacles 的 Lambda 函数
+				auto ProcessSphereObstacles = [&](const TArray<FAvoiding>& Obstacles, const FFingerprint& Fingerprint)
+					{
+						if (Fingerprint.Matches(SphereObstacleFingerprint))
+						{
+							for (const FAvoiding& AvoData : Obstacles)
+							{
+								if (UNLIKELY(!AvoData.SubjectHandle.Matches(SphereObstacleFilter))) continue;
+
+								SphereObstacleNeighbors.Add(AvoData);
+							}
+						}
+					};
+
+				ProcessSphereObstacles(Cell.SphereObstacles, Cell.SphereObstacleFingerprint);
+				ProcessSphereObstacles(Cell.SphereObstaclesStatic, Cell.SphereObstacleFingerprintStatic);
+			}
+
+			Located.preLocation = Located.Location;
+
+			Avoidance.Radius = SelfRadius;
+			Avoidance.Position = RVO::Vector2(SelfLocation.X, SelfLocation.Y);
+
+			//----------------------------Try Avoid SubjectNeighbors---------------------------------
+
+			Avoidance.MaxSpeed = FMath::Clamp(Move.MoveSpeed * Moving.PassiveSpeedMult, Avoidance.RVO_MinAvoidSpeed, FLT_MAX);
+			Avoidance.DesiredVelocity = RVO::Vector2(Moving.DesiredVelocity.X, Moving.DesiredVelocity.Y);//copy into rvo trait
+			Avoidance.CurrentVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);//copy into rvo trait
+
+			//float PreVelocity2D = Moving.CurrentVelocity.Size2D();
+			TArray<FAvoiding> EmptyArray;
+
+			ComputeNewVelocity(Avoidance, SubjectNeighbors, EmptyArray, DeltaTime);
+
+			if (!Moving.bFalling && !(Moving.LaunchTimer > 0))
+			{
+				FVector AvoidingVelocity(Avoidance.AvoidingVelocity.x(), Avoidance.AvoidingVelocity.y(), 0);
+				FVector CurrentVelocity(Avoidance.CurrentVelocity.x(), Avoidance.CurrentVelocity.y(), 0);
+				FVector InterpedVelocity = FMath::VInterpConstantTo(CurrentVelocity, AvoidingVelocity, DeltaTime, Move.Acceleration);
+				Moving.CurrentVelocity = FVector(InterpedVelocity.X, InterpedVelocity.Y, Moving.CurrentVelocity.Z); // velocity can only change so much because of inertia
+			}
+
+			//-------------------------------Blocked By Obstacles------------------------------------
+
+			Avoidance.MaxSpeed = Moving.bPushedBack ? FMath::Max(Moving.CurrentVelocity.Size2D(), Moving.PushBackSpeedOverride) : Moving.CurrentVelocity.Size2D();
+			Avoidance.DesiredVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);//copy into rvo trait
+			Avoidance.CurrentVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);//copy into rvo trait
+
+			ComputeNewVelocity(Avoidance, SphereObstacleNeighbors, BoxObstacleNeighbors, DeltaTime);
+
+			Moving.CurrentVelocity = FVector(Avoidance.AvoidingVelocity.x(), Avoidance.AvoidingVelocity.y(), Moving.CurrentVelocity.Z);// since obstacles are hard, we set velocity directly without any interpolation
+
+
+			//----------------------------------Set Location---------------------------------------
+
+			Located.Location += Moving.CurrentVelocity * DeltaTime;
 		}
-
-		Located.preLocation = Located.Location;
-
-		Avoidance.Radius = SelfRadius;
-		Avoidance.Position = RVO::Vector2(SelfLocation.X, SelfLocation.Y);
-
-		//----------------------------Try Avoid SubjectNeighbors---------------------------------
-
-		Avoidance.MaxSpeed = FMath::Clamp(Move.MoveSpeed * Moving.PassiveSpeedMult, Avoidance.RVO_MinAvoidSpeed, FLT_MAX);
-		Avoidance.DesiredVelocity = RVO::Vector2(Moving.DesiredVelocity.X, Moving.DesiredVelocity.Y);//copy into rvo trait
-		Avoidance.CurrentVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);//copy into rvo trait
-		
-		//float PreVelocity2D = Moving.CurrentVelocity.Size2D();
-		TArray<FAvoiding> EmptyArray;
-
-		ComputeNewVelocity(Avoidance, SubjectNeighbors, EmptyArray, DeltaTime);
-
-		if (!Moving.bFalling && !(Moving.LaunchTimer > 0))
-		{
-			FVector AvoidingVelocity(Avoidance.AvoidingVelocity.x(), Avoidance.AvoidingVelocity.y(), 0);
-			FVector CurrentVelocity(Avoidance.CurrentVelocity.x(), Avoidance.CurrentVelocity.y(), 0);
-			FVector InterpedVelocity = FMath::VInterpConstantTo(CurrentVelocity, AvoidingVelocity, DeltaTime, Move.Acceleration);
-			Moving.CurrentVelocity = FVector(InterpedVelocity.X, InterpedVelocity.Y, Moving.CurrentVelocity.Z); // velocity can only change so much because of inertia
-		}
-
-		//-------------------------------Blocked By Obstacles------------------------------------
-
-		Avoidance.MaxSpeed = Moving.bPushedBack ? FMath::Max(Moving.CurrentVelocity.Size2D(), Moving.PushBackSpeedOverride) : Moving.CurrentVelocity.Size2D();
-		Avoidance.DesiredVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);//copy into rvo trait
-		Avoidance.CurrentVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);//copy into rvo trait
-
-		ComputeNewVelocity(Avoidance, SphereObstacleNeighbors, BoxObstacleNeighbors, DeltaTime);
-
-		Moving.CurrentVelocity = FVector(Avoidance.AvoidingVelocity.x(), Avoidance.AvoidingVelocity.y(), Moving.CurrentVelocity.Z);// since obstacles are hard, we set velocity directly without any interpolation
-
-
-		//----------------------------------Set Location---------------------------------------
-
-		Located.Location += Moving.CurrentVelocity * DeltaTime;
 
 	}, ThreadsCount, BatchSize);
 }

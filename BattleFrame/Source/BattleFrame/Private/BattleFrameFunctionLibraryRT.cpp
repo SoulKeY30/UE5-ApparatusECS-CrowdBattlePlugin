@@ -289,10 +289,13 @@ void USphereSweepForSubjectsAsyncAction::Activate()
 	{
 		Hit = false;
 		Completed.Broadcast(Hit, Results);
+		SetReadyToDestroy();
 	}
 	else
 	{
-		AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this]()
+		AsyncTask(ENamedThreads::GameThread, [this]()
+		{
+			AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this]()
 			{
 				//TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereSweepForSubjectsAsync");
 
@@ -396,6 +399,7 @@ void USphereSweepForSubjectsAsyncAction::Activate()
 					SetReadyToDestroy();
 				});
 			});
+		});
 	}
 }
 
