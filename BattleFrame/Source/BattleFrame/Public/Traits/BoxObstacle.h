@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "RVOVector2.h"
+#include "SubjectHandle.h"
 #include "BoxObstacle.generated.h"
 
 USTRUCT(BlueprintType, Category = "RVO")
@@ -13,11 +14,11 @@ public:
 
     bool isConvex_ = true;
 
-    FSubjectHandle nextObstacle_;
+    FSubjectHandle nextObstacle_ = FSubjectHandle();
 
     RVO::Vector2 point_;
 
-    FSubjectHandle prevObstacle_;
+    FSubjectHandle prevObstacle_ = FSubjectHandle();
 
     RVO::Vector2 unitDir_;
 

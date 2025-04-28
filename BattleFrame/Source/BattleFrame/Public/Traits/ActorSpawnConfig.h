@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "SubjectHandle.h"
 #include "ActorSpawnConfig.generated.h" 
 
 USTRUCT(BlueprintType)
@@ -32,7 +33,7 @@ public:
 
 	float TimeLeft = 0;
 
-	FSubjectHandle Owner;
+	FSubjectHandle Owner = FSubjectHandle();
 
 	FTransform SubjectTrans;
 

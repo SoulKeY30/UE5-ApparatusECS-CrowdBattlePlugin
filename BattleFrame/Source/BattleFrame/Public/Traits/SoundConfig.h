@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Sound/SoundBase.h"
+#include "SubjectHandle.h"
 #include "SoundConfig.generated.h" 
 
 USTRUCT(BlueprintType)
@@ -30,8 +31,8 @@ public:
 
 	float TimeLeft = 0;
 
-	FSubjectHandle Owner;
+	FSubjectHandle Owner = FSubjectHandle();
 
-	FTransform SubjectTrans;
+	FTransform SubjectTrans = FTransform::Identity;
 
 };

@@ -44,6 +44,8 @@ public:
 		LockFlag.store(false, std::memory_order_release);
 	}
 
+	bool Registered = false;
+
 	FFingerprint SubjectFingerprint;
 	FFingerprint SphereObstacleFingerprint;
 	FFingerprint BoxObstacleFingerprint;
@@ -63,6 +65,7 @@ public:
 	{
 		LockFlag.store(Cell.LockFlag.load());
 
+		Registered = Cell.Registered;
 		SubjectFingerprint = Cell.SubjectFingerprint;
 		SphereObstacleFingerprint = Cell.SphereObstacleFingerprint;
 		BoxObstacleFingerprint = Cell.BoxObstacleFingerprint;
@@ -77,6 +80,7 @@ public:
 
 	FNeighborGridCell& operator=(const FNeighborGridCell& Cell)
 	{
+		Registered = Cell.Registered;
 		SubjectFingerprint = Cell.SubjectFingerprint;
 		SphereObstacleFingerprint = Cell.SphereObstacleFingerprint;
 		BoxObstacleFingerprint = Cell.BoxObstacleFingerprint;
@@ -93,6 +97,8 @@ public:
 
 	void Reset()
 	{
+		Registered = false;
+
 		// 重置所有指纹
 		SubjectFingerprint.Reset();
 		SphereObstacleFingerprint.Reset();

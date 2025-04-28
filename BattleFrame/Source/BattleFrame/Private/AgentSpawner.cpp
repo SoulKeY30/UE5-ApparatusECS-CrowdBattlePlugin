@@ -88,6 +88,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
             RendererActor->TickEnabled = true;
         }
     }
+
     FSubjectRecord AgentConfig;
 
     AgentConfig.SetTrait(DataAsset->Agent);

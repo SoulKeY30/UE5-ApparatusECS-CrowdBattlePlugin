@@ -283,7 +283,7 @@ USphereSweepForSubjectsAsyncAction* USphereSweepForSubjectsAsyncAction::SphereSw
 
 void USphereSweepForSubjectsAsyncAction::Activate()
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereSweepForSubjectsAsync");
+	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereSweepForSubjectsAsync");
 
 	if (!IsValid(NeighborGridActor.Get()))
 	{
@@ -405,7 +405,7 @@ void USphereSweepForSubjectsAsyncAction::Activate()
 
 void UBattleFrameFunctionLibraryRT::SetSubTypeTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SetSubTypeTraitByIndex");
+	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("SetSubTypeTraitByIndex");
 	switch (Index)
 	{
 	default:
@@ -703,7 +703,7 @@ void UBattleFrameFunctionLibraryRT::SetSubTypeTraitByIndex(int32 Index, FSubject
 
 void UBattleFrameFunctionLibraryRT::SetSubTypeTraitByEnum(ESubType SubType, FSubjectRecord& SubjectRecord)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SetSubTypeTraitByEnum");
+	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("SetSubTypeTraitByEnum");
 	switch (SubType)
 	{
 	default:
@@ -1534,7 +1534,7 @@ void UBattleFrameFunctionLibraryRT::ExcludeAvoGroupTraitByIndex(int32 Index, FFi
 
 FVector UBattleFrameFunctionLibraryRT::FindNewPatrolGoalLocation(const FPatrol& Patrol, const FCollider& Collider, const FTrace& Trace, const FLocated& Located, int32 MaxAttempts /*= 3*/)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE_STR("FindNewPatrolGoalLocation");
+	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("FindNewPatrolGoalLocation");
 
 	// Early out if no neighbor grid available
 	if (!IsValid(Trace.NeighborGrid))

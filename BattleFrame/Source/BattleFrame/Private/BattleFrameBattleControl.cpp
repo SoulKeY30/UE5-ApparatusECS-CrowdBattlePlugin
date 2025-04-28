@@ -309,7 +309,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					ResetTimer(Patrol, NewPatrolling);
 					Subject.SetTraitDeferred(NewPatrolling);
 
-					Move.Goal = UBattleFrameFunctionLibraryRT::FindNewPatrolGoalLocation(Patrol, Collider, Trace, Located, 3);
+					//Move.Goal = UBattleFrameFunctionLibraryRT::FindNewPatrolGoalLocation(Patrol, Collider, Trace, Located, 3);
 				}
 
 			}, ThreadsCount, BatchSize);
@@ -778,9 +778,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				Moving.PassiveSpeedMult = 1;
 
 				// 默认流场, 必须获取因为之后要用到地面高度
-				bool bInside_BaseFF = false;
 				FCellStruct Cell_BaseFF = FCellStruct{};
-				Navigation.FlowField->GetCellAtLocation(AgentLocation, bInside_BaseFF, Cell_BaseFF);
+				bool bInside_BaseFF = Navigation.FlowField->GetCellAtLocation(AgentLocation, Cell_BaseFF);
 
 
 				//----------------------------- 寻路 ----------------------------//
@@ -832,10 +831,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 								if (IsValid(BindFlowField)) // 从目标获取指向目标的流场
 								{
-									bool bInside_TargetFF = false;
 									FCellStruct Cell_TargetFF = FCellStruct{};
-
-									BindFlowField->GetCellAtLocation(AgentLocation, bInside_TargetFF, Cell_TargetFF);
+									bool bInside_TargetFF = BindFlowField->GetCellAtLocation(AgentLocation, Cell_TargetFF);
 
 									if (bInside_TargetFF)
 									{
@@ -863,7 +860,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 				//--------------------------- 计算水平速度 ----------------------------//
 
-				// 助推力
+				// Launch Velocity
 				if (Moving.bLaunching)
 				{
 					Moving.CurrentVelocity += Moving.LaunchForce * (1 - (bIsDying ? Defence.KineticDebuffImmuneDead : Defence.KineticDebuffImmuneAlive));
@@ -883,20 +880,9 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					Moving.bLaunching = false;
 				}
 
-				// 夹角
-				const FVector CurrentDir2D = Moving.CurrentVelocity.GetSafeNormal2D();
-				const FVector DesiredDir2D = Moving.DesiredVelocity.GetSafeNormal2D();
-				const float DotProduct = FVector::DotProduct(CurrentDir2D, DesiredDir2D);
-				const float AngleDegrees = FMath::RadiansToDegrees(FMath::Acos(DotProduct));
-
-				// 速度-夹角曲线
-				const TRange<float> TurnInputRange(Move.TurnSpeedRangeMap.X, Move.TurnSpeedRangeMap.Z);
-				const TRange<float> TurnOutputRange(Move.TurnSpeedRangeMap.Y, Move.TurnSpeedRangeMap.W);
-				Moving.ActiveSpeedMult *= FMath::GetMappedRangeValueClamped(TurnInputRange, TurnOutputRange, AngleDegrees);
-
+				// Speed
 				float DistanceToGoal = FVector::Dist2D(AgentLocation, Move.Goal);
 
-				// 减速
 				if (!Move.bEnable || bIsAppearing || bIsSleeping || bIsDying)
 				{
 					Moving.ActiveSpeedMult = 0.0f; // 不移动
@@ -930,7 +916,15 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					Moving.PassiveSpeedMult *= 1.0f - Freezing.FreezeStr; // 强制减速
 				}
 
-				// 速度-距离曲线
+				// Speed-Angle Curve
+				const float DotProduct = FVector::DotProduct(Directed.Direction, DesiredMoveDirection);
+				const float AngleDegrees = FMath::RadiansToDegrees(FMath::Acos(DotProduct));
+
+				const TRange<float> TurnInputRange(Move.TurnSpeedRangeMap.X, Move.TurnSpeedRangeMap.Z);
+				const TRange<float> TurnOutputRange(Move.TurnSpeedRangeMap.Y, Move.TurnSpeedRangeMap.W);
+				Moving.ActiveSpeedMult *= FMath::GetMappedRangeValueClamped(TurnInputRange, TurnOutputRange, AngleDegrees);
+
+				// Speed-Distance Curve
 				if (!bIsPatrolling)
 				{
 					float OtherRadius = Trace.TraceResult.HasTrait<FCollider>() ? Trace.TraceResult.GetTrait<FCollider>().Radius : 0;
@@ -949,7 +943,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					}
 				}
 
-				// 想要达到的理想速度
+				// Desired Speed
 				float DesiredSpeed = Move.MoveSpeed * Moving.ActiveSpeedMult * Moving.PassiveSpeedMult;
 
 				if (DesiredSpeed < Move.MinMoveSpeed)
@@ -957,28 +951,12 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					DesiredSpeed = 0;
 				}
 
-				// 朝向
+				// Steering
 				float SlowMult = 1;
 
-				if (
-					!Move.bEnable 
-					|| 
-					bIsAppearing 
-					|| 
-					bIsSleeping 
-					|| 
-					Moving.bFalling 
-					|| 
-					Moving.bLaunching 
-					|| 
-					bIsDying 
-					|| 
-					(bIsPatrolling && DistanceToGoal <= Patrol.AcceptanceRadius) 
-					|| 
-					(bIsAttacking && Subject.GetTrait<FAttacking>().State == EAttackState::PreCast)
-				)
+				if (!Move.bEnable || bIsAppearing || bIsSleeping || Moving.bFalling || Moving.bLaunching || bIsDying || (bIsPatrolling && DistanceToGoal <= Patrol.AcceptanceRadius) || (bIsAttacking && Subject.GetTrait<FAttacking>().State == EAttackState::PreCast))
 				{
-					SlowMult = 0;// 不需要转向的情况
+					SlowMult = 0;// 不转向
 				}
 
 				if (bIsFreezing)
@@ -987,23 +965,15 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					SlowMult *= 1.0f - Freezing.FreezeStr; // 冰冻时转向更慢
 				}
 
-				float Speed2D = Moving.CurrentVelocity.Size2D();
-
-				if (AngleDegrees < 90.f && Speed2D > Move.MinMoveSpeed) // 一致，朝向实际移动的方向
-				{
-					Directed.DesiredRot = Moving.CurrentVelocity.GetSafeNormal2D().ToOrientationRotator();//the current velocity direction
-				}
-				else // 不一致，朝向想要移动的方向
-				{
-					Directed.DesiredRot = DesiredMoveDirection.GetSafeNormal2D().ToOrientationRotator();
-				}
+				Directed.DesiredRot = DesiredMoveDirection.GetSafeNormal2D().ToOrientationRotator();
 					
 				const FRotator CurrentRot = Directed.Direction.ToOrientationRotator();
-				const FRotator InterpolatedRot = FMath::RInterpConstantTo(CurrentRot, Directed.DesiredRot, SafeDeltaTime, FMath::Clamp(Move.TurnSpeed * SlowMult * 100, 1, FLT_MAX));
+				const FRotator InterpolatedRot = FMath::RInterpTo(CurrentRot, Directed.DesiredRot, SafeDeltaTime, FMath::Clamp(Move.TurnSpeed * SlowMult, 0.0001, FLT_MAX));
+
 				Directed.Direction = InterpolatedRot.Vector();
 
-				// 期望速度
-				FVector DesiredVelocity = DesiredSpeed * DesiredMoveDirection;
+				// Desired Velocity
+				FVector DesiredVelocity = DesiredSpeed * Directed.Direction;
 				Moving.DesiredVelocity = FVector(DesiredVelocity.X, DesiredVelocity.Y, 0);
 
 				//---------------------------计算垂直速度-------------------------//
@@ -1028,9 +998,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					{
 						FVector BoundSamplePoint = Located.Location + FVector(Collider.Radius, 0, 0).RotateAngleAxis(i * 45.f, FVector::UpVector);
 
-						bool bInside = false;
 						FCellStruct Cell = FCellStruct{};
-						Navigation.FlowField->GetCellAtLocation(BoundSamplePoint, bInside, Cell);
+						bool bInside = Navigation.FlowField->GetCellAtLocation(BoundSamplePoint, Cell);
 
 						if (bInside)
 						{
