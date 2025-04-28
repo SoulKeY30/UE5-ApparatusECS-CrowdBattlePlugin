@@ -3,6 +3,10 @@
 [![Join Discord](https://img.shields.io/badge/Discord-Join%20Chat-blue?logo=discord)](https://discord.gg/8AUMxq3SgV)
 [![QQ Group](https://img.shields.io/badge/QQ%20Group-916358710-blue?logo=tencentqq)](https://jq.qq.com/?_wv=1027&k=5R5X5wX)
 
+## Version
+Please use the release version.
+The repository is my current progress. It may not compile because it's under development.
+
 ## Dependencies
 
 This plugin is open source, but has the following dependencies:
