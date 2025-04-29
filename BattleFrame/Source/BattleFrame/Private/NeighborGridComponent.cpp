@@ -28,6 +28,7 @@
 #include "Traits/Trace.h"
 #include "Traits/Avoiding.h"
 #include "Traits/Corpse.h"
+#include "Traits/Dying.h"
 #include "Traits/Activated.h"
 #include "Traits/Excluding.h"
 #include "Math/Vector2D.h"
@@ -1319,6 +1320,11 @@ void UNeighborGridComponent::Decouple()
 			//--------------------------Collect Subject Neighbors--------------------------------
 
 			FFilter SubjectFilter = FFilter::Make<FAgent, FActivated, FLocated, FCollider, FAvoidance, FAvoiding>().Exclude<FSphereObstacle, FCorpse>();
+
+			if (UNLIKELY(Subject.HasTrait<FDying>()))
+			{
+				SubjectFilter.Include<FDying>();// dying subject only collide with dying subjects
+			}
 
 			// 碰撞组
 			if (!Avoidance.IgnoreGroups.IsEmpty())
