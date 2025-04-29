@@ -5,7 +5,8 @@
 
 ## Version
 Please use the release version.
-The repository is my current progress. It may not compile because it's under development.
+The repository version is my current progress. 
+It may not compile because it's under development.
 
 ## Dependencies
 
