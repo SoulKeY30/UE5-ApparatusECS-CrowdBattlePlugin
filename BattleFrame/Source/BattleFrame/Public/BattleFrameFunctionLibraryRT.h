@@ -30,11 +30,14 @@ public:
     static void SphereTraceForSubjects
     (
         ANeighborGridActor* NeighborGridActor,
+        int32 KeepCount,
         FVector Origin,
         float Radius,
         bool bCheckVisibility,
         FVector CheckOrigin,
         float CheckRadius,
+        ESortMode SortMode,
+        const FVector SortOrigin,
         UPARAM(ref) const TArray<FSubjectHandle>& IgnoreSubjects,
         UPARAM(ref) const FFilter& Filter,
         bool& Hit,
@@ -45,15 +48,15 @@ public:
     static void SphereSweepForSubjects
     (
         ANeighborGridActor* NeighborGridActor,
+        int32 KeepCount,
         FVector Start,
         FVector End,
         float Radius,
         bool bCheckVisibility, 
         const FVector CheckOrigin,
         float CheckRadius,
-        ESortMode SortMode /*= ESortMode::None*/,
-        const FVector SortOrigin /*= FVector::ZeroVector*/,
-        int32 KeepCount /*= -1*/,
+        ESortMode SortMode,
+        const FVector SortOrigin,
         UPARAM(ref) const TArray<FSubjectHandle>& IgnoreSubjects,
         UPARAM(ref) const FFilter& Filter,
         bool& Hit,
@@ -64,6 +67,7 @@ public:
     static void SectorTraceForSubjects
     (
         ANeighborGridActor* NeighborGridActor,
+        int32 KeepCount,
         FVector Origin,
         float Radius,
         float Height,
@@ -74,7 +78,6 @@ public:
         float CheckRadius,
         ESortMode SortMode,
         const FVector SortOrigin,
-        int32 KeepCount,
         UPARAM(ref) const TArray<FSubjectHandle>& IgnoreSubjects,
         UPARAM(ref) const FFilter& Filter,
         bool& Hit,
@@ -145,6 +148,7 @@ public:
     FAsyncTraceOutput Completed;
 
     TWeakObjectPtr<ANeighborGridActor> NeighborGridActor;
+    int32 KeepCount;
     FVector Start;
     FVector End;
     float Radius;
@@ -153,7 +157,6 @@ public:
     float CheckRadius;
     ESortMode SortMode;
     FVector SortOrigin;
-    int32 KeepCount;
     FFilter Filter;
     TArray<FSubjectHandle> IgnoreSubjects;
     bool Hit;
@@ -165,6 +168,7 @@ public:
     (
         const UObject* WorldContextObject, 
         ANeighborGridActor* NeighborGridActor, 
+        const int32 KeepCount,
         const FVector Start, 
         const FVector End, 
         const float Radius,
@@ -173,7 +177,6 @@ public:
         const float CheckRadius,
         const ESortMode SortMode,
         const FVector SortOrigin, 
-        const int32 KeepCount, 
         const TArray<FSubjectHandle>& IgnoreSubjects, 
         const FFilter Filter
     );

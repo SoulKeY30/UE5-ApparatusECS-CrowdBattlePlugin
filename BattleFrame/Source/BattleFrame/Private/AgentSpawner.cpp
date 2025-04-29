@@ -53,7 +53,6 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     FVector FaceCustomLocation,
     FSpawnerMult Multipliers,
     bool bActivate
-    //const TArray<UScriptStruct*>& OverrideTraits
 )
 {
     TRACE_CPUPROFILER_EVENT_SCOPE_STR("SpawnAgentsRectangular");

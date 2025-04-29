@@ -119,7 +119,8 @@ public:
 	FStreamableManager StreamableManager;
 	UWorld* CurrentWorld = nullptr;
 	AMechanism* Mechanism = nullptr;
-	UNeighborGridComponent* NeighborGrid = nullptr;
+	//UNeighborGridComponent* NeighborGrid = nullptr;
+	TArray<UNeighborGridComponent*> NeighborGrids;
 	TQueue<TSoftObjectPtr<USoundBase>, EQueueMode::Mpsc> SoundsToPlay;
 	TQueue<float> VolumesToPlay;
 	EFlagmarkBit ReloadFlowFieldFlag = EFlagmarkBit::R;

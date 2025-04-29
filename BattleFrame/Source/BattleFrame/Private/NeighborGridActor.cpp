@@ -15,8 +15,6 @@
 
 #include "NeighborGridActor.h"
 
-ANeighborGridActor* ANeighborGridActor::Instance = nullptr;
-
 ANeighborGridActor::ANeighborGridActor()
 {
 	PrimaryActorTick.bCanEverTick = false;
@@ -32,8 +30,6 @@ void ANeighborGridActor::OnConstruction(const FTransform& Transform)
 
     if (NeighborGridComponent)
     {
-        // Notify the component that the actor has been constructed or modified+
-        //UE_LOG(LogTemp, Log, TEXT("CallingInitializeComponent"));
         NeighborGridComponent->InitializeComponent();
     }
 }

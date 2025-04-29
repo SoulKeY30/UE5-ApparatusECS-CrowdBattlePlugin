@@ -98,11 +98,14 @@ public:
 
 	void SphereTraceForSubjects
 	(
+		int32 KeepCount,
 		const FVector& Origin, 
 		const float Radius, 
 		const bool bCheckVisibility, 
 		const FVector& CheckOrigin, 
 		const float CheckRadius, 
+		ESortMode SortMode,
+		const FVector& SortOrigin,
 		const TArray<FSubjectHandle>& IgnoreSubjects, 
 		const FFilter& Filter, 
 		bool& Hit, 
@@ -111,6 +114,7 @@ public:
 
 	void SphereSweepForSubjects
 	(
+		int32 KeepCount,
 		const FVector& Start, 
 		const FVector& End, 
 		const float Radius, 
@@ -119,7 +123,6 @@ public:
 		const float CheckRadius, 
 		ESortMode SortMode, 
 		const FVector& SortOrigin,
-		int32 KeepCount, 
 		const TArray<FSubjectHandle>& IgnoreSubjects, 
 		const FFilter& Filter, bool& Hit, 
 		TArray<FTraceResult>& Results
@@ -127,6 +130,7 @@ public:
 
 	void SectorTraceForSubjects
 	(
+		int32 KeepCount,
 		const FVector& Origin, 
 		const float Radius, 
 		const float Height, 
@@ -137,7 +141,6 @@ public:
 		const float CheckRadius, 
 		ESortMode SortMode, 
 		const FVector& SortOrigin, 
-		int32 KeepCount, 
 		const TArray<FSubjectHandle>& IgnoreSubjects, 
 		const FFilter& Filter, 
 		bool& Hit, 

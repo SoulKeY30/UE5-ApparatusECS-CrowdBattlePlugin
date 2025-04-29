@@ -126,7 +126,6 @@ public:
 		FVector FaceCustomLocation = FVector::ZeroVector,
 		FSpawnerMult Multipliers = FSpawnerMult(),
 		bool bActivate = true
-		//const TArray<UScriptStruct*>& OverrideTraits
 	);
 
 	UFUNCTION(BlueprintCallable, Category = "Spawning")

@@ -471,6 +471,7 @@ void AFlowField::DrawCells(EInitMode InitMode)
 
 			RawImageData[PixelIndex + 3] = Cell.type != ECellType::Empty ? 255 : 0; // Set the Alpha channel
 			RawImageData[PixelIndex + 2] = Cell.cost; // Set the R channel with cost value
+			RawImageData[PixelIndex + 1] = 0;
 			RawImageData[PixelIndex + 0] = FMath::Clamp(FMath::RoundToInt(FMath::Clamp(float(Cell.dist), 0.f, largestCellDist) / largestCellDist * 255), 0, 255); // Set the B channel with dist
 		}
 

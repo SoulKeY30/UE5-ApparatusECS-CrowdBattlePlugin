@@ -16,11 +16,14 @@
 void UBattleFrameFunctionLibraryRT::SphereTraceForSubjects
 (
 	ANeighborGridActor* NeighborGridActor,
+	int32 KeepCount,
 	FVector Origin,
 	float Radius,
 	bool bCheckVisibility,
 	FVector CheckOrigin,
 	float CheckRadius,
+	ESortMode SortMode,
+	const FVector SortOrigin,
 	UPARAM(ref) const TArray<FSubjectHandle>& IgnoreSubjects,
 	UPARAM(ref) const FFilter& Filter,
 	bool& Hit,
@@ -45,12 +48,13 @@ void UBattleFrameFunctionLibraryRT::SphereTraceForSubjects
 
 	UNeighborGridComponent* NeighborGrid = NeighborGridActor->GetComponentByClass<UNeighborGridComponent>();
 
-	NeighborGrid->SphereTraceForSubjects(Origin, Radius, bCheckVisibility, CheckOrigin, CheckRadius, IgnoreSubjects, Filter, Hit, TraceResults);
+	NeighborGrid->SphereTraceForSubjects(KeepCount, Origin, Radius, bCheckVisibility, CheckOrigin, CheckRadius, SortMode, SortOrigin, IgnoreSubjects, Filter, Hit, TraceResults);
 }
 
 void UBattleFrameFunctionLibraryRT::SphereSweepForSubjects
 (
 	ANeighborGridActor* NeighborGridActor,
+	int32 KeepCount,
 	FVector Start,
 	FVector End,
 	float Radius,
@@ -59,7 +63,6 @@ void UBattleFrameFunctionLibraryRT::SphereSweepForSubjects
 	float CheckRadius,
 	ESortMode SortMode,
 	const FVector SortOrigin,
-	int32 KeepCount,
 	UPARAM(ref) const TArray<FSubjectHandle>& IgnoreSubjects,
 	UPARAM(ref) const FFilter& Filter,
 	bool& Hit,
@@ -84,12 +87,13 @@ void UBattleFrameFunctionLibraryRT::SphereSweepForSubjects
 
 	UNeighborGridComponent* NeighborGrid = NeighborGridActor->GetComponentByClass<UNeighborGridComponent>();
 
-	NeighborGrid->SphereSweepForSubjects(Start, End, Radius, bCheckVisibility, CheckOrigin, CheckRadius, SortMode, SortOrigin, KeepCount, IgnoreSubjects, Filter, Hit, TraceResults);
+	NeighborGrid->SphereSweepForSubjects(KeepCount, Start, End, Radius, bCheckVisibility, CheckOrigin, CheckRadius, SortMode, SortOrigin, IgnoreSubjects, Filter, Hit, TraceResults);
 }
 
 void UBattleFrameFunctionLibraryRT::SectorTraceForSubjects
 (
 	ANeighborGridActor* NeighborGridActor,
+	int32 KeepCount,
 	FVector Origin,
 	float Radius,
 	float Height,
@@ -100,7 +104,6 @@ void UBattleFrameFunctionLibraryRT::SectorTraceForSubjects
 	float CheckRadius,
 	ESortMode SortMode,
 	const FVector SortOrigin,
-	int32 KeepCount,
 	UPARAM(ref) const TArray<FSubjectHandle>& IgnoreSubjects,
 	UPARAM(ref) const FFilter& Filter,
 	bool& Hit,
@@ -123,7 +126,7 @@ void UBattleFrameFunctionLibraryRT::SectorTraceForSubjects
 
 	UNeighborGridComponent* NeighborGrid = NeighborGridActor->GetComponentByClass<UNeighborGridComponent>();
 
-	NeighborGrid->SectorTraceForSubjects(Origin, Radius, Height, Direction, Angle, bCheckVisibility, CheckOrigin, CheckRadius, SortMode, SortOrigin, KeepCount, IgnoreSubjects, Filter, Hit, TraceResults);
+	NeighborGrid->SectorTraceForSubjects(KeepCount, Origin, Radius, Height, Direction, Angle, bCheckVisibility, CheckOrigin, CheckRadius, SortMode, SortOrigin, IgnoreSubjects, Filter, Hit, TraceResults);
 }
 
 void UBattleFrameFunctionLibraryRT::SphereSweepForObstacle
@@ -237,6 +240,7 @@ USphereSweepForSubjectsAsyncAction* USphereSweepForSubjectsAsyncAction::SphereSw
 (
 	const UObject* WorldContextObject,
 	ANeighborGridActor* NeighborGridActor,
+	const int32 KeepCount,
 	const FVector Start,
 	const FVector End,
 	const float Radius,
@@ -245,7 +249,6 @@ USphereSweepForSubjectsAsyncAction* USphereSweepForSubjectsAsyncAction::SphereSw
 	const float CheckRadius,
 	const ESortMode SortMode,
 	const FVector SortOrigin,
-	const int32 KeepCount,
 	const TArray<FSubjectHandle>& IgnoreSubjects,
 	const FFilter Filter
 )

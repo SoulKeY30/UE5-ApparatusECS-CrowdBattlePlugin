@@ -7,6 +7,7 @@
 #include "BattleFrameBattleControl.h"
 #include "Kismet/GameplayStatics.h"
 #include "HAL/ThreadManager.h"
+#include "EngineUtils.h"
 
 // Niagara 插件
 #include "NiagaraDataInterfaceArrayFunctionLibrary.h"
@@ -29,9 +30,6 @@ void ABattleFrameBattleControl::BeginPlay()
 	Super::BeginPlay();
 
 	Instance = this;
-	CurrentWorld = GetWorld();
-	Mechanism = UMachine::ObtainMechanism(CurrentWorld);
-	if (ANeighborGridActor::GetInstance()) { NeighborGrid = ANeighborGridActor::GetInstance()->GetComponent(); }
 }
 
 void ABattleFrameBattleControl::Tick(float DeltaTime)
@@ -40,9 +38,24 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 	Super::Tick(DeltaTime);
 
-	if (bIsGameOver || !CurrentWorld || !Mechanism || !NeighborGrid) return;
+	CurrentWorld = GetWorld();
+
+	if (CurrentWorld)
+	{
+		Mechanism = UMachine::ObtainMechanism(CurrentWorld);
+
+		NeighborGrids.Reset(); // to do : add in multiple grid support
+
+		for (TActorIterator<ANeighborGridActor> It(CurrentWorld); It; ++It)
+		{
+			NeighborGrids.Add(It->GetComponent());
+		}
+	}
+
+	if (bIsGameOver || !CurrentWorld || !Mechanism || NeighborGrids.IsEmpty()) return;
 
 	float SafeDeltaTime = FMath::Clamp(DeltaTime, 0, 0.03f);
+
 
 	//--------------------数据统计----------------------
 
@@ -442,7 +455,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 			{
 				case ETraceMode::TargetIsPlayer_0:
 				{
-					Trace.TraceResult = FSubjectHandle{};
+					Trace.TraceResult = FSubjectHandle();
 
 					if (bPlayerIsValid)
 					{
@@ -483,7 +496,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 				case ETraceMode::SectorTraceByTraits:
 				{
-					Trace.TraceResult = FSubjectHandle{};
+					Trace.TraceResult = FSubjectHandle();
 
 					if (LIKELY(IsValid(Trace.NeighborGrid)))
 					{
@@ -504,6 +517,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 						Trace.NeighborGrid->SectorTraceForSubjects
 						(
+							1,
 							Located.Location,   // 检测原点
 							FinalRange,         // 检测半径
 							TraceHeight,        // 检测高度
@@ -514,7 +528,6 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 							Collider.Radius,
 							ESortMode::NearToFar,
 							Located.Location,
-							1,
 							IgnoreList,
 							TargetFilter,       // 过滤条件
 							Hit,
@@ -678,7 +691,22 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 				bool Hit;
 				TArray<FTraceResult> Results;
-				SphereObstacle.NeighborGrid->SphereTraceForSubjects(Located.Location, Collider.Radius, false, FVector::ZeroVector, 0, SphereObstacle.OverridingAgents.Array(), FFilter::Make<FAgent, FLocated, FCollider, FMoving, FActivated>(), Hit, Results);
+
+				SphereObstacle.NeighborGrid->SphereTraceForSubjects
+				(
+					-1,
+					Located.Location, 
+					Collider.Radius, 
+					false, 
+					FVector::ZeroVector, 
+					0, 
+					ESortMode::None, 
+					FVector::ZeroVector, 
+					SphereObstacle.OverridingAgents.Array(), 
+					FFilter::Make<FAgent, FLocated, FCollider, FMoving, FActivated>(), 
+					Hit, 
+					Results
+				);
 
 				if (Results.IsEmpty()) return;
 
@@ -1108,8 +1136,13 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("Avoidance");// agent only do avoidance in xy, not z
 
-		NeighborGrid->Update();
-		NeighborGrid->Decouple();
+		for (UNeighborGridComponent* Grid : NeighborGrids)
+		{
+			if (Grid)
+			{
+				Grid->Evaluate();
+			}
+		}
 	}
 	#pragma endregion
 

@@ -33,10 +33,6 @@ class BATTLEFRAME_API ANeighborGridActor : public AActor
 
 private:
 
-    /**
-     * The singleton instance of the cage.
-     */
-    static ANeighborGridActor* Instance;
 
     /**
      * The main bubble cage component.
@@ -49,17 +45,10 @@ protected:
     virtual void BeginPlay() override
     {
         Super::BeginPlay();
-
-        Instance = this;
     }
 
     virtual void BeginDestroy() override
     {
-        if (LIKELY(Instance == this))
-        {
-            Instance = nullptr;
-        }
-
         Super::BeginDestroy();
     }
 
@@ -70,50 +59,10 @@ public:
 
     virtual void OnConstruction(const FTransform& Transform) override;
 
-    /**
-     * Get the global instance of the cage.
-     */
-    static FORCEINLINE ANeighborGridActor* GetInstance()
-    {
-        return Instance;
-    }
 
-    /**
-     * Get the actual bubble cage component.
-     */
     UNeighborGridComponent* GetComponent()
     {
         return NeighborGridComponent;
-    }
-
-    /**
-     * Re-fill the cage with bubbles.
-     */
-    UFUNCTION(BlueprintCallable)
-    static void Update()
-    {
-        if (UNLIKELY(Instance == nullptr)) return;
-        Instance->NeighborGridComponent->Update();
-    }
-
-    /**
-     * Decouple the bubbles within the cage.
-     */
-    UFUNCTION(BlueprintCallable)
-    static void Decouple()
-    {
-        if (UNLIKELY(Instance == nullptr)) return;
-        Instance->NeighborGridComponent->Decouple();
-    }
-
-    /**
-     * Re-register and decouple the bubbles.
-     */
-    UFUNCTION(BlueprintCallable)
-    static void Evaluate()
-    {
-        if (UNLIKELY(Instance == nullptr)) return;
-        Instance->NeighborGridComponent->Evaluate();
     }
 };
 
