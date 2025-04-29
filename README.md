@@ -49,11 +49,11 @@ Demo maps are included in the plugin's content folder.
 
 ## Roadmap
 
-Coming in future updates:
+In progress:
 1. 2D atlas renderer and converter
 2. Agent individual navigation
-3. Control agent AI with BP nodes
-4. More trace shapes
+3. More trace shapes
+4. Network replication
 
 ## Leave a star if you find this project useful ;)
 
