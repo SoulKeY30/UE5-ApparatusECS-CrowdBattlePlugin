@@ -3,7 +3,7 @@
 #include "FlowField.h"
 #include <queue>
 #include <vector>
-#include "DrawDebugHelpers.h"
+#include "Async/Async.h"
 #include "Kismet/KismetSystemLibrary.h"
 
 AFlowField::AFlowField()
@@ -18,21 +18,21 @@ AFlowField::AFlowField()
 	Volume->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
 	Volume->SetGenerateOverlapEvents(false);
 
-	ISM_DirArrows = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("NormalArrows"));
-	ISM_DirArrows->SetupAttachment(DefaultRoot);
-	ISM_DirArrows->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
-	ISM_DirArrows->SetGenerateOverlapEvents(false);
-	ISM_DirArrows->SetCastShadow(false);
-	ISM_DirArrows->SetReceivesDecals(false);
+	ISM_Arrows = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Direction Arrows"));
+	ISM_Arrows->SetupAttachment(DefaultRoot);
+	ISM_Arrows->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
+	ISM_Arrows->SetGenerateOverlapEvents(false);
+	ISM_Arrows->SetCastShadow(false);
+	ISM_Arrows->SetReceivesDecals(false);
 
-	ISM_NullArrows = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("NullArrows"));
-	ISM_NullArrows->SetupAttachment(DefaultRoot);
-	ISM_NullArrows->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
-	ISM_NullArrows->SetGenerateOverlapEvents(false);
-	ISM_NullArrows->SetCastShadow(false);
-	ISM_NullArrows->SetReceivesDecals(false);
+	//ISM_Digits = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Digit Display"));
+	//ISM_Digits->SetupAttachment(DefaultRoot);
+	//ISM_Digits->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
+	//ISM_Digits->SetGenerateOverlapEvents(false);
+	//ISM_Digits->SetCastShadow(false);
+	//ISM_Digits->SetReceivesDecals(false);
 
-	Decal_Cells = CreateDefaultSubobject<UDecalComponent>(TEXT("Decal"));
+	Decal_Cells = CreateDefaultSubobject<UDecalComponent>(TEXT("Cell Decal"));
 	Decal_Cells->SetupAttachment(DefaultRoot);
 	Decal_Cells->SetRelativeRotation(FRotator(90,0,0));
 
@@ -44,77 +44,76 @@ void AFlowField::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
 
-	if (bEditorLiveUpdate)
-	{ 
-		DrawDebug();
-	}
-	else
-	{
-		InitFlowFieldMinimal(EInitMode::Construction);
-	}
-}
-
-void AFlowField::BeginPlay()
-{
-	Super::BeginPlay();
-
-	InitFlowField(EInitMode::BeginPlay);
-}
-
-void AFlowField::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
+	DrawDebug();
 }
 
 void AFlowField::DrawDebug()
 {
 	InitFlowField(EInitMode::Construction);
 
-	UpdateGoalLocation();
+	if (bEditorLiveUpdate)
+	{
+		GetGoalLocation();
+
+		CreateGrid();
+
+		CurrentCellsArray = InitialCellsArray;
+
+		CalculateFlowField(CurrentCellsArray);
+
+		DrawCells(EInitMode::Construction);
+
+		DrawArrows(EInitMode::Construction);
+
+		//DrawDigits(EInitMode::Construction);
+	}
+}
+
+void AFlowField::UpdateFlowField()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("UpdateFlowField");
+
+	EInitMode InitMode = bIsBeginPlay ? EInitMode::BeginPlay : EInitMode::Runtime;
+
+	InitFlowField(InitMode);
+
+	GetGoalLocation();
 
 	CreateGrid();
 
-	CalculateFlowField();
+	CurrentCellsArray = InitialCellsArray;
 
-	DrawCells(EInitMode::Construction);
+	CalculateFlowField(CurrentCellsArray);
 
-	DrawArrows(EInitMode::Construction);
+	DrawCells(InitMode);
+
+	DrawArrows(InitMode);
+
+	//DrawDigits(InitMode);
+
+	bIsBeginPlay = false;
 }
 
 void AFlowField::TickFlowField()
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE_STR("FlowFieldTick");
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("TickFlowField");
 
-	InitFlowField(EInitMode::Ticking);
-
-	UpdateGoalLocation();
-
-	CreateGrid();
-
-	CalculateFlowField();
-
-	DrawCells(EInitMode::Ticking);
-
-	DrawArrows(EInitMode::Ticking);
+	if (nextTickTimeLeft != RefreshInterval)
+	{
+		UpdateFlowField();
+	}
 
 	UpdateTimer();
 }
 
-void AFlowField::UpdateGoalLocation()
+bool AFlowField::WorldToGridBP(UPARAM(ref) const FVector& Location, FVector2D& gridCoord)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE_STR("UpdateGoalLocation");
+	return WorldToGrid(Location, gridCoord);
+}
 
-	if (nextTickTimeLeft != updateInterval) return;
-	
-	if (IsValid(goalActor.Get()))
-	{
-		goalLocation = goalActor->GetActorLocation();
-		WorldToGrid(goalLocation, bIsValidGoalCoord, goalGridCoord);
-	}
-	else
-	{
-		WorldToGrid(goalLocation, bIsValidGoalCoord, goalGridCoord);
-	}
+bool AFlowField::GetCellAtLocationBP(UPARAM(ref) const FVector& Location, FCellStruct& CurrentCell)
+{
+	return GetCellAtLocation(Location, CurrentCell);
 }
 
 void AFlowField::InitFlowField(EInitMode InitMode)
@@ -123,35 +122,8 @@ void AFlowField::InitFlowField(EInitMode InitMode)
 
 	if (InitMode == EInitMode::Construction || InitMode == EInitMode::BeginPlay)
 	{
-		nextTickTimeLeft = FMath::Clamp(updateInterval,0.f,FLT_MAX);
+		nextTickTimeLeft = FMath::Clamp(RefreshInterval, 0.f, FLT_MAX);
 		bIsGridDirty = true;
-
-		// decal dynamic material
-
-		if (!IsValid(goalActor.Get()))
-		{
-			goalLocation = GetActorLocation();
-		}
-
-		if (IsValid(DecalBaseMat))
-		{
-			DecalDMI = UMaterialInstanceDynamic::Create(DecalBaseMat, this);
-
-			if (IsValid(DecalDMI))
-			{
-				Decal_Cells->SetMaterial(0, DecalDMI);
-			}
-		}
-
-		if (IsValid(arrowBaseMat))
-		{
-			arrowDMI = UMaterialInstanceDynamic::Create(arrowBaseMat, this);
-
-			if (IsValid(arrowDMI))
-			{
-				ISM_DirArrows->SetMaterial(0, arrowDMI);
-			}
-		}
 	}
 
 	cellSize = FMath::Clamp(cellSize, 0.1f, FLT_MAX);
@@ -173,52 +145,96 @@ void AFlowField::InitFlowField(EInitMode InitMode)
 
 	initialCost = FMath::Clamp(initialCost, 0, 255);
 
-	// update decal material
+	// decal
+	Decal_Cells->DecalSize = FVector(halfSize.Z, halfSize.Y, halfSize.X);
+	Decal_Cells->SetRelativeLocation(FVector(0.f, 0.f, halfSize.Z));
+
+	// dynamic materials
+	if ((InitMode == EInitMode::Construction) || InitMode == EInitMode::BeginPlay)
+	{
+		if (IsValid(CellBaseMat))// for cell decal
+		{
+			CellDMI = UMaterialInstanceDynamic::Create(CellBaseMat, this);
+
+			if (IsValid(CellDMI))
+			{
+				Decal_Cells->SetMaterial(0, CellDMI);
+			}
+		}
+
+		if (IsValid(ArrowBaseMat))// for arrow ism
+		{
+			ArrowDMI = UMaterialInstanceDynamic::Create(ArrowBaseMat, this);
+
+			if (IsValid(ArrowDMI))
+			{
+				ISM_Arrows->SetMaterial(0, ArrowDMI);
+			}
+		}
+
+		//if (IsValid(DigitBaseMat))// for digit ism
+		//{
+		//	DigitDMI = UMaterialInstanceDynamic::Create(DigitBaseMat, this);
+
+		//	if (IsValid(DigitDMI))
+		//	{
+		//		ISM_Digits->SetMaterial(0, DigitDMI);
+		//	}
+		//}
+	}
+
+	if (IsValid(CellDMI))
+	{
+		CellDMI->SetScalarParameterValue("XNum", xNum);
+		CellDMI->SetScalarParameterValue("YNum", yNum);
+		CellDMI->SetScalarParameterValue("CellSize", cellSize);
+		CellDMI->SetScalarParameterValue("OffsetX", offsetLoc.X);
+		CellDMI->SetScalarParameterValue("OffsetY", offsetLoc.Y);
+		CellDMI->SetScalarParameterValue("Yaw", actorRot.Yaw);
+	}
+
+	// toggle visibility of arrows, cells and digits
 	if ((InitMode == EInitMode::Construction && drawCellsInEditor) || (InitMode != EInitMode::Construction && drawCellsInGame))
 	{
-		Decal_Cells->DecalSize = FVector(halfSize.Z, halfSize.Y, halfSize.X);
-		Decal_Cells->SetRelativeLocation(FVector(0.f, 0.f, halfSize.Z));
-
-		if (IsValid(DecalDMI))
-		{
-			DecalDMI->SetScalarParameterValue("XNum", xNum);
-			DecalDMI->SetScalarParameterValue("YNum", yNum);
-			DecalDMI->SetScalarParameterValue("CellSize", cellSize);
-			DecalDMI->SetScalarParameterValue("OffsetX", offsetLoc.X);
-			DecalDMI->SetScalarParameterValue("OffsetY", offsetLoc.Y);
-			DecalDMI->SetScalarParameterValue("Yaw", actorRot.Yaw);
-		}
+		Decal_Cells->SetVisibility(true);
 	}
+	else
+	{
+		Decal_Cells->SetVisibility(false);
+	}
+
+	if ((InitMode == EInitMode::Construction && drawArrowsInEditor) || (InitMode != EInitMode::Construction && drawArrowsInGame))
+	{
+		ISM_Arrows->SetVisibility(true);
+	}
+	else
+	{
+		ISM_Arrows->SetVisibility(false);
+	}
+
+	//if ((InitMode == EInitMode::Construction && drawDigitsInEditor) || (InitMode != EInitMode::Construction && drawDigitsInGame))
+	//{
+	//	ISM_Digits->SetVisibility(true);
+	//}
+	//else
+	//{
+	//	ISM_Digits->SetVisibility(false);
+	//}
 }
 
-void AFlowField::InitFlowFieldMinimal(EInitMode InitMode)
+void AFlowField::GetGoalLocation()
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE_STR("InitFlowField");
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("GetGoalLocation");
 
-	if (InitMode == EInitMode::Construction || InitMode == EInitMode::BeginPlay)
+	if (IsValid(goalActor.Get()))
 	{
-		nextTickTimeLeft = FMath::Clamp(updateInterval, 0.f, FLT_MAX);
-		bIsGridDirty = true;
+		goalLocation = goalActor->GetActorLocation();
+		WorldToGrid(goalLocation, goalGridCoord);
 	}
-
-	cellSize = FMath::Clamp(cellSize, 0.1f, FLT_MAX);
-	flowFieldSize = FVector(FMath::Clamp(flowFieldSize.X, cellSize, FLT_MAX), FMath::Clamp(flowFieldSize.Y, cellSize, FLT_MAX), flowFieldSize.Z);
-
-	xNum = FMath::RoundToInt(flowFieldSize.X / cellSize);
-	yNum = FMath::RoundToInt(flowFieldSize.Y / cellSize);
-
-	actorLoc = GetActorLocation();
-	actorRot = GetActorRotation();
-
-	offsetLoc = FVector(xNum * cellSize / 2, yNum * cellSize / 2, 0);
-	relativeLoc = actorLoc - offsetLoc;
-
-	FVector halfSize = FVector(xNum * cellSize, yNum * cellSize, flowFieldSize.Z) / 2;
-
-	Volume->SetBoxExtent(halfSize);
-	Volume->SetRelativeLocation(FVector(0.f, 0.f, halfSize.Z));
-
-	initialCost = FMath::Clamp(initialCost, 0, 255);
+	else
+	{
+		WorldToGrid(goalLocation, goalGridCoord);
+	}
 }
 
 void AFlowField::CreateGrid()
@@ -227,15 +243,8 @@ void AFlowField::CreateGrid()
 
 	if (!bIsGridDirty) return;
 
-	InitialCellsMap.Empty();
-	CurrentCellsMap.Empty();
-
-	//GridModifiedSet.Empty();
-	//DirModifiedSet.Empty();
-
-	//GridModifiers.Empty();
-	//CostModifiers.Empty();
-	//DirModifiers.Empty();
+	InitialCellsArray.Empty();
+	CurrentCellsArray.Empty();
 
 	for (int x = 0; x < xNum; ++x)
 	{
@@ -243,24 +252,18 @@ void AFlowField::CreateGrid()
 		{
 			FVector2D gridCoord = FVector2D(x, y);
 			FCellStruct newCell = EnvQuery(gridCoord);
-			InitialCellsMap.Add(gridCoord,newCell);
+			InitialCellsArray.Add(newCell);
 		}
 	}
 
 	bIsGridDirty = false;
 }
 
-void AFlowField::CalculateFlowField() 
+void AFlowField::CalculateFlowField(TArray<FCellStruct>& InCurrentCellsArray)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("CalculateFlowField");
 
-	if (nextTickTimeLeft != updateInterval) return;
-
-	CurrentCellsMap = InitialCellsMap;
-	CurrentCellsMap[goalGridCoord].cost = 0;
-
-	TMap<FVector2D, FCellStruct> NewCellsMap = CurrentCellsMap;
-	int32 numCells = NewCellsMap.Num();
+	int32 numCells = InCurrentCellsArray.Num();
 
 	auto IsValidCoord = [&](FVector2D gridCoord) -> bool { return gridCoord.X >= 0 && gridCoord.X < xNum && gridCoord.Y >= 0 && gridCoord.Y < yNum; };
 	auto IsValidDiagonal = [&](std::vector<FVector2D> neighborCoords, int32 indexA, int32 indexB) -> bool
@@ -269,14 +272,14 @@ void AFlowField::CalculateFlowField()
 
 			if (IsValidCoord(neighborCoords[indexA]))
 			{
-				if (NewCellsMap[neighborCoords[indexA]].cost == 255)
+				if (InCurrentCellsArray[CoordToIndex(neighborCoords[indexA])].cost == 255)
 				{
 					result = false;
 				}
 			}
 			if (IsValidCoord(neighborCoords[indexB]))
 			{
-				if (NewCellsMap[neighborCoords[indexB]].cost == 255)
+				if (InCurrentCellsArray[CoordToIndex(neighborCoords[indexB])].cost == 255)
 				{
 					result = false;
 				}
@@ -293,7 +296,7 @@ void AFlowField::CalculateFlowField()
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("CreateIntegrationField");
 
-		FCellStruct& targetCell = NewCellsMap[goalGridCoord];
+		FCellStruct& targetCell = InCurrentCellsArray[CoordToIndex(goalGridCoord)];
 		targetCell.cost = 0;
 		targetCell.dist = 0;
 
@@ -337,9 +340,9 @@ void AFlowField::CalculateFlowField()
 
 				if (!IsValidCoord(neighborCoord)) continue;
 
-				FCellStruct& neighborCell = NewCellsMap[neighborCoord];
+				FCellStruct& neighborCell = InCurrentCellsArray[CoordToIndex(neighborCoord)];
 
-				if (neighborCell.cost == 255) continue;
+				if (bIgnoreInternalObstacleCells && neighborCell.cost == 255) continue;
 
 				if (Style == EStyle::AdjacentFirst)
 				{
@@ -373,7 +376,7 @@ void AFlowField::CalculateFlowField()
 			{
 				int32 currentIndex = j;
 				FVector2D currentCoord = FVector2D(currentIndex / yNum, currentIndex % yNum);
-				FCellStruct& currentCell = NewCellsMap[currentCoord];
+				FCellStruct& currentCell = InCurrentCellsArray[CoordToIndex(currentCoord)];
 
 				bool hasBestCell = false;
 				FCellStruct bestCell;
@@ -397,9 +400,9 @@ void AFlowField::CalculateFlowField()
 
 					if (!IsValidCoord(neighborCoord)) continue;
 
-					FCellStruct& neighborCell = NewCellsMap[neighborCoord];
+					FCellStruct& neighborCell = InCurrentCellsArray[CoordToIndex(neighborCoord)];
 
-					if (neighborCell.cost == 255) continue;
+					if (bIgnoreInternalObstacleCells && neighborCell.cost == 255) continue;
 
 					if (currentCell.cost != 255)
 					{
@@ -434,28 +437,18 @@ void AFlowField::CalculateFlowField()
 			});
 	}
 
-	CurrentCellsMap = NewCellsMap;
 }
 
 void AFlowField::DrawCells(EInitMode InitMode)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("DrawCells");
 
-	if (nextTickTimeLeft != updateInterval) return;
-
 	if ((InitMode == EInitMode::Construction && drawCellsInEditor) || (InitMode != EInitMode::Construction && drawCellsInGame))
 	{
-		if (!Decal_Cells->IsVisible()) 
-		{ 
-			Decal_Cells->SetVisibility(true);
-		}
-
 		float largestCellDist = 0.0001f;
 
-		for (const TPair<FVector2D, FCellStruct>& Element : CurrentCellsMap)
+		for (const FCellStruct& Cell : CurrentCellsArray)
 		{
-			const FCellStruct& Cell = Element.Value;
-
 			if (Cell.dist > largestCellDist && Cell.dist != 65535)
 			{
 				largestCellDist = Cell.dist;
@@ -469,18 +462,15 @@ void AFlowField::DrawCells(EInitMode InitMode)
 		FByteBulkData* ImageData = &MipMap->BulkData;
 		uint8* RawImageData = (uint8*)ImageData->Lock(LOCK_READ_WRITE);
 
-		for (const TPair<FVector2D, FCellStruct>& Element : CurrentCellsMap)
+		for (const FCellStruct& Cell : CurrentCellsArray)
 		{
-			const FCellStruct& Cell = Element.Value;
-
 			// Calculate pixel index based on grid coordinates
 			int32 PixelX = xNum - Cell.gridCoord.X - 1;
 			int32 PixelY = Cell.gridCoord.Y;
-			int32 PixelIndex = ((PixelY * xNum) + PixelX) * 4;
+			int32 PixelIndex = (PixelY * xNum + PixelX) * 4;
 
 			RawImageData[PixelIndex + 3] = Cell.type != ECellType::Empty ? 255 : 0; // Set the Alpha channel
 			RawImageData[PixelIndex + 2] = Cell.cost; // Set the R channel with cost value
-			RawImageData[PixelIndex + 1] = 0; // Set the G channel
 			RawImageData[PixelIndex + 0] = FMath::Clamp(FMath::RoundToInt(FMath::Clamp(float(Cell.dist), 0.f, largestCellDist) / largestCellDist * 255), 0, 255); // Set the B channel with dist
 		}
 
@@ -488,16 +478,9 @@ void AFlowField::DrawCells(EInitMode InitMode)
 		TransientTexture->UpdateResource();
 
 		// update decal material
-		if (IsValid(DecalDMI))
+		if (IsValid(CellDMI))
 		{
-			DecalDMI->SetTextureParameterValue("TransientTexture", TransientTexture);
-		}
-	}
-	else
-	{
-		if (Decal_Cells->IsVisible())
-		{
-			Decal_Cells->SetVisibility(false);
+			CellDMI->SetTextureParameterValue("TransientTexture", TransientTexture);
 		}
 	}
 }
@@ -506,57 +489,117 @@ void AFlowField::DrawArrows(EInitMode InitMode)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("DrawArrows");
 
-	if (nextTickTimeLeft != updateInterval) return;
+	// Initialize instances if needed
+	if (InitMode == EInitMode::Construction || InitMode == EInitMode::BeginPlay)
+	{
+		ISM_Arrows->ClearInstances();
 
-	// Clear all instances first
-	ISM_DirArrows->ClearInstances();
-	ISM_NullArrows->ClearInstances();
+		TArray<FTransform> TranArray;
+		TranArray.Init(FTransform(FVector::ZeroVector), InitialCellsArray.Num());
+
+		ISM_Arrows->AddInstances(TranArray, false);
+	}
 
 	if ((InitMode == EInitMode::Construction && drawArrowsInEditor) || (InitMode != EInitMode::Construction && drawArrowsInGame))
 	{
-		for (const TPair<FVector2D, FCellStruct>& Element : CurrentCellsMap)
+		for (const FCellStruct& Cell : CurrentCellsArray)
 		{
-			const FCellStruct& Cell = Element.Value;
-
 			FVector Dir = Cell.dir;
 			FVector Normal = Cell.normal.GetSafeNormal();
-
-			// Project the Dir onto the plane defined by Normal
 			Dir = FVector::VectorPlaneProject(Dir, Normal).GetSafeNormal();
-
-			// Calculate initial rotation to align arrow to normal
 			FQuat AlignToNormalQuat = FQuat::FindBetweenNormals(FVector::UpVector, Normal);
-
-			// Rotate the arrow in the plane to point in the direction of projected Dir
 			FVector AlignedDir = AlignToNormalQuat.RotateVector(FVector::ForwardVector);
 			FQuat RotateInPlaneQuat = FQuat::FindBetweenNormals(AlignedDir, Dir);
-
-			// Combine both rotations
 			FQuat CombinedQuat = RotateInPlaneQuat * AlignToNormalQuat;
 			FRotator AlignToNormalRot = CombinedQuat.Rotator();
+			FTransform Trans(AlignToNormalRot, Cell.worldLoc + Cell.normal, FVector(cellSize / 200.0f));
 
-			// Create the final transformation
-			FTransform Trans(AlignToNormalRot, Cell.worldLoc + Cell.normal, FVector(cellSize / 100.0f));
+			int32 CellIndex = CoordToIndex(Cell.gridCoord);
 
-			if (Cell.type != ECellType::Empty)
+			if (Cell.type == ECellType::Empty)
 			{
-				int32 InstanceIndex;
-
-				if (Dir.Size() != 0)
-				{
-					// If it was not modified but has a direction, use DirArrows and set custom data to 0
-					InstanceIndex = AddWorldSpaceInstance(ISM_DirArrows, Trans);
-					ISM_DirArrows->SetCustomDataValue(InstanceIndex, 0, 0, true);
-				}
-				else
-				{
-					// If it has no direction, use NullArrows without any custom data
-					AddWorldSpaceInstance(ISM_NullArrows, Trans);
-				}
+				// If no ground, hide
+				Trans.SetScale3D(FVector::ZeroVector);
+				ISM_Arrows->UpdateInstanceTransform(CellIndex, Trans, true, false, true);
+			}
+			else if (Dir.Size() == 0)
+			{
+				// If it has no direction, set custom data = 2 (so they will be red dots)
+				//Trans = ToLocalTransform(ISM_Digits, Trans);
+				ISM_Arrows->UpdateInstanceTransform(CellIndex, Trans, true, false, true);
+				ISM_Arrows->SetCustomDataValue(CellIndex, 0, 2, false);
+			}
+			else				
+			{
+				// If it was not modified, set custom data = 0 (so they will be white arrows)
+				//Trans = ToLocalTransform(ISM_Arrows, Trans);
+				ISM_Arrows->UpdateInstanceTransform(CellIndex, Trans, true, false, true);
+				ISM_Arrows->SetCustomDataValue(CellIndex, 0, 0, false);
 			}
 		}
+
+		ISM_Arrows->MarkRenderStateDirty();
 	}
 }
+
+//void AFlowField::DrawDigits(EInitMode InitMode)
+//{
+//	TRACE_CPUPROFILER_EVENT_SCOPE_STR("DrawDigits");
+//
+//	if (InitMode == EInitMode::Construction || InitMode == EInitMode::BeginPlay)
+//	{
+//		ISM_Digits->ClearInstances();
+//
+//		TArray<FTransform> TranArray;
+//		TranArray.Init(FTransform(FVector::ZeroVector), InitialCellsArray.Num());
+//
+//		ISM_Digits->AddInstances(TranArray, false);
+//	}
+//
+//	if ((InitMode == EInitMode::Construction && drawDigitsInEditor) || (InitMode != EInitMode::Construction && drawDigitsInGame))
+//	{
+//		for (const TPair<FVector2D, FCellStruct>& Element : CurrentCellsArray)
+//		{
+//			const FCellStruct& Cell = Element.Value;
+//
+//			FVector Dir = Cell.dir;
+//			FVector Normal = Cell.normal.GetSafeNormal();
+//			Dir = FVector::VectorPlaneProject(Dir, Normal).GetSafeNormal();
+//			FQuat AlignToNormalQuat = FQuat::FindBetweenNormals(FVector::UpVector, Normal);
+//			FVector AlignedDir = AlignToNormalQuat.RotateVector(FVector::ForwardVector);
+//			FQuat RotateInPlaneQuat = FQuat::FindBetweenNormals(AlignedDir, Dir);
+//			FQuat CombinedQuat = RotateInPlaneQuat * AlignToNormalQuat;
+//			FRotator AlignToNormalRot = CombinedQuat.Rotator();
+//			FTransform Trans(AlignToNormalRot, Cell.worldLoc + Cell.normal, FVector(cellSize / 130.0f));
+//
+//			int32 CellIndex = CoordToIndex(Cell.gridCoord);
+//
+//			if (Cell.type == ECellType::Empty)
+//			{
+//				// If no ground, hide
+//				Trans.SetScale3D(FVector::ZeroVector);
+//				ISM_Digits->UpdateInstanceTransform(CellIndex, Trans, false, false, true);
+//			}
+//			else if (DigitType == EDigitType::Cost)
+//			{
+//				Trans = ToLocalTransform(ISM_Digits, Trans);
+//				Trans.SetRotation(FQuat::Identity);
+//				ISM_Digits->UpdateInstanceTransform(CellIndex, Trans, false, false, true);
+//				ISM_Digits->SetCustomDataValue(CellIndex, 0, Cell.cost, false);
+//			}
+//			else
+//			{
+//				Trans = ToLocalTransform(ISM_Arrows, Trans);
+//				Trans.SetRotation(FQuat::Identity);
+//				ISM_Digits->UpdateInstanceTransform(CellIndex, Trans, false, false, true);
+//				ISM_Digits->SetCustomDataValue(CellIndex, 0, Cell.dist, false);
+//			}
+//		}
+//
+//		ISM_Digits->MarkRenderStateDirty();
+//	}
+//
+//}
 
 void AFlowField::UpdateTimer()
 {
@@ -564,7 +607,7 @@ void AFlowField::UpdateTimer()
 
 	if (nextTickTimeLeft <= 0)
 	{
-		nextTickTimeLeft = FMath::Clamp(updateInterval, 0.f, FLT_MAX);
+		nextTickTimeLeft = FMath::Clamp(RefreshInterval, 0.f, FLT_MAX);
 	}
 	else
 	{
@@ -572,60 +615,9 @@ void AFlowField::UpdateTimer()
 	}
 }
    
-void AFlowField::WorldToGrid(const FVector Location, bool& bIsValid, FVector2D& gridCoord)
-{
-	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("WorldToGrid");
-
-	FVector relativeLocation = (Location - actorLoc).RotateAngleAxis(-actorRot.Yaw, FVector(0, 0, 1)) + offsetLoc;
-
-	float cellRadius = cellSize / 2;
-
-	int32 gridCoordX = FMath::RoundToInt((relativeLocation.X - cellRadius) / cellSize);
-	int32 gridCoordY = FMath::RoundToInt((relativeLocation.Y - cellRadius) / cellSize);
-
-	// inside grid?
-	if ((gridCoordX >= 0 && gridCoordX < xNum) && (gridCoordY >= 0 && gridCoordY < yNum)){bIsValid = true;}
-	else{bIsValid = false;}
-
-	gridCoord = FVector2D(FMath::Clamp(gridCoordX, 0, xNum - 1), FMath::Clamp(gridCoordY, 0, yNum - 1));
-}
-
-void AFlowField::GetCellAtLocation(const FVector Location, bool& bIsValid, FCellStruct& CurrentCell)
-{
-	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("GetCellAtLocation");
-
-	FVector relativeLocation = (Location - actorLoc).RotateAngleAxis(-actorRot.Yaw, FVector(0, 0, 1)) + offsetLoc;
-
-	float cellRadius = cellSize / 2;
-
-	int32 gridCoordX = FMath::RoundToInt((relativeLocation.X - cellRadius) / cellSize);
-	int32 gridCoordY = FMath::RoundToInt((relativeLocation.Y - cellRadius) / cellSize);
-
-	// inside grid?
-	if ((gridCoordX >= 0 && gridCoordX < xNum) && (gridCoordY >= 0 && gridCoordY < yNum)) 
-	{ 
-		bIsValid = true; 
-	}
-	else 
-	{ 
-		bIsValid = false; 
-	}
-
-	// clamp to nearest
-	FVector2D gridCoord = FVector2D(FMath::Clamp(gridCoordX, 0, xNum - 1), FMath::Clamp(gridCoordY, 0, yNum - 1));
-	CurrentCell = CurrentCellsMap[gridCoord];
-}
-
-int32 AFlowField::AddWorldSpaceInstance(UInstancedStaticMeshComponent* ISM_Component, const FTransform& InstanceTransform)
-{
-	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("AddWorldSpaceInstance");
-	FTransform LocalTransform = InstanceTransform.GetRelativeTransform(ISM_Component->GetComponentTransform());
-	return ISM_Component->AddInstance(LocalTransform);
-}
-
 FCellStruct AFlowField::EnvQuery(const FVector2D gridCoord) 
 {
-	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("EnvQuery");
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("EnvQuery");
 
 	FCellStruct newCell;
 
@@ -637,7 +629,6 @@ FCellStruct AFlowField::EnvQuery(const FVector2D gridCoord)
 
 	// Array of actors for trace to ignore
 	TArray<AActor*> IgnoreActors;
-	IgnoreActors.Add(GetOwner());
 
 	if (traceGround)
 	{
@@ -655,7 +646,7 @@ FCellStruct AFlowField::EnvQuery(const FVector2D gridCoord)
 			true,
 			FLinearColor::Gray,
 			FLinearColor::Blue,
-			1);
+			3);
 
 		if (hitGround)
 		{
@@ -670,8 +661,6 @@ FCellStruct AFlowField::EnvQuery(const FVector2D gridCoord)
 			if (cellAngle > maxAngleRadians)
 			{
 				newCell.cost = 255;
-				newCell.costBP = 255;
-
 				newCell.type = ECellType::Obstacle;
 			}
 			else if (traceObstacles)
@@ -697,14 +686,11 @@ FCellStruct AFlowField::EnvQuery(const FVector2D gridCoord)
 					if (ObstacleHitResult.ImpactPoint.Z > GroundHitResult.ImpactPoint.Z)
 					{
 						newCell.cost = 255;
-						newCell.costBP = 255;
-
 						newCell.type = ECellType::Obstacle;
 					}
 					else
 					{
 						newCell.cost = initialCost;
-						newCell.costBP = initialCost;
 
 						if (initialCost == 255)
 						{
@@ -715,7 +701,6 @@ FCellStruct AFlowField::EnvQuery(const FVector2D gridCoord)
 				else
 				{
 					newCell.cost = initialCost;
-					newCell.costBP = initialCost;
 
 					if (initialCost == 255)
 					{
@@ -726,7 +711,6 @@ FCellStruct AFlowField::EnvQuery(const FVector2D gridCoord)
 			else
 			{
 				newCell.cost = initialCost;
-				newCell.costBP = initialCost;
 
 				if (initialCost == 255)
 				{
@@ -771,14 +755,12 @@ FCellStruct AFlowField::EnvQuery(const FVector2D gridCoord)
 				if (ObstacleHitResult.ImpactPoint.Z > worldLoc.Z)
 				{
 					newCell.cost = 255;
-					newCell.costBP = 255;
 
 					newCell.type = ECellType::Obstacle;
 				}
 				else
 				{
 					newCell.cost = initialCost;
-					newCell.costBP = initialCost;
 
 					if (initialCost == 255)
 					{
@@ -789,7 +771,6 @@ FCellStruct AFlowField::EnvQuery(const FVector2D gridCoord)
 			else
 			{
 				newCell.cost = initialCost;
-				newCell.costBP = initialCost;
 
 				if (initialCost == 255)
 				{
@@ -800,7 +781,6 @@ FCellStruct AFlowField::EnvQuery(const FVector2D gridCoord)
 		else
 		{
 			newCell.cost = initialCost;
-			newCell.costBP = initialCost;
 
 			if (initialCost == 255)
 			{
