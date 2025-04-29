@@ -284,7 +284,7 @@ public:
 
 	//--------------------------------------------------------Cached-----------------------------------------------------------------
 
-	float nextTickTimeLeft = RefreshInterval;
+	float nextTickTimeLeft = 0;
 	bool bIsGridDirty = true;
 	bool bIsBeginPlay = true;
 

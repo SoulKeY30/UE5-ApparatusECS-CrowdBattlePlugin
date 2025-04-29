@@ -98,7 +98,7 @@ void AFlowField::TickFlowField()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("TickFlowField");
 
-	if (nextTickTimeLeft != RefreshInterval)
+	if (nextTickTimeLeft <= 0)
 	{
 		UpdateFlowField();
 	}
