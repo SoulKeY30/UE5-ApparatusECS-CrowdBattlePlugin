@@ -116,6 +116,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Spawning")
 	TArray<FSubjectHandle> SpawnAgentsRectangular
 	(
+		bool bAutoActivate = true,
 		int32 configIndex = 0,
 		int32 quantity = 1,
 		int32 team = 0,
@@ -124,8 +125,7 @@ public:
 		FVector2D LaunchForce = FVector2D::ZeroVector,
 		EInitialDirection initialDirection = EInitialDirection::FaceForward,
 		FVector FaceCustomLocation = FVector::ZeroVector,
-		FSpawnerMult Multipliers = FSpawnerMult(),
-		bool bActivate = true
+		FSpawnerMult Multipliers = FSpawnerMult()
 	);
 
 	UFUNCTION(BlueprintCallable, Category = "Spawning")

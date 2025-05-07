@@ -2379,7 +2379,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						FxRecord.SetTrait(FxDirected);
 						FxRecord.SetTrait(FxScaled);
 
-						UBattleFrameFunctionLibraryRT::SetSubTypeTraitByEnum(Config.SubType, FxRecord);
+						UBattleFrameFunctionLibraryRT::SetRecordSubTypeTraitByEnum(Config.SubType, FxRecord);
 
 						for (int32 i = 0; i < Config.Quantity; ++i)
 						{

@@ -22,7 +22,7 @@
 #include "Traits/Tracing.h"
 #include "Traits/Avoiding.h"
 #include "Traits/RegisterMultiple.h"
-#include "Traits/CustomData.h"
+#include "Traits/Team.h"
 #include "AnimToTextureDataAsset.h"
 #include "NiagaraSubjectRenderer.h"
 #include "BattleFrameFunctionLibraryRT.h"
@@ -43,6 +43,7 @@ void AAgentSpawner::Tick(float DeltaTime)
 
 TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
 (
+    bool bAutoActivate,
     int32 ConfigIndex,
     int32 Quantity,
     int32 Team,
@@ -51,8 +52,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     FVector2D LaunchForce,
     EInitialDirection InitialDirection,
     FVector FaceCustomLocation,
-    FSpawnerMult Multipliers,
-    bool bActivate
+    FSpawnerMult Multipliers
 )
 {
     TRACE_CPUPROFILER_EVENT_SCOPE_STR("SpawnAgentsRectangular");
@@ -68,29 +68,10 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     UAgentConfigDataAsset* DataAsset = AgentConfigAssets[ConfigIndex].LoadSynchronous();
     if (!IsValid(DataAsset)) return SpawnedAgents;
 
-    // 明确使用ANiagaraSubjectRenderer类型
-    ANiagaraSubjectRenderer* RendererActor = Cast<ANiagaraSubjectRenderer>(UGameplayStatics::GetActorOfClass(GetWorld(), DataAsset->Animation.RendererClass));
-
-    if (!RendererActor && DataAsset->Animation.RendererClass)
-    {
-        FActorSpawnParameters SpawnParams;
-        SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-        SpawnParams.bNoFail = true;
-
-        // 直接生成目标类型
-        RendererActor = GetWorld()->SpawnActor<ANiagaraSubjectRenderer>(DataAsset->Animation.RendererClass, FTransform::Identity, SpawnParams);
-
-        // 设置SubType参数
-        if (RendererActor)
-        {
-            RendererActor->SubType.Index = DataAsset->SubType.Index;
-            RendererActor->TickEnabled = true;
-        }
-    }
-
     FSubjectRecord AgentConfig;
 
     AgentConfig.SetTrait(DataAsset->Agent);
+    AgentConfig.SetTrait(DataAsset->SubType);
     AgentConfig.SetTrait(DataAsset->Collider);
     AgentConfig.SetTrait(DataAsset->Scale);
     AgentConfig.SetTrait(DataAsset->Health);
@@ -113,34 +94,15 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     AgentConfig.SetTrait(DataAsset->Curves);
     AgentConfig.SetTrait(DataAsset->CustomData);
 
-    AgentConfig.SetTrait(FTracing{});
+    // 补一下省略的Traits
+    AgentConfig.SetTrait(FLocated());
+    AgentConfig.SetTrait(FTracing());
+    AgentConfig.SetTrait(FMoving());
+    AgentConfig.SetTrait(FDirected());
+    AgentConfig.SetTrait(FTeam(Team));
+    AgentConfig.SetTrait(FAvoiding());
 
-    UBattleFrameFunctionLibraryRT::SetSubTypeTraitByIndex(DataAsset->SubType.Index, AgentConfig);
-
-    auto& SourceAnimation = AgentConfig.GetTraitRef<FAnimation>();
-
-    SourceAnimation.AnimToTextureData = SourceAnimation.AnimToTextureDataAsset.LoadSynchronous(); // DataAsset Solid Pointer
-
-    if (!IsValid(SourceAnimation.AnimToTextureData)) return SpawnedAgents;
-
-    TArray<FAnimToTextureAnimInfo> Animations = SourceAnimation.AnimToTextureData->Animations;
-    int32 AnimLastIndex = Animations.Num() - 1;
-
-    if (SourceAnimation.IndexOfAppearAnim <= AnimLastIndex)
-    {
-        SourceAnimation.AppearAnimLength = (SourceAnimation.AnimToTextureData->Animations[SourceAnimation.IndexOfAppearAnim].EndFrame - SourceAnimation.AnimToTextureData->Animations[SourceAnimation.IndexOfAppearAnim].StartFrame) / SourceAnimation.AnimToTextureData->SampleRate;
-    }
-
-    if (SourceAnimation.IndexOfAttackAnim <= AnimLastIndex)
-    {
-        SourceAnimation.AttackAnimLength = (SourceAnimation.AnimToTextureData->Animations[SourceAnimation.IndexOfAttackAnim].EndFrame - SourceAnimation.AnimToTextureData->Animations[SourceAnimation.IndexOfAttackAnim].StartFrame) / SourceAnimation.AnimToTextureData->SampleRate;
-    }
-
-    if (SourceAnimation.IndexOfDeathAnim <= AnimLastIndex)
-    {
-        SourceAnimation.DeathAnimLength = (SourceAnimation.AnimToTextureData->Animations[SourceAnimation.IndexOfDeathAnim].EndFrame - SourceAnimation.AnimToTextureData->Animations[SourceAnimation.IndexOfDeathAnim].StartFrame) / SourceAnimation.AnimToTextureData->SampleRate;
-    }
-
+    // 乘数
     auto& HealthTrait = AgentConfig.GetTraitRef<FHealth>();
     HealthTrait.Current *= Multipliers.HealthMult;
     HealthTrait.Maximum *= Multipliers.HealthMult;
@@ -149,111 +111,98 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     TextPopUp.WhiteTextBelowPercent *= Multipliers.HealthMult;
     TextPopUp.OrangeTextAbovePercent *= Multipliers.HealthMult;
 
-    auto& Damage = AgentConfig.GetTraitRef<FDamage>();
-    Damage.Damage *= Multipliers.DamageMult;
+    auto& DamageTrait = AgentConfig.GetTraitRef<FDamage>();
+    DamageTrait.Damage *= Multipliers.DamageMult;
 
     auto& ScaledTrait = AgentConfig.GetTraitRef<FScaled>();
     ScaledTrait.Factors *= Multipliers.ScaleMult;
     ScaledTrait.renderFactors = ScaledTrait.Factors;
 
-    UBattleFrameFunctionLibraryRT::SetTeamTraitByIndex(FMath::Clamp(Team, 0, 9), AgentConfig);
+    auto& ColliderTrait = AgentConfig.GetTraitRef<FCollider>();
+    ColliderTrait.Radius *= Multipliers.ScaleMult;
 
-    UBattleFrameFunctionLibraryRT::SetAvoGroupTraitByIndex(FMath::Clamp(DataAsset->Avoidance.Group, 0, 9), AgentConfig);
+    auto& MoveTrait = AgentConfig.GetTraitRef<FMove>();
+    MoveTrait.MoveSpeed *= Multipliers.SpeedMult;
 
-    while (SpawnedAgents.Num() < Quantity)// the following traits varies from agent to agent
+    // the following traits varies from agent to agent
+    while (SpawnedAgents.Num() < Quantity)
     {
         FSubjectRecord Config = AgentConfig;
 
-        auto& Collider = Config.GetTraitRef<FCollider>();
-        Collider.Radius *= Multipliers.ScaleMult;
+        auto& Move = Config.GetTraitRef<FMove>();
+        auto& Moving = Config.GetTraitRef<FMoving>();
+        auto& Located = Config.GetTraitRef<FLocated>();
+        auto& Patrol = Config.GetTraitRef<FPatrol>();
+        auto& Directed = Config.GetTraitRef<FDirected>();
 
-        if (Collider.bHightQuality)
-        {
-            Config.SetTrait(FRegisterMultiple{});
-        }
-
+        // Spawn Location
         FVector SpawnPoint2D;
+        FVector SpawnPoint3D;
 
         float RandomX = FMath::RandRange(-Region.X / 2, Region.X / 2);
         float RandomY = FMath::RandRange(-Region.Y / 2, Region.Y / 2);
+
         SpawnPoint2D = Origin + FVector(RandomX, RandomY, 0);
 
-        FVector SpawnPoint3D;
-        auto& Move = Config.GetTraitRef<FMove>();
-
-        Config.SetTrait(FMoving{});
-        auto& Moving = Config.GetTraitRef<FMoving>();
-
-        if (Move.bCanFly)
+        if (Move.bCanFly)// Spawn in mid air
         {
-            Moving.FlyingHeight = FMath::RandRange(Move.FlyHeightRange.X, Move.FlyHeightRange.Y);
-            SpawnPoint3D = FVector(SpawnPoint2D.X, SpawnPoint2D.Y, Moving.FlyingHeight + GetActorLocation().Z);
+            Moving.FlyingHeight = FMath::RandRange(Move.FlyHeightRange.X, Move.FlyHeightRange.Y) + GetActorLocation().Z;
+            SpawnPoint3D = FVector(SpawnPoint2D.X, SpawnPoint2D.Y, Moving.FlyingHeight);
         }
         else
         {
-            SpawnPoint3D = FVector(SpawnPoint2D.X, SpawnPoint2D.Y, Collider.Radius + GetActorLocation().Z);
+            SpawnPoint3D = FVector(SpawnPoint2D.X, SpawnPoint2D.Y, ColliderTrait.Radius + GetActorLocation().Z);
         }
 
-        auto& Patrol = Config.GetTraitRef<FPatrol>();
+        Located.Location = SpawnPoint3D;
+        Located.preLocation = SpawnPoint3D;
+        Located.InitialLocation = SpawnPoint3D;
+
         Patrol.Origin = SpawnPoint3D;
         Move.Goal = SpawnPoint3D;
-
-        FLocated spawnLocated;
-        spawnLocated.Location = SpawnPoint3D;
-        spawnLocated.preLocation = SpawnPoint3D;
-        spawnLocated.InitialLocation = SpawnPoint3D;
-        Config.SetTrait(spawnLocated);
-
-        APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
-
-        FVector Direction;
 
         switch (InitialDirection)
         {
             case EInitialDirection::FacePlayer:
             {
+                APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+
                 if (IsValid(PlayerPawn))
                 {
                     FVector Delta = PlayerPawn->GetActorLocation() - SpawnPoint3D;
-                    Direction = Delta.GetSafeNormal2D();
+                    Directed.Direction = Delta.GetSafeNormal2D();
                 }
                 else
                 {
-                    Direction = GetActorForwardVector().GetSafeNormal2D();
+                    Directed.Direction = GetActorForwardVector().GetSafeNormal2D();
                 }
                 break;
             }
 
             case EInitialDirection::FaceForward:
             {
-                Direction = GetActorForwardVector().GetSafeNormal2D();
+                Directed.Direction = GetActorForwardVector().GetSafeNormal2D();
                 break;
             }
 
             case EInitialDirection::FaceLocation:
             {
                 FVector Delta = FaceCustomLocation - SpawnPoint3D;
-                Direction = Delta.GetSafeNormal2D();
+                Directed.Direction = Delta.GetSafeNormal2D();
                 break;
             }
         }
 
-        Config.SetTrait(FDirected{ Direction });
-
-        Move.MoveSpeed *= Multipliers.SpeedMult;
-
         if (LaunchForce.Size() > 0)
         {         
-            Moving.LaunchForce = Direction * LaunchForce.X + Direction.UpVector * LaunchForce.Y;
+            Moving.LaunchForce = Directed.Direction * LaunchForce.X + Directed.Direction.UpVector * LaunchForce.Y;
             Moving.bLaunching = true;
         }
 
         // Spawn using the modified record
         const auto Agent = Mechanism->SpawnSubject(Config);
 
-        Agent.SetTrait(FAvoiding{ SpawnPoint3D, Collider.Radius, Agent, Agent.CalcHash()});
-
-        if (bActivate)
+        if (bAutoActivate)
         {
             ActivateAgent(Agent);
         }
@@ -270,6 +219,61 @@ void AAgentSpawner::ActivateAgent( FSubjectHandle Agent )
     auto& Sleep = Agent.GetTraitRef<FSleep, EParadigm::Unsafe>();
     auto& Patrol = Agent.GetTraitRef<FPatrol, EParadigm::Unsafe>();
     auto& Animation = Agent.GetTraitRef<FAnimation, EParadigm::Unsafe>();
+    auto& Located = Agent.GetTraitRef<FLocated, EParadigm::Unsafe>();
+    auto& Collider = Agent.GetTraitRef<FCollider, EParadigm::Unsafe>();
+    auto& SubType = Agent.GetTraitRef<FSubType, EParadigm::Unsafe>();
+    auto& Team = Agent.GetTraitRef<FTeam, EParadigm::Unsafe>();
+    auto& Avoidance = Agent.GetTraitRef<FAvoidance, EParadigm::Unsafe>();
+    auto& Avoiding = Agent.GetTraitRef<FAvoiding, EParadigm::Unsafe>();
+
+    Avoiding = { Located.Location, Collider.Radius, Agent, Agent.CalcHash() };
+
+    // Spawn renderer if none
+    if (Animation.RendererClass)
+    {     
+        AActor* Renderer = UGameplayStatics::GetActorOfClass(GetWorld(), Animation.RendererClass);
+
+        if (!Renderer)
+        {
+            FActorSpawnParameters SpawnParams;
+            SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+            SpawnParams.bNoFail = true;
+
+            // 直接生成目标类型
+            ANiagaraSubjectRenderer* NewRenderer = GetWorld()->SpawnActor<ANiagaraSubjectRenderer>(Animation.RendererClass, FTransform::Identity, SpawnParams);
+
+            // 设置SubType参数
+            if (NewRenderer)
+            {
+                NewRenderer->SubType.Index = SubType.Index;
+                NewRenderer->TickEnabled = true;
+            }
+        }
+    }
+
+    // Cache anim length
+    Animation.AnimToTextureData = Animation.AnimToTextureDataAsset.LoadSynchronous(); // DataAsset Solid Pointer
+
+    if (IsValid(Animation.AnimToTextureData))
+    {
+        TArray<FAnimToTextureAnimInfo> Animations = Animation.AnimToTextureData->Animations;
+        int32 AnimLastIndex = Animations.Num() - 1;
+
+        if (Animation.IndexOfAppearAnim <= AnimLastIndex)
+        {
+            Animation.AppearAnimLength = (Animation.AnimToTextureData->Animations[Animation.IndexOfAppearAnim].EndFrame - Animation.AnimToTextureData->Animations[Animation.IndexOfAppearAnim].StartFrame) / Animation.AnimToTextureData->SampleRate;
+        }
+
+        if (Animation.IndexOfAttackAnim <= AnimLastIndex)
+        {
+            Animation.AttackAnimLength = (Animation.AnimToTextureData->Animations[Animation.IndexOfAttackAnim].EndFrame - Animation.AnimToTextureData->Animations[Animation.IndexOfAttackAnim].StartFrame) / Animation.AnimToTextureData->SampleRate;
+        }
+
+        if (Animation.IndexOfDeathAnim <= AnimLastIndex)
+        {
+            Animation.DeathAnimLength = (Animation.AnimToTextureData->Animations[Animation.IndexOfDeathAnim].EndFrame - Animation.AnimToTextureData->Animations[Animation.IndexOfDeathAnim].StartFrame) / Animation.AnimToTextureData->SampleRate;
+        }
+    }
 
     if (Appear.bEnable)
     {
@@ -289,6 +293,15 @@ void AAgentSpawner::ActivateAgent( FSubjectHandle Agent )
     {
         Agent.SetTrait(FPatrolling());
     }
+
+    if (Collider.bHightQuality)
+    {
+        Agent.SetTrait(FRegisterMultiple{});
+    }
+
+    UBattleFrameFunctionLibraryRT::SetSubjectSubTypeTraitByIndex(SubType.Index, Agent);
+    UBattleFrameFunctionLibraryRT::SetSubjectTeamTraitByIndex(FMath::Clamp(Team.index, 0, 9), Agent);
+    UBattleFrameFunctionLibraryRT::SetSubjectAvoGroupTraitByIndex(FMath::Clamp(Avoidance.Group, 0, 9), Agent);
 
     Agent.SetTrait(FActivated());
 }

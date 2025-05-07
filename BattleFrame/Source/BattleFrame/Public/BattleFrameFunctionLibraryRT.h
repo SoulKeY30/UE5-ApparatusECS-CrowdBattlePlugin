@@ -123,12 +123,13 @@ public:
     static TArray<FSubjectHandle> ConvertTraceResultsToSubjectHandles(const TArray<FTraceResult>& TraceResults);
 
     static FVector FindNewPatrolGoalLocation(const FPatrol& Patrol, const FCollider& Collider, const FTrace& Trace, const FLocated& Located, int32 MaxAttempts);
-    static void SetSubTypeTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord);
-    static void SetSubTypeTraitByEnum(ESubType SubType, FSubjectRecord& SubjectRecord);
+    static void SetRecordSubTypeTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord);
+    static void SetRecordSubTypeTraitByEnum(ESubType SubType, FSubjectRecord& SubjectRecord);
+    static void SetSubjectSubTypeTraitByIndex(int32 Index, FSubjectHandle SubjectHandle);
     static void IncludeSubTypeTraitByIndex(int32 Index, FFilter& Filter);
     static void CalculateThreadsCountAndBatchSize(int32 IterableNum, int32 MaxThreadsAllowed, int32 MinBatchSizeAllowed, int32& ThreadsCount, int32& BatchSize);
-    static void SetAvoGroupTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord);
-    static void SetTeamTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord);
+    static void SetSubjectAvoGroupTraitByIndex(int32 Index, FSubjectHandle SubjectHandle);
+    static void SetSubjectTeamTraitByIndex(int32 Index, FSubjectHandle SubjectHandle);
     static void IncludeAvoGroupTraitByIndex(int32 Index, FFilter& Filter);
     static void ExcludeAvoGroupTraitByIndex(int32 Index, FFilter& Filter);
 };

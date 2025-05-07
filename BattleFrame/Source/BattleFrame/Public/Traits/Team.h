@@ -3,6 +3,13 @@
 #include "Team.generated.h"
 
 USTRUCT(BlueprintType)
+struct BATTLEFRAME_API FTeam
+{
+    GENERATED_BODY()
+    int32 index = 0;
+};
+
+USTRUCT(BlueprintType)
 struct BATTLEFRAME_API FTeam0
 {
     GENERATED_BODY()
