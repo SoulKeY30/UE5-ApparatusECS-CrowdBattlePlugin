@@ -978,7 +978,7 @@ void UNeighborGridComponent::Update()
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("RegisterNeighborGrid_Trace");
 
-		FFilter Filter = FFilter::Make<FLocated, FTrace>();
+		FFilter Filter = FFilter::Make<FLocated, FTrace, FActivated>();
 		auto Chain = Mechanism->EnchainSolid(Filter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, 1000, ThreadsCount, BatchSize);
 
@@ -1016,7 +1016,7 @@ void UNeighborGridComponent::Update()
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("RegisterSubjectSingle");// agents are allowed to register themselves only in the cell where their origins are in, this helps to improve performance
 
-		FFilter Filter = FFilter::Make<FLocated, FCollider, FAvoiding>().Exclude<FRegisterMultiple>();
+		FFilter Filter = FFilter::Make<FLocated, FCollider, FAvoiding, FActivated>().Exclude<FRegisterMultiple>();
 		auto Chain = Mechanism->EnchainSolid(Filter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
@@ -1058,7 +1058,7 @@ void UNeighborGridComponent::Update()
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("RegisterSubjectMultiple");// agents can also register themselves into all overlapping cells, thus improve avoidance precision
 
-		FFilter Filter = FFilter::Make<FLocated, FCollider, FAvoiding, FRegisterMultiple>().Exclude<FSphereObstacle>();
+		FFilter Filter = FFilter::Make<FLocated, FCollider, FAvoiding, FActivated, FRegisterMultiple>().Exclude<FSphereObstacle>();
 		auto Chain = Mechanism->EnchainSolid(Filter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 

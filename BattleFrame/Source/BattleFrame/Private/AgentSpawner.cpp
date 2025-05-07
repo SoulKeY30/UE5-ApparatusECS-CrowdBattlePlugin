@@ -27,6 +27,7 @@
 #include "NiagaraSubjectRenderer.h"
 #include "BattleFrameFunctionLibraryRT.h"
 #include "Traits/Activated.h"
+#include "SubjectHandle.h"
 
 
 AAgentSpawner* AAgentSpawner::Instance = nullptr;
@@ -63,15 +64,34 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     if (!Mechanism) return SpawnedAgents;
 
     ConfigIndex = FMath::Clamp(ConfigIndex, 0, AgentConfigAssets.Num() - 1);
-    if(!AgentConfigAssets.IsValidIndex(ConfigIndex)) return SpawnedAgents;
+    if (!AgentConfigAssets.IsValidIndex(ConfigIndex)) return SpawnedAgents;
 
     UAgentConfigDataAsset* DataAsset = AgentConfigAssets[ConfigIndex].LoadSynchronous();
     if (!IsValid(DataAsset)) return SpawnedAgents;
 
+    // 明确使用ANiagaraSubjectRenderer类型
+    ANiagaraSubjectRenderer* RendererActor = Cast<ANiagaraSubjectRenderer>(UGameplayStatics::GetActorOfClass(GetWorld(), DataAsset->Animation.RendererClass));
+
+    if (!RendererActor && DataAsset->Animation.RendererClass)
+    {
+        FActorSpawnParameters SpawnParams;
+        SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+        SpawnParams.bNoFail = true;
+
+        // 直接生成目标类型
+        RendererActor = GetWorld()->SpawnActor<ANiagaraSubjectRenderer>(DataAsset->Animation.RendererClass, FTransform::Identity, SpawnParams);
+
+        // 设置SubType参数
+        if (RendererActor)
+        {
+            RendererActor->SubType.Index = DataAsset->SubType.Index;
+            RendererActor->TickEnabled = true;
+        }
+    }
+
     FSubjectRecord AgentConfig;
 
     AgentConfig.SetTrait(DataAsset->Agent);
-    AgentConfig.SetTrait(DataAsset->SubType);
     AgentConfig.SetTrait(DataAsset->Collider);
     AgentConfig.SetTrait(DataAsset->Scale);
     AgentConfig.SetTrait(DataAsset->Health);
@@ -94,15 +114,12 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     AgentConfig.SetTrait(DataAsset->Curves);
     AgentConfig.SetTrait(DataAsset->CustomData);
 
-    // 补一下省略的Traits
-    AgentConfig.SetTrait(FLocated());
     AgentConfig.SetTrait(FTracing());
-    AgentConfig.SetTrait(FMoving());
-    AgentConfig.SetTrait(FDirected());
-    AgentConfig.SetTrait(FTeam(Team));
-    AgentConfig.SetTrait(FAvoiding());
 
-    // 乘数
+    UBattleFrameFunctionLibraryRT::SetRecordSubTypeTraitByIndex(DataAsset->SubType.Index, AgentConfig);
+    UBattleFrameFunctionLibraryRT::SetRecordTeamTraitByIndex(FMath::Clamp(Team, 0, 9), AgentConfig);
+    UBattleFrameFunctionLibraryRT::SetRecordAvoGroupTraitByIndex(FMath::Clamp(DataAsset->Avoidance.Group, 0, 9), AgentConfig);
+
     auto& HealthTrait = AgentConfig.GetTraitRef<FHealth>();
     HealthTrait.Current *= Multipliers.HealthMult;
     HealthTrait.Maximum *= Multipliers.HealthMult;
@@ -118,48 +135,56 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     ScaledTrait.Factors *= Multipliers.ScaleMult;
     ScaledTrait.renderFactors = ScaledTrait.Factors;
 
-    auto& ColliderTrait = AgentConfig.GetTraitRef<FCollider>();
-    ColliderTrait.Radius *= Multipliers.ScaleMult;
-
     auto& MoveTrait = AgentConfig.GetTraitRef<FMove>();
     MoveTrait.MoveSpeed *= Multipliers.SpeedMult;
 
-    // the following traits varies from agent to agent
-    while (SpawnedAgents.Num() < Quantity)
+    auto& ColliderTrait = AgentConfig.GetTraitRef<FCollider>();
+    ColliderTrait.Radius *= Multipliers.ScaleMult;
+
+    if (ColliderTrait.bHightQuality)
+    {
+        AgentConfig.SetTrait(FRegisterMultiple{});
+    }
+
+    while (SpawnedAgents.Num() < Quantity)// the following traits varies from agent to agent
     {
         FSubjectRecord Config = AgentConfig;
 
-        auto& Move = Config.GetTraitRef<FMove>();
-        auto& Moving = Config.GetTraitRef<FMoving>();
-        auto& Located = Config.GetTraitRef<FLocated>();
-        auto& Patrol = Config.GetTraitRef<FPatrol>();
-        auto& Directed = Config.GetTraitRef<FDirected>();
+        auto& Collider = Config.GetTraitRef<FCollider>();
 
-        // Spawn Location
         FVector SpawnPoint2D;
-        FVector SpawnPoint3D;
 
         float RandomX = FMath::RandRange(-Region.X / 2, Region.X / 2);
         float RandomY = FMath::RandRange(-Region.Y / 2, Region.Y / 2);
-
         SpawnPoint2D = Origin + FVector(RandomX, RandomY, 0);
 
-        if (Move.bCanFly)// Spawn in mid air
+        FVector SpawnPoint3D;
+        auto& Move = Config.GetTraitRef<FMove>();
+
+        Config.SetTrait(FMoving{});
+        auto& Moving = Config.GetTraitRef<FMoving>();
+
+        if (Move.bCanFly)
         {
-            Moving.FlyingHeight = FMath::RandRange(Move.FlyHeightRange.X, Move.FlyHeightRange.Y) + GetActorLocation().Z;
-            SpawnPoint3D = FVector(SpawnPoint2D.X, SpawnPoint2D.Y, Moving.FlyingHeight);
+            Moving.FlyingHeight = FMath::RandRange(Move.FlyHeightRange.X, Move.FlyHeightRange.Y);
+            SpawnPoint3D = FVector(SpawnPoint2D.X, SpawnPoint2D.Y, Moving.FlyingHeight + GetActorLocation().Z);
         }
         else
         {
-            SpawnPoint3D = FVector(SpawnPoint2D.X, SpawnPoint2D.Y, ColliderTrait.Radius + GetActorLocation().Z);
+            SpawnPoint3D = FVector(SpawnPoint2D.X, SpawnPoint2D.Y, Collider.Radius + GetActorLocation().Z);
         }
 
-        Located.Location = SpawnPoint3D;
-        Located.preLocation = SpawnPoint3D;
-        Located.InitialLocation = SpawnPoint3D;
-
+        auto& Patrol = Config.GetTraitRef<FPatrol>();
         Patrol.Origin = SpawnPoint3D;
         Move.Goal = SpawnPoint3D;
+
+        FLocated spawnLocated;
+        spawnLocated.Location = SpawnPoint3D;
+        spawnLocated.preLocation = SpawnPoint3D;
+        spawnLocated.InitialLocation = SpawnPoint3D;
+        Config.SetTrait(spawnLocated);
+
+        FVector Direction;
 
         switch (InitialDirection)
         {
@@ -170,37 +195,41 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
                 if (IsValid(PlayerPawn))
                 {
                     FVector Delta = PlayerPawn->GetActorLocation() - SpawnPoint3D;
-                    Directed.Direction = Delta.GetSafeNormal2D();
+                    Direction = Delta.GetSafeNormal2D();
                 }
                 else
                 {
-                    Directed.Direction = GetActorForwardVector().GetSafeNormal2D();
+                    Direction = GetActorForwardVector().GetSafeNormal2D();
                 }
                 break;
             }
 
             case EInitialDirection::FaceForward:
             {
-                Directed.Direction = GetActorForwardVector().GetSafeNormal2D();
+                Direction = GetActorForwardVector().GetSafeNormal2D();
                 break;
             }
 
             case EInitialDirection::FaceLocation:
             {
                 FVector Delta = FaceCustomLocation - SpawnPoint3D;
-                Directed.Direction = Delta.GetSafeNormal2D();
+                Direction = Delta.GetSafeNormal2D();
                 break;
             }
         }
 
+        Config.SetTrait(FDirected{ Direction });       
+
         if (LaunchForce.Size() > 0)
-        {         
-            Moving.LaunchForce = Directed.Direction * LaunchForce.X + Directed.Direction.UpVector * LaunchForce.Y;
+        {
+            Moving.LaunchForce = Direction * LaunchForce.X + Direction.UpVector * LaunchForce.Y;
             Moving.bLaunching = true;
         }
 
         // Spawn using the modified record
         const auto Agent = Mechanism->SpawnSubject(Config);
+
+        Agent.SetTrait(FAvoiding{ SpawnPoint3D, Collider.Radius, Agent, Agent.CalcHash() });
 
         if (bAutoActivate)
         {
@@ -219,39 +248,7 @@ void AAgentSpawner::ActivateAgent( FSubjectHandle Agent )
     auto& Sleep = Agent.GetTraitRef<FSleep, EParadigm::Unsafe>();
     auto& Patrol = Agent.GetTraitRef<FPatrol, EParadigm::Unsafe>();
     auto& Animation = Agent.GetTraitRef<FAnimation, EParadigm::Unsafe>();
-    auto& Located = Agent.GetTraitRef<FLocated, EParadigm::Unsafe>();
-    auto& Collider = Agent.GetTraitRef<FCollider, EParadigm::Unsafe>();
-    auto& SubType = Agent.GetTraitRef<FSubType, EParadigm::Unsafe>();
-    auto& Team = Agent.GetTraitRef<FTeam, EParadigm::Unsafe>();
-    auto& Avoidance = Agent.GetTraitRef<FAvoidance, EParadigm::Unsafe>();
-    auto& Avoiding = Agent.GetTraitRef<FAvoiding, EParadigm::Unsafe>();
 
-    Avoiding = { Located.Location, Collider.Radius, Agent, Agent.CalcHash() };
-
-    // Spawn renderer if none
-    if (Animation.RendererClass)
-    {     
-        AActor* Renderer = UGameplayStatics::GetActorOfClass(GetWorld(), Animation.RendererClass);
-
-        if (!Renderer)
-        {
-            FActorSpawnParameters SpawnParams;
-            SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-            SpawnParams.bNoFail = true;
-
-            // 直接生成目标类型
-            ANiagaraSubjectRenderer* NewRenderer = GetWorld()->SpawnActor<ANiagaraSubjectRenderer>(Animation.RendererClass, FTransform::Identity, SpawnParams);
-
-            // 设置SubType参数
-            if (NewRenderer)
-            {
-                NewRenderer->SubType.Index = SubType.Index;
-                NewRenderer->TickEnabled = true;
-            }
-        }
-    }
-
-    // Cache anim length
     Animation.AnimToTextureData = Animation.AnimToTextureDataAsset.LoadSynchronous(); // DataAsset Solid Pointer
 
     if (IsValid(Animation.AnimToTextureData))
@@ -293,15 +290,6 @@ void AAgentSpawner::ActivateAgent( FSubjectHandle Agent )
     {
         Agent.SetTrait(FPatrolling());
     }
-
-    if (Collider.bHightQuality)
-    {
-        Agent.SetTrait(FRegisterMultiple{});
-    }
-
-    UBattleFrameFunctionLibraryRT::SetSubjectSubTypeTraitByIndex(SubType.Index, Agent);
-    UBattleFrameFunctionLibraryRT::SetSubjectTeamTraitByIndex(FMath::Clamp(Team.index, 0, 9), Agent);
-    UBattleFrameFunctionLibraryRT::SetSubjectAvoGroupTraitByIndex(FMath::Clamp(Avoidance.Group, 0, 9), Agent);
 
     Agent.SetTrait(FActivated());
 }

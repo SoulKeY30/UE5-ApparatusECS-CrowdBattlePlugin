@@ -62,6 +62,7 @@ public:
 
 	//----------------------------------------
 
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, meta = (Tooltip = ""))
 	FSubjectHandle TraceResult = FSubjectHandle();
 
 	UNeighborGridComponent* NeighborGrid = nullptr;

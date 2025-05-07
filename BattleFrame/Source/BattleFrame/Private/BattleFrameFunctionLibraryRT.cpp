@@ -1013,126 +1013,167 @@ void UBattleFrameFunctionLibraryRT::SetSubjectSubTypeTraitByIndex(int32 Index, F
 	default:
 		SubjectHandle.SetTrait(FSubType0());
 		break;
+
 	case 0:
 		SubjectHandle.SetTrait(FSubType0());
 		break;
+
 	case 1:
 		SubjectHandle.SetTrait(FSubType1());
 		break;
+
 	case 2:
 		SubjectHandle.SetTrait(FSubType2());
 		break;
+
 	case 3:
 		SubjectHandle.SetTrait(FSubType3());
 		break;
+
 	case 4:
 		SubjectHandle.SetTrait(FSubType4());
 		break;
+
 	case 5:
 		SubjectHandle.SetTrait(FSubType5());
 		break;
+
 	case 6:
 		SubjectHandle.SetTrait(FSubType6());
 		break;
+
 	case 7:
 		SubjectHandle.SetTrait(FSubType7());
 		break;
+
 	case 8:
 		SubjectHandle.SetTrait(FSubType8());
 		break;
+
 	case 9:
 		SubjectHandle.SetTrait(FSubType9());
 		break;
+
 	case 10:
 		SubjectHandle.SetTrait(FSubType10());
 		break;
+
 	case 11:
 		SubjectHandle.SetTrait(FSubType11());
 		break;
+
 	case 12:
 		SubjectHandle.SetTrait(FSubType12());
 		break;
+
 	case 13:
 		SubjectHandle.SetTrait(FSubType13());
 		break;
+
 	case 14:
 		SubjectHandle.SetTrait(FSubType14());
 		break;
+
 	case 15:
 		SubjectHandle.SetTrait(FSubType15());
 		break;
+
 	case 16:
 		SubjectHandle.SetTrait(FSubType16());
 		break;
+
 	case 17:
 		SubjectHandle.SetTrait(FSubType17());
 		break;
+
 	case 18:
 		SubjectHandle.SetTrait(FSubType18());
 		break;
+
 	case 19:
 		SubjectHandle.SetTrait(FSubType19());
 		break;
+
 	case 20:
 		SubjectHandle.SetTrait(FSubType20());
 		break;
+
 	case 21:
 		SubjectHandle.SetTrait(FSubType21());
 		break;
+
 	case 22:
 		SubjectHandle.SetTrait(FSubType22());
 		break;
+
 	case 23:
 		SubjectHandle.SetTrait(FSubType23());
 		break;
+
 	case 24:
 		SubjectHandle.SetTrait(FSubType24());
 		break;
+
 	case 25:
 		SubjectHandle.SetTrait(FSubType25());
 		break;
+
 	case 26:
 		SubjectHandle.SetTrait(FSubType26());
 		break;
+
 	case 27:
 		SubjectHandle.SetTrait(FSubType27());
 		break;
+
 	case 28:
 		SubjectHandle.SetTrait(FSubType28());
 		break;
+
 	case 29:
 		SubjectHandle.SetTrait(FSubType29());
 		break;
+
 	case 30:
 		SubjectHandle.SetTrait(FSubType30());
 		break;
+
 	case 31:
 		SubjectHandle.SetTrait(FSubType31());
 		break;
+
 	case 32:
 		SubjectHandle.SetTrait(FSubType32());
 		break;
+
 	case 33:
 		SubjectHandle.SetTrait(FSubType33());
 		break;
+
 	case 34:
 		SubjectHandle.SetTrait(FSubType34());
 		break;
+
 	case 35:
 		SubjectHandle.SetTrait(FSubType35());
 		break;
+
 	case 36:
 		SubjectHandle.SetTrait(FSubType36());
 		break;
+
 	case 37:
 		SubjectHandle.SetTrait(FSubType37());
 		break;
+
 	case 38:
 		SubjectHandle.SetTrait(FSubType38());
 		break;
+
 	case 39:
 		SubjectHandle.SetTrait(FSubType39());
 		break;
+
 	case 40:
 		SubjectHandle.SetTrait(FSubType40());
 		break;
@@ -1737,6 +1778,86 @@ void UBattleFrameFunctionLibraryRT::SetSubjectTeamTraitByIndex(int32 Index, FSub
 		break;
 	case 9:
 		SubjectHandle.SetTrait(FTeam9());
+		break;
+	}
+}
+
+void UBattleFrameFunctionLibraryRT::SetRecordAvoGroupTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord)
+{
+	switch (Index)
+	{
+	default:
+		SubjectRecord.SetTrait(FAvoGroup0());
+		break;
+	case 0:
+		SubjectRecord.SetTrait(FAvoGroup0());
+		break;
+	case 1:
+		SubjectRecord.SetTrait(FAvoGroup1());
+		break;
+	case 2:
+		SubjectRecord.SetTrait(FAvoGroup2());
+		break;
+	case 3:
+		SubjectRecord.SetTrait(FAvoGroup3());
+		break;
+	case 4:
+		SubjectRecord.SetTrait(FAvoGroup4());
+		break;
+	case 5:
+		SubjectRecord.SetTrait(FAvoGroup5());
+		break;
+	case 6:
+		SubjectRecord.SetTrait(FAvoGroup6());
+		break;
+	case 7:
+		SubjectRecord.SetTrait(FAvoGroup7());
+		break;
+	case 8:
+		SubjectRecord.SetTrait(FAvoGroup8());
+		break;
+	case 9:
+		SubjectRecord.SetTrait(FAvoGroup9());
+		break;
+	}
+}
+
+void UBattleFrameFunctionLibraryRT::SetRecordTeamTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord)
+{
+	switch (Index)
+	{
+	default:
+		SubjectRecord.SetTrait(FTeam0());
+		break;
+	case 0:
+		SubjectRecord.SetTrait(FTeam0());
+		break;
+	case 1:
+		SubjectRecord.SetTrait(FTeam1());
+		break;
+	case 2:
+		SubjectRecord.SetTrait(FTeam2());
+		break;
+	case 3:
+		SubjectRecord.SetTrait(FTeam3());
+		break;
+	case 4:
+		SubjectRecord.SetTrait(FTeam4());
+		break;
+	case 5:
+		SubjectRecord.SetTrait(FTeam5());
+		break;
+	case 6:
+		SubjectRecord.SetTrait(FTeam6());
+		break;
+	case 7:
+		SubjectRecord.SetTrait(FTeam7());
+		break;
+	case 8:
+		SubjectRecord.SetTrait(FTeam8());
+		break;
+	case 9:
+		SubjectRecord.SetTrait(FTeam9());
 		break;
 	}
 }

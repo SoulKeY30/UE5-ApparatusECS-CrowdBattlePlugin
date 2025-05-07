@@ -130,6 +130,8 @@ public:
     static void CalculateThreadsCountAndBatchSize(int32 IterableNum, int32 MaxThreadsAllowed, int32 MinBatchSizeAllowed, int32& ThreadsCount, int32& BatchSize);
     static void SetSubjectAvoGroupTraitByIndex(int32 Index, FSubjectHandle SubjectHandle);
     static void SetSubjectTeamTraitByIndex(int32 Index, FSubjectHandle SubjectHandle);
+    static void SetRecordAvoGroupTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord);
+    static void SetRecordTeamTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord);
     static void IncludeAvoGroupTraitByIndex(int32 Index, FFilter& Filter);
     static void ExcludeAvoGroupTraitByIndex(int32 Index, FFilter& Filter);
 };
