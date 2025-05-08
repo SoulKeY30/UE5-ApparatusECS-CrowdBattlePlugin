@@ -1979,8 +1979,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 							Anim.AnimIndex1 = Anim.IndexOfAppearAnim;
 							Anim.AnimCurrentTime1 = GetGameTimeSinceCreation();
 							Anim.AnimOffsetTime1 = 0;
-							Anim.AnimPauseTime1 = Anim.AppearAnimLength;
-							Anim.AnimPlayRate1 = Anim.AppearAnimLength / Appear.Duration;
+							Anim.AnimPauseTime1 = Anim.AnimLengthArray[Anim.IndexOfAppearAnim];
+							Anim.AnimPlayRate1 = Anim.AnimPauseTime1 / Appear.Duration;
 							Anim.AnimLerp = 1;// since appearing is definitely the first anim to play
 							break;
 						}
@@ -2029,16 +2029,15 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 							Anim.AnimIndex1 = Anim.IndexOfAttackAnim;
 							Anim.AnimCurrentTime1 = GetGameTimeSinceCreation();
 							Anim.AnimOffsetTime1 = 0;
-							Anim.AnimPauseTime1 = Anim.AttackAnimLength;
-							//Anim.AnimPlayRate1 = Anim.AttackAnimLength / Attack.DurationPerRound;
+							Anim.AnimPauseTime1 = Anim.AnimLengthArray[Anim.IndexOfAttackAnim];
 
 							if (Subject.HasTrait<FFreezing>())
 							{
-								Anim.AnimPlayRate1 = Anim.AttackAnimLength / Attack.DurationPerRound * (1 - Subject.GetTraitRef<FFreezing, EParadigm::Unsafe>().FreezeStr);
+								Anim.AnimPlayRate1 = Anim.AnimPauseTime1 / Attack.DurationPerRound * (1 - Subject.GetTraitRef<FFreezing, EParadigm::Unsafe>().FreezeStr);
 							}
 							else
 							{
-								Anim.AnimPlayRate1 = Anim.AttackAnimLength / Attack.DurationPerRound;
+								Anim.AnimPlayRate1 = Anim.AnimPauseTime1 / Attack.DurationPerRound;
 							}
 							break;
 						}
@@ -2049,8 +2048,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 							Anim.AnimIndex1 = Anim.IndexOfDeathAnim;
 							Anim.AnimCurrentTime1 = GetGameTimeSinceCreation();
 							Anim.AnimOffsetTime1 = 0;
-							Anim.AnimPauseTime1 = Anim.DeathAnimLength;
-							Anim.AnimPlayRate1 = Anim.DeathAnimLength / Death.AnimLength;
+							Anim.AnimPauseTime1 = Anim.AnimLengthArray[Anim.IndexOfDeathAnim];
+							Anim.AnimPlayRate1 = Anim.AnimPauseTime1 / Death.AnimLength;
 							break;
 						}
 					}

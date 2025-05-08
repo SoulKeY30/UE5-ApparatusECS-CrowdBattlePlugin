@@ -60,32 +60,33 @@ public:
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "动画间过度速度"))
     float LerpSpeed = 4;
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "出生动画的索引值"))
-    float IndexOfAppearAnim = 0;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "攻击动画的索引值"))
-    float IndexOfAttackAnim = 1;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "死亡动画的索引值"))
-    float IndexOfDeathAnim = 2;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "待机动画的索引值"))
-    float IndexOfIdleAnim = 3;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "移动动画的索引值"))
-    float IndexOfMoveAnim = 4;
-
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = ""))
     float IdlePlayRate = 1;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = ""))
     float MovePlayRate = 1;
 
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "出生动画的索引值"))
+    int32 IndexOfAppearAnim = 0;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "攻击动画的索引值"))
+    int32 IndexOfAttackAnim = 1;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "死亡动画的索引值"))
+    int32 IndexOfDeathAnim = 2;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "待机动画的索引值"))
+    int32 IndexOfIdleAnim = 3;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "移动动画的索引值"))
+    int32 IndexOfMoveAnim = 4;
+
     //-----------------------------------------------------------
 
-    float AppearAnimLength = 1.f;
-    float AttackAnimLength = 1.f;
-    float DeathAnimLength = 1.f;
+    TArray<float> AnimLengthArray;
+    //float AppearAnimLength = 1.f;
+    //float AttackAnimLength = 1.f;
+    //float DeathAnimLength = 1.f;
 
     //-----------------------------------------------------------
 
@@ -148,9 +149,10 @@ public:
         AnimLerp = Anim.AnimLerp;
         LerpSpeed = Anim.LerpSpeed;
 
-        AppearAnimLength = Anim.AppearAnimLength;
-        AttackAnimLength = Anim.AttackAnimLength;
-        DeathAnimLength = Anim.DeathAnimLength;
+        AnimLengthArray = Anim.AnimLengthArray;
+        //AppearAnimLength = Anim.AppearAnimLength;
+        //AttackAnimLength = Anim.AttackAnimLength;
+        //DeathAnimLength = Anim.DeathAnimLength;
 
         IndexOfAppearAnim = Anim.IndexOfAppearAnim;
         IndexOfIdleAnim = Anim.IndexOfIdleAnim;
@@ -194,9 +196,10 @@ public:
         AnimLerp = Anim.AnimLerp;
         LerpSpeed = Anim.LerpSpeed;
 
-        AppearAnimLength = Anim.AppearAnimLength;
-        AttackAnimLength = Anim.AttackAnimLength;
-        DeathAnimLength = Anim.DeathAnimLength;
+        AnimLengthArray = Anim.AnimLengthArray;
+        //AppearAnimLength = Anim.AppearAnimLength;
+        //AttackAnimLength = Anim.AttackAnimLength;
+        //DeathAnimLength = Anim.DeathAnimLength;
 
         IndexOfAppearAnim = Anim.IndexOfAppearAnim;
         IndexOfIdleAnim = Anim.IndexOfIdleAnim;

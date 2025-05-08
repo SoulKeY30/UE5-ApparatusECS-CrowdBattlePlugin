@@ -92,7 +92,7 @@ public:
 
 	AAgentSpawner();
 
-	UPROPERTY(EditAnywhere, Category = Spawning)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Spawning)
 	TArray<TSoftObjectPtr<UAgentConfigDataAsset>> AgentConfigAssets;
 
 	UFUNCTION(BlueprintCallable, BlueprintPure)

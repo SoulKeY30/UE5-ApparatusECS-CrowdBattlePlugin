@@ -13,6 +13,7 @@
 #include "Traits/Statistics.h"
 #include "Traits/BindFlowField.h"
 #include "Traits/IsSubjective.h"
+#include "Traits/Activated.h"
 #include "BattleFrameBattleControl.h"
 
 // Sets default values
@@ -43,6 +44,8 @@ void ABattleFrameCharacter::BeginPlay()
 	const auto Handle = Subjective->GetHandle();
 	const auto Collider = Subjective->ObtainTrait<FCollider>();
 	Subjective->SetTrait(FAvoiding{ GetActorLocation(),Collider.Radius, Handle, Handle.CalcHash()});
+
+	Subjective->SetTrait(FActivated{});
 }
 
 
