@@ -15,7 +15,6 @@
 #include "Traits/Avoiding.h"
 #include "Traits/BoxObstacle.h"
 #include "Traits/Located.h"
-#include "Traits/Excluding.h"
 #include "RVOSquareObstacle.generated.h"
  
 UCLASS(Blueprintable)

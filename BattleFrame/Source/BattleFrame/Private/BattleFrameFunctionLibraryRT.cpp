@@ -15,19 +15,19 @@
 
 void UBattleFrameFunctionLibraryRT::SphereTraceForSubjects
 (
+	bool& Hit,
+	TArray<FTraceResult>& TraceResults,
 	ANeighborGridActor* NeighborGridActor,
 	int32 KeepCount,
-	FVector Origin,
+	UPARAM(ref) const FVector& Origin,
 	float Radius,
 	bool bCheckVisibility,
-	FVector CheckOrigin,
+	UPARAM(ref) const FVector& CheckOrigin,
 	float CheckRadius,
 	ESortMode SortMode,
-	const FVector SortOrigin,
-	UPARAM(ref) const TArray<FSubjectHandle>& IgnoreSubjects,
-	UPARAM(ref) const FFilter& Filter,
-	bool& Hit,
-	TArray<FTraceResult>& TraceResults
+	UPARAM(ref) const FVector& SortOrigin,
+	UPARAM(ref) const FSubjectArray& IgnoreSubjects,
+	UPARAM(ref) const FFilter& Filter
 )
 {
 	TraceResults.Reset();
@@ -53,20 +53,20 @@ void UBattleFrameFunctionLibraryRT::SphereTraceForSubjects
 
 void UBattleFrameFunctionLibraryRT::SphereSweepForSubjects
 (
+	bool& Hit,
+	TArray<FTraceResult>& TraceResults,
 	ANeighborGridActor* NeighborGridActor,
 	int32 KeepCount,
-	FVector Start,
-	FVector End,
+	UPARAM(ref) const FVector& Start,
+	UPARAM(ref) const FVector& End,
 	float Radius,
 	bool bCheckVisibility,
-	const FVector CheckOrigin,
+	UPARAM(ref) const FVector& CheckOrigin,
 	float CheckRadius,
 	ESortMode SortMode,
-	const FVector SortOrigin,
-	UPARAM(ref) const TArray<FSubjectHandle>& IgnoreSubjects,
-	UPARAM(ref) const FFilter& Filter,
-	bool& Hit,
-	TArray<FTraceResult>& TraceResults
+	UPARAM(ref) const FVector& SortOrigin,
+	UPARAM(ref) const FSubjectArray& IgnoreSubjects,
+	UPARAM(ref) const FFilter& Filter
 )
 {
 	TraceResults.Reset();
@@ -92,22 +92,22 @@ void UBattleFrameFunctionLibraryRT::SphereSweepForSubjects
 
 void UBattleFrameFunctionLibraryRT::SectorTraceForSubjects
 (
+	bool& Hit,
+	TArray<FTraceResult>& TraceResults,
 	ANeighborGridActor* NeighborGridActor,
 	int32 KeepCount,
-	FVector Origin,
+	UPARAM(ref) const FVector& Origin,
 	float Radius,
 	float Height,
-	FVector Direction,
+	UPARAM(ref) const FVector& Direction,
 	float Angle,
 	bool bCheckVisibility,
-	const FVector CheckOrigin,
+	UPARAM(ref) const FVector& CheckOrigin,
 	float CheckRadius,
 	ESortMode SortMode,
-	const FVector SortOrigin,
-	UPARAM(ref) const TArray<FSubjectHandle>& IgnoreSubjects,
-	UPARAM(ref) const FFilter& Filter,
-	bool& Hit,
-	TArray<FTraceResult>& TraceResults
+	UPARAM(ref) const FVector& SortOrigin,
+	UPARAM(ref) const FSubjectArray& IgnoreSubjects,
+	UPARAM(ref) const FFilter& Filter
 )
 {
 	if (!IsValid(NeighborGridActor))
@@ -131,12 +131,12 @@ void UBattleFrameFunctionLibraryRT::SectorTraceForSubjects
 
 void UBattleFrameFunctionLibraryRT::SphereSweepForObstacle
 (
-	ANeighborGridActor* NeighborGridActor,
-	FVector Start,
-	FVector End,
-	float Radius,
 	bool& Hit,
-	FTraceResult& TraceResult
+	FTraceResult& TraceResult,
+	ANeighborGridActor* NeighborGridActor,
+	UPARAM(ref) const FVector& Start,
+	UPARAM(ref) const FVector& End,
+	float Radius
 )
 {
 	if (!IsValid(NeighborGridActor))
@@ -160,14 +160,14 @@ void UBattleFrameFunctionLibraryRT::SphereSweepForObstacle
 
 void UBattleFrameFunctionLibraryRT::ApplyDamageToSubjects
 (
+	TArray<FDmgResult>& DamageResults,
 	ABattleFrameBattleControl* BattleControl,
-	UPARAM(ref) const TArray<FSubjectHandle>& Subjects,
-	UPARAM(ref) const TArray<FSubjectHandle>& IgnoreSubjects,
-	FSubjectHandle DmgInstigator,
-	FVector HitFromLocation,
-	FDmgSphere DmgSphere,
-	FDebuff Debuff,
-	TArray<FDmgResult>& DamageResults
+	UPARAM(ref) const FSubjectArray& Subjects,
+	UPARAM(ref) const FSubjectArray& IgnoreSubjects,
+	UPARAM(ref) const FSubjectHandle& DmgInstigator,
+	UPARAM(ref) const FVector& HitFromLocation,
+	UPARAM(ref) const FDmgSphere& DmgSphere,
+	UPARAM(ref) const FDebuff& Debuff
 )
 {
 	DamageResults.Reset();
@@ -704,7 +704,7 @@ void UBattleFrameFunctionLibraryRT::SetRecordSubTypeTraitByIndex(int32 Index, FS
 	}
 }
 
-void UBattleFrameFunctionLibraryRT::SetRecordSubTypeTraitByEnum(ESubType SubType, FSubjectRecord& SubjectRecord)
+void UBattleFrameFunctionLibraryRT::SetRecordSubTypeTraitByEnum(EESubType SubType, FSubjectRecord& SubjectRecord)
 {
 	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("SetRecordSubTypeTraitByEnum");
 	switch (SubType)
@@ -712,294 +712,294 @@ void UBattleFrameFunctionLibraryRT::SetRecordSubTypeTraitByEnum(ESubType SubType
 	default:
 		break;
 
-	case ESubType::None:
+	case EESubType::None:
 		break;
 
-	case ESubType::SubType0:
+	case EESubType::SubType0:
 		SubjectRecord.SetTrait(FSubType0());
 		break;
-	case ESubType::SubType1:
+	case EESubType::SubType1:
 		SubjectRecord.SetTrait(FSubType1());
 		break;
-	case ESubType::SubType2:
+	case EESubType::SubType2:
 		SubjectRecord.SetTrait(FSubType2());
 		break;
-	case ESubType::SubType3:
+	case EESubType::SubType3:
 		SubjectRecord.SetTrait(FSubType3());
 		break;
-	case ESubType::SubType4:
+	case EESubType::SubType4:
 		SubjectRecord.SetTrait(FSubType4());
 		break;
-	case ESubType::SubType5:
+	case EESubType::SubType5:
 		SubjectRecord.SetTrait(FSubType5());
 		break;
-	case ESubType::SubType6:
+	case EESubType::SubType6:
 		SubjectRecord.SetTrait(FSubType6());
 		break;
-	case ESubType::SubType7:
+	case EESubType::SubType7:
 		SubjectRecord.SetTrait(FSubType7());
 		break;
-	case ESubType::SubType8:
+	case EESubType::SubType8:
 		SubjectRecord.SetTrait(FSubType8());
 		break;
-	case ESubType::SubType9:
+	case EESubType::SubType9:
 		SubjectRecord.SetTrait(FSubType9());
 		break;
-	case ESubType::SubType10:
+	case EESubType::SubType10:
 		SubjectRecord.SetTrait(FSubType10());
 		break;
-	case ESubType::SubType11:
+	case EESubType::SubType11:
 		SubjectRecord.SetTrait(FSubType11());
 		break;
-	case ESubType::SubType12:
+	case EESubType::SubType12:
 		SubjectRecord.SetTrait(FSubType12());
 		break;
-	case ESubType::SubType13:
+	case EESubType::SubType13:
 		SubjectRecord.SetTrait(FSubType13());
 		break;
-	case ESubType::SubType14:
+	case EESubType::SubType14:
 		SubjectRecord.SetTrait(FSubType14());
 		break;
-	case ESubType::SubType15:
+	case EESubType::SubType15:
 		SubjectRecord.SetTrait(FSubType15());
 		break;
-	case ESubType::SubType16:
+	case EESubType::SubType16:
 		SubjectRecord.SetTrait(FSubType16());
 		break;
-	case ESubType::SubType17:
+	case EESubType::SubType17:
 		SubjectRecord.SetTrait(FSubType17());
 		break;
-	case ESubType::SubType18:
+	case EESubType::SubType18:
 		SubjectRecord.SetTrait(FSubType18());
 		break;
-	case ESubType::SubType19:
+	case EESubType::SubType19:
 		SubjectRecord.SetTrait(FSubType19());
 		break;
-	case ESubType::SubType20:
+	case EESubType::SubType20:
 		SubjectRecord.SetTrait(FSubType20());
 		break;
-	case ESubType::SubType21:
+	case EESubType::SubType21:
 		SubjectRecord.SetTrait(FSubType21());
 		break;
-	case ESubType::SubType22:
+	case EESubType::SubType22:
 		SubjectRecord.SetTrait(FSubType22());
 		break;
-	case ESubType::SubType23:
+	case EESubType::SubType23:
 		SubjectRecord.SetTrait(FSubType23());
 		break;
-	case ESubType::SubType24:
+	case EESubType::SubType24:
 		SubjectRecord.SetTrait(FSubType24());
 		break;
-	case ESubType::SubType25:
+	case EESubType::SubType25:
 		SubjectRecord.SetTrait(FSubType25());
 		break;
-	case ESubType::SubType26:
+	case EESubType::SubType26:
 		SubjectRecord.SetTrait(FSubType26());
 		break;
-	case ESubType::SubType27:
+	case EESubType::SubType27:
 		SubjectRecord.SetTrait(FSubType27());
 		break;
-	case ESubType::SubType28:
+	case EESubType::SubType28:
 		SubjectRecord.SetTrait(FSubType28());
 		break;
-	case ESubType::SubType29:
+	case EESubType::SubType29:
 		SubjectRecord.SetTrait(FSubType29());
 		break;
-	case ESubType::SubType30:
+	case EESubType::SubType30:
 		SubjectRecord.SetTrait(FSubType30());
 		break;
-	case ESubType::SubType31:
+	case EESubType::SubType31:
 		SubjectRecord.SetTrait(FSubType31());
 		break;
-	case ESubType::SubType32:
+	case EESubType::SubType32:
 		SubjectRecord.SetTrait(FSubType32());
 		break;
-	case ESubType::SubType33:
+	case EESubType::SubType33:
 		SubjectRecord.SetTrait(FSubType33());
 		break;
-	case ESubType::SubType34:
+	case EESubType::SubType34:
 		SubjectRecord.SetTrait(FSubType34());
 		break;
-	case ESubType::SubType35:
+	case EESubType::SubType35:
 		SubjectRecord.SetTrait(FSubType35());
 		break;
-	case ESubType::SubType36:
+	case EESubType::SubType36:
 		SubjectRecord.SetTrait(FSubType36());
 		break;
-	case ESubType::SubType37:
+	case EESubType::SubType37:
 		SubjectRecord.SetTrait(FSubType37());
 		break;
-	case ESubType::SubType38:
+	case EESubType::SubType38:
 		SubjectRecord.SetTrait(FSubType38());
 		break;
-	case ESubType::SubType39:
+	case EESubType::SubType39:
 		SubjectRecord.SetTrait(FSubType39());
 		break;
-	case ESubType::SubType40:
+	case EESubType::SubType40:
 		SubjectRecord.SetTrait(FSubType40());
 		break;
 
-	case ESubType::SubType41:
+	case EESubType::SubType41:
 		SubjectRecord.SetTrait(FSubType41());
 		break;
 
-	case ESubType::SubType42:
+	case EESubType::SubType42:
 		SubjectRecord.SetTrait(FSubType42());
 		break;
 
-	case ESubType::SubType43:
+	case EESubType::SubType43:
 		SubjectRecord.SetTrait(FSubType43());
 		break;
 
-	case ESubType::SubType44:
+	case EESubType::SubType44:
 		SubjectRecord.SetTrait(FSubType44());
 		break;
 
-	case ESubType::SubType45:
+	case EESubType::SubType45:
 		SubjectRecord.SetTrait(FSubType45());
 		break;
 
-	case ESubType::SubType46:
+	case EESubType::SubType46:
 		SubjectRecord.SetTrait(FSubType46());
 		break;
 
-	case ESubType::SubType47:
+	case EESubType::SubType47:
 		SubjectRecord.SetTrait(FSubType47());
 		break;
 
-	case ESubType::SubType48:
+	case EESubType::SubType48:
 		SubjectRecord.SetTrait(FSubType48());
 		break;
 
-	case ESubType::SubType49:
+	case EESubType::SubType49:
 		SubjectRecord.SetTrait(FSubType49());
 		break;
 
-	case ESubType::SubType50:
+	case EESubType::SubType50:
 		SubjectRecord.SetTrait(FSubType50());
 		break;
 
-	case ESubType::SubType51:
+	case EESubType::SubType51:
 		SubjectRecord.SetTrait(FSubType51());
 		break;
 
-	case ESubType::SubType52:
+	case EESubType::SubType52:
 		SubjectRecord.SetTrait(FSubType52());
 		break;
 
-	case ESubType::SubType53:
+	case EESubType::SubType53:
 		SubjectRecord.SetTrait(FSubType53());
 		break;
 
-	case ESubType::SubType54:
+	case EESubType::SubType54:
 		SubjectRecord.SetTrait(FSubType54());
 		break;
 
-	case ESubType::SubType55:
+	case EESubType::SubType55:
 		SubjectRecord.SetTrait(FSubType55());
 		break;
 
-	case ESubType::SubType56:
+	case EESubType::SubType56:
 		SubjectRecord.SetTrait(FSubType56());
 		break;
 
-	case ESubType::SubType57:
+	case EESubType::SubType57:
 		SubjectRecord.SetTrait(FSubType57());
 		break;
 
-	case ESubType::SubType58:
+	case EESubType::SubType58:
 		SubjectRecord.SetTrait(FSubType58());
 		break;
 
-	case ESubType::SubType59:
+	case EESubType::SubType59:
 		SubjectRecord.SetTrait(FSubType59());
 		break;
 
-	case ESubType::SubType60:
+	case EESubType::SubType60:
 		SubjectRecord.SetTrait(FSubType60());
 		break;
 
-	case ESubType::SubType61:
+	case EESubType::SubType61:
 		SubjectRecord.SetTrait(FSubType61());
 		break;
 
-	case ESubType::SubType62:
+	case EESubType::SubType62:
 		SubjectRecord.SetTrait(FSubType62());
 		break;
 
-	case ESubType::SubType63:
+	case EESubType::SubType63:
 		SubjectRecord.SetTrait(FSubType63());
 		break;
 
-	case ESubType::SubType64:
+	case EESubType::SubType64:
 		SubjectRecord.SetTrait(FSubType64());
 		break;
 
-	case ESubType::SubType65:
+	case EESubType::SubType65:
 		SubjectRecord.SetTrait(FSubType65());
 		break;
 
-	case ESubType::SubType66:
+	case EESubType::SubType66:
 		SubjectRecord.SetTrait(FSubType66());
 		break;
 
-	case ESubType::SubType67:
+	case EESubType::SubType67:
 		SubjectRecord.SetTrait(FSubType67());
 		break;
 
-	case ESubType::SubType68:
+	case EESubType::SubType68:
 		SubjectRecord.SetTrait(FSubType68());
 		break;
 
-	case ESubType::SubType69:
+	case EESubType::SubType69:
 		SubjectRecord.SetTrait(FSubType69());
 		break;
 
-	case ESubType::SubType70:
+	case EESubType::SubType70:
 		SubjectRecord.SetTrait(FSubType70());
 		break;
 
-	case ESubType::SubType71:
+	case EESubType::SubType71:
 		SubjectRecord.SetTrait(FSubType71());
 		break;
 
-	case ESubType::SubType72:
+	case EESubType::SubType72:
 		SubjectRecord.SetTrait(FSubType72());
 		break;
 
-	case ESubType::SubType73:
+	case EESubType::SubType73:
 		SubjectRecord.SetTrait(FSubType73());
 		break;
 
-	case ESubType::SubType74:
+	case EESubType::SubType74:
 		SubjectRecord.SetTrait(FSubType74());
 		break;
 
-	case ESubType::SubType75:
+	case EESubType::SubType75:
 		SubjectRecord.SetTrait(FSubType75());
 		break;
 
-	case ESubType::SubType76:
+	case EESubType::SubType76:
 		SubjectRecord.SetTrait(FSubType76());
 		break;
 
-	case ESubType::SubType77:
+	case EESubType::SubType77:
 		SubjectRecord.SetTrait(FSubType77());
 		break;
 
-	case ESubType::SubType78:
+	case EESubType::SubType78:
 		SubjectRecord.SetTrait(FSubType78());
 		break;
 
-	case ESubType::SubType79:
+	case EESubType::SubType79:
 		SubjectRecord.SetTrait(FSubType79());
 		break;
 
-	case ESubType::SubType80:
+	case EESubType::SubType80:
 		SubjectRecord.SetTrait(FSubType80());
 		break;
 
-	case ESubType::SubType81:
+	case EESubType::SubType81:
 		SubjectRecord.SetTrait(FSubType81());
 		break;
 	}
@@ -2039,6 +2039,42 @@ TArray<FSubjectHandle> UBattleFrameFunctionLibraryRT::ConvertTraceResultsToSubje
 
 	return SubjectHandles;
 }
+
+FSubjectArray UBattleFrameFunctionLibraryRT::ConvertDmgResultsToSubjectArray(const TArray<FDmgResult>& DmgResults)
+{
+	FSubjectArray SubjectArray;
+	SubjectArray.Subjects.Reserve(DmgResults.Num());
+
+	for (const FDmgResult& Result : DmgResults)
+	{
+		SubjectArray.Subjects.Add(Result.DamagedSubject);
+	}
+
+	return SubjectArray;
+}
+
+FSubjectArray UBattleFrameFunctionLibraryRT::ConvertTraceResultsToSubjectArray(const TArray<FTraceResult>& TraceResults)
+{
+	FSubjectArray SubjectArray;
+	SubjectArray.Subjects.Reserve(TraceResults.Num());
+
+	for (const FTraceResult& Result : TraceResults)
+	{
+		SubjectArray.Subjects.Add(Result.Subject);
+	}
+
+	return SubjectArray;
+}
+
+FSubjectArray UBattleFrameFunctionLibraryRT::ConvertSubjectHandlesToSubjectArray(const TArray<FSubjectHandle>& SubjectHandles)
+{
+	FSubjectArray SubjectArray;
+	SubjectArray.Subjects = SubjectHandles;
+
+	return SubjectArray;
+}
+
+
 
 
 

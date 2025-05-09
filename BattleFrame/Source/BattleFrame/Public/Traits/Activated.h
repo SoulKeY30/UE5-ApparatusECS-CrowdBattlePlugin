@@ -10,5 +10,4 @@ struct BATTLEFRAME_API FActivated
 
 public:
 
-
 };

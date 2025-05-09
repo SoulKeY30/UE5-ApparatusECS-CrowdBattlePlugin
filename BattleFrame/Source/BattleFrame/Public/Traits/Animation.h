@@ -84,9 +84,6 @@ public:
     //-----------------------------------------------------------
 
     TArray<float> AnimLengthArray;
-    //float AppearAnimLength = 1.f;
-    //float AttackAnimLength = 1.f;
-    //float DeathAnimLength = 1.f;
 
     //-----------------------------------------------------------
 
@@ -150,9 +147,6 @@ public:
         LerpSpeed = Anim.LerpSpeed;
 
         AnimLengthArray = Anim.AnimLengthArray;
-        //AppearAnimLength = Anim.AppearAnimLength;
-        //AttackAnimLength = Anim.AttackAnimLength;
-        //DeathAnimLength = Anim.DeathAnimLength;
 
         IndexOfAppearAnim = Anim.IndexOfAppearAnim;
         IndexOfIdleAnim = Anim.IndexOfIdleAnim;
@@ -197,9 +191,6 @@ public:
         LerpSpeed = Anim.LerpSpeed;
 
         AnimLengthArray = Anim.AnimLengthArray;
-        //AppearAnimLength = Anim.AppearAnimLength;
-        //AttackAnimLength = Anim.AttackAnimLength;
-        //DeathAnimLength = Anim.DeathAnimLength;
 
         IndexOfAppearAnim = Anim.IndexOfAppearAnim;
         IndexOfIdleAnim = Anim.IndexOfIdleAnim;

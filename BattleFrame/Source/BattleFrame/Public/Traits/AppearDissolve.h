@@ -11,4 +11,5 @@ struct BATTLEFRAME_API FAppearDissolve
 public:
 
 	float dissolveTime = 0.f;
+
 };

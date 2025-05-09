@@ -30,7 +30,7 @@ void ARVOSphereObstacle::BeginPlay()
 	float Radius = SphereComponent->GetScaledSphereRadius();
 
 	Template.GetTraitRef<FLocated>().Location = Location;
-	Template.GetTraitRef<FLocated>().preLocation = Location;
+	Template.GetTraitRef<FLocated>().PreLocation = Location;
 
 	Template.GetTraitRef<FCollider>().Radius = Radius;
 
@@ -73,7 +73,7 @@ void ARVOSphereObstacle::Tick(float DeltaTime)
 		float Radius = SphereComponent->GetScaledSphereRadius();
 
 		SubjectHandle.GetTraitRef<FLocated, EParadigm::Unsafe>().Location = Location;
-		SubjectHandle.GetTraitRef<FLocated, EParadigm::Unsafe>().preLocation = Location;
+		SubjectHandle.GetTraitRef<FLocated, EParadigm::Unsafe>().PreLocation = Location;
 		SubjectHandle.GetTraitRef<FCollider, EParadigm::Unsafe>().Radius = Radius;
 		SubjectHandle.GetTraitRef<FSphereObstacle, EParadigm::Unsafe>().bOverrideSpeedLimit = bOverrideSpeedLimit;
 		SubjectHandle.GetTraitRef<FSphereObstacle, EParadigm::Unsafe>().NewSpeedLimit = NewSpeedLimit;

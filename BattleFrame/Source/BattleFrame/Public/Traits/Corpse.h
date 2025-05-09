@@ -11,5 +11,4 @@ struct BATTLEFRAME_API FCorpse
 
 public:
 
-
 };

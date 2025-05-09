@@ -3,9 +3,6 @@
 #include "CoreMinimal.h"
 #include "Jiggle.generated.h"
 
-/**
- * The state of being hit by a projectile.
- */
 USTRUCT(BlueprintType)
 struct BATTLEFRAME_API FJiggle
 {

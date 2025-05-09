@@ -174,7 +174,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
         Move.Goal = SpawnPoint3D;
 
         Located.Location = SpawnPoint3D;
-        Located.preLocation = SpawnPoint3D;
+        Located.PreLocation = SpawnPoint3D;
         Located.InitialLocation = SpawnPoint3D;
 
         switch (InitialDirection)

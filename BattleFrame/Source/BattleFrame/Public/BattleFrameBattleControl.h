@@ -46,7 +46,6 @@
 #include "Traits/Attacking.h"
 #include "Traits/TemporalDamaging.h"
 #include "Traits/Hit.h"
-#include "Traits/BeingHit.h"
 #include "Traits/HitGlow.h"
 #include "Traits/Jiggle.h"
 #include "Traits/Health.h"
@@ -69,8 +68,7 @@
 #include "Traits/Statistics.h"
 #include "Traits/BindFlowField.h"
 #include "Traits/ValidSubjects.h"
-#include "Traits/TraceResult.h"
-#include "Traits/DmgResult.h"
+#include "BattleFrameStructs.h"
 #include "Traits/Sleep.h"
 #include "Traits/Patrol.h"
 #include "Traits/Sleeping.h"
@@ -82,6 +80,7 @@
 #include "Traits/Activated.h"
 #include "Traits/IsSubjective.h"
 #include "DmgResultInterface.h"
+#include "BattleFrameStructs.h"
 #include "BattleFrameBattleControl.generated.h"
 
 // Forward Declearation
@@ -154,7 +153,7 @@ public:
 		return Instance;
 	}
 
-	void ApplyDamageToSubjects(TArray<FSubjectHandle> Subjects, TArray<FSubjectHandle> IgnoreSubjects, FSubjectHandle DmgInstigator, FVector HitFromLocation, FDmgSphere DmgSphere, FDebuff Debuff, TArray<FDmgResult>& DamageResults);
+	void ApplyDamageToSubjects(const FSubjectArray& Subjects, const FSubjectArray& IgnoreSubjects, const FSubjectHandle& DmgInstigator, const FVector& HitFromLocation, const FDmgSphere& DmgSphere, const FDebuff& Debuff, TArray<FDmgResult>& DamageResults);
 
 	// 计算实际伤害，并返回一个pair，第一个元素是是否暴击，第二个元素是实际伤害
 	FORCEINLINE std::pair<bool, float> ProcessCritDamage(float BaseDamage, float damageMult, float Probability)

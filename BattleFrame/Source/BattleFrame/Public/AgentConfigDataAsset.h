@@ -27,8 +27,6 @@
 #include "Traits/Scaled.h"
 #include "Traits/Collider.h"
 #include "Traits/Avoidance.h"
-#include "Traits/Chase.h"
-#include "Traits/Escape.h"
 #include "Traits/Animation.h"
 #include "Traits/Sleep.h"
 #include "Traits/Patrol.h"

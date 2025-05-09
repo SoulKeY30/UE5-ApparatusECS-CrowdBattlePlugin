@@ -15,13 +15,13 @@ public:
 	bool bEnable = true;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "合批特效的子类型", DisplayName = "SubType_Batched"))
-	ESubType SubType = ESubType::None;
+	EESubType SubType = EESubType::None;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Tooltip = "非合批特效Niagara资产", DisplayName = "NiagaraAsset_UnBatched"))
-	UNiagaraSystem* NiagaraAsset;
+	UNiagaraSystem* NiagaraAsset = nullptr;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Tooltip = "非合批特效Cascade资产", DisplayName = "CascadeAsset_UnBatched"))
-	UParticleSystem* CascadeAsset;
+	UParticleSystem* CascadeAsset = nullptr;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = ""))
 	FTransform Transform = FTransform::Identity;
@@ -39,7 +39,8 @@ public:
 
 	float TimeLeft = 0;
 
-	FSubjectHandle Owner;
+	FSubjectHandle Owner = FSubjectHandle();
 
-	FTransform SubjectTrans;
+	FTransform SubjectTrans = FTransform::Identity;
+
 };

@@ -9,6 +9,7 @@ struct BATTLEFRAME_API FHealthBar
 	GENERATED_BODY()
 
 public:
+
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "是否显示血条"))
 	bool bShowHealthBar = true;
 
@@ -30,4 +31,5 @@ public:
 
 	//UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "血条的缩放比例"))
 	//FVector Scale = FVector(1, 1, 1);
+
 };

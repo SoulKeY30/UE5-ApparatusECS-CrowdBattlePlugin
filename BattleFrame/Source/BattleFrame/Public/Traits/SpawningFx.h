@@ -15,7 +15,7 @@ struct BATTLEFRAME_API FSpawningFx
 public:
 	//float CoolDown = 2.f;
 
-	FSubjectHandle AttachParentSubject;
+	FSubjectHandle AttachParentSubject = FSubjectHandle();
 
 	UParticleSystemComponent* SpawnedCascadeSystem = nullptr;
 

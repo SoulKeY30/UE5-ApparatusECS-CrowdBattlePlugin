@@ -3,9 +3,6 @@
 #include "CoreMinimal.h"
 #include "Damage.generated.h"
 
-/**
- * The damage being dealt.
- */
 USTRUCT(BlueprintType)
 struct BATTLEFRAME_API FDamage
 {
@@ -34,6 +31,4 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Meta = (ToolTip = "暴击伤害倍数"))
 	float CritMult = 2.f;
 
-	//UPROPERTY(BlueprintReadWrite, EditAnywhere, Meta = (ToolTip = "爆头伤害倍数"))
-	//float HeadShotMult = 1.f;
 };

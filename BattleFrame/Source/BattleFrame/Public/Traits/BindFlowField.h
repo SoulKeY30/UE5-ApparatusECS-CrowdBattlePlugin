@@ -17,4 +17,5 @@ public:
 	TSoftObjectPtr<AFlowField> PreviousFlowFieldToBind;
 
 	AFlowField* FlowField = nullptr;
+
 };

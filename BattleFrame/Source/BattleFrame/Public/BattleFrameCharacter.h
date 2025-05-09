@@ -11,7 +11,7 @@
 #include "SubjectiveActorComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "DmgResultInterface.h"
-#include "Traits/DmgResult.h"
+#include "BattleFrameStructs.h"
 #include "BattleFrameCharacter.generated.h"
 
 UCLASS()

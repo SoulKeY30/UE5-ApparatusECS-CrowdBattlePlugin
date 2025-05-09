@@ -7,9 +7,6 @@
 #include "FxConfig.h"
 #include "Death.generated.h"
 
-/**
- * The state of dying.
- */
 USTRUCT(BlueprintType)
 struct BATTLEFRAME_API FDeath
 {

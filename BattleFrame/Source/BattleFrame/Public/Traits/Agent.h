@@ -13,13 +13,6 @@ struct BATTLEFRAME_API FAgent
  
   public:
 
-	//UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	//bool bGenerateAgentCount = true;
-
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	int32 Score = 1;
-
-	//UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	//bool bIsBoss = false;
-
 };

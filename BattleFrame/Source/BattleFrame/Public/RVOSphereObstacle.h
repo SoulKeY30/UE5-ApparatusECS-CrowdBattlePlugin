@@ -16,7 +16,6 @@
 #include "Traits/Collider.h"
 #include "Traits/SphereObstacle.h"
 #include "Traits/RegisterMultiple.h"
-#include "Traits/Excluding.h"
 
 #include "RVOSphereObstacle.generated.h"
 

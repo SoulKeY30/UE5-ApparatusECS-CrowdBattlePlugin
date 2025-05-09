@@ -15,5 +15,4 @@ struct BATTLEFRAME_API FAppearing
 
 	  float time = 0.0f;
 
-	  FAppearing() {};
 };

@@ -2,7 +2,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Traits/DmgResult.h"
+#include "BattleFrameStructs.h"
 #include "DmgResultInterface.generated.h"
 
 UINTERFACE(MinimalAPI, Blueprintable)

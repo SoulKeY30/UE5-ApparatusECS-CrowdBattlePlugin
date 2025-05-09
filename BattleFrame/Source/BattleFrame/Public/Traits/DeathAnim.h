@@ -3,9 +3,6 @@
 #include "CoreMinimal.h"
 #include "DeathAnim.generated.h"
  
-/**
- * The state of being hit by a projectile.
- */
 USTRUCT(BlueprintType)
 struct BATTLEFRAME_API FDeathAnim
 {
@@ -14,7 +11,6 @@ struct BATTLEFRAME_API FDeathAnim
   public:
 
 	bool enableAnim = false;
-
 	float animTime = 0.0f;
 	bool animFinished = false;
 

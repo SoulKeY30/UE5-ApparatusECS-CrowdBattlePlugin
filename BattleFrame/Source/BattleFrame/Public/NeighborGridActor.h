@@ -18,7 +18,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "NeighborGridComponent.h"
-#include "Traits/TraceResult.h"
+#include "BattleFrameStructs.h"
 #include "NeighborGridActor.generated.h"
 
 #define BUBBLE_DEBUG 0

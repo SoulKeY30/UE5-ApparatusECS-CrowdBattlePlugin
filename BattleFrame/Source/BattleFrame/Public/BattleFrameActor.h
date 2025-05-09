@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "SubjectiveActorComponent.h"
 #include "DmgResultInterface.h"
-#include "Traits/DmgResult.h"
+#include "BattleFrameStructs.h"
 #include "BattleFrameActor.generated.h"
 
 /**

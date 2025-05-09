@@ -8,6 +8,7 @@ USTRUCT(BlueprintType)
 struct BATTLEFRAME_API FHero
 {
 	GENERATED_BODY()
+
 public:
 
 };

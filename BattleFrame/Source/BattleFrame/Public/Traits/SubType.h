@@ -506,7 +506,7 @@ struct BATTLEFRAME_API FSubType81
 };
 
 UENUM(BlueprintType)
-enum class ESubType : uint8
+enum class EESubType : uint8
 {
     None UMETA(DisplayName = "None"),
     SubType0 UMETA(DisplayName = "SubType0"),

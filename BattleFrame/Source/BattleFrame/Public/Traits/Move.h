@@ -67,5 +67,4 @@ public:
 
 	FVector Goal = FVector(0, 0, 0);
 
-	FMove() {};
 };

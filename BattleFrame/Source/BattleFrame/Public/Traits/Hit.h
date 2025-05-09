@@ -7,9 +7,6 @@
 #include "FxConfig.h"
 #include "Hit.generated.h"
 
-/**
- * The state of being hit by a projectile.
- */
 USTRUCT(BlueprintType)
 struct BATTLEFRAME_API FHit
 {

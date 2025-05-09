@@ -30,12 +30,10 @@
 #include "Traits/Corpse.h"
 #include "Traits/Dying.h"
 #include "Traits/Activated.h"
-#include "Traits/Excluding.h"
+#include "Traits/Agent.h"
 #include "Math/Vector2D.h"
 #include "RVODefinitions.h"
-#include "Async/Async.h"
 #include "BattleFrameFunctionLibraryRT.h"
-#include "Traits/Agent.h"
 
 
 UNeighborGridComponent::UNeighborGridComponent()
@@ -75,7 +73,7 @@ void UNeighborGridComponent::SphereTraceForSubjects
 	const float CheckRadius,
 	ESortMode SortMode,
 	const FVector& SortOrigin,
-	const TArray<FSubjectHandle>& IgnoreSubjects,
+	const FSubjectArray& IgnoreSubjects,
 	const FFilter& Filter,
 	bool& Hit,
 	TArray<FTraceResult>& Results
@@ -89,7 +87,7 @@ void UNeighborGridComponent::SphereTraceForSubjects
 	const bool bNoCountLimit = (KeepCount == -1);
 
 	// 将忽略列表转换为集合以便快速查找
-	const TSet<FSubjectHandle> IgnoreSet(IgnoreSubjects);
+	const TSet<FSubjectHandle> IgnoreSet(IgnoreSubjects.Subjects);
 
 	// 扩展搜索范围
 	const float CellSizeXY = CellSize;
@@ -312,7 +310,7 @@ void UNeighborGridComponent::SphereSweepForSubjects
 	const float CheckRadius,
 	ESortMode SortMode,
 	const FVector& SortOrigin,
-	const TArray<FSubjectHandle>& IgnoreSubjects,
+	const FSubjectArray& IgnoreSubjects,
 	const FFilter& Filter,
 	bool& Hit,
 	TArray<FTraceResult>& Results
@@ -322,7 +320,7 @@ void UNeighborGridComponent::SphereSweepForSubjects
 	Results.Reset(); // Clear result array
 
 	// Convert ignore list to set for fast lookup
-	const TSet<FSubjectHandle> IgnoreSet(IgnoreSubjects);
+	const TSet<FSubjectHandle> IgnoreSet(IgnoreSubjects.Subjects);
 
 	TArray<FIntVector> GridCells = SphereSweepForCells(Start, End, Radius);
 
@@ -439,7 +437,7 @@ void UNeighborGridComponent::SectorTraceForSubjects
 	const float CheckRadius,
 	ESortMode SortMode,
 	const FVector& SortOrigin,
-	const TArray<FSubjectHandle>& IgnoreSubjects, 
+	const FSubjectArray& IgnoreSubjects,
 	const FFilter& Filter,
 	bool& Hit,
 	TArray<FTraceResult>& Results
@@ -454,7 +452,7 @@ void UNeighborGridComponent::SectorTraceForSubjects
 	const bool bNoCountLimit = (KeepCount == -1);
 
 	// 将忽略列表转换为集合以便快速查找
-	const TSet<FSubjectHandle> IgnoreSet(IgnoreSubjects);
+	const TSet<FSubjectHandle> IgnoreSet(IgnoreSubjects.Subjects);
 
 	const FVector NormalizedDir = Direction.GetSafeNormal2D();
 	const float HalfAngleRad = FMath::DegreesToRadians(Angle * 0.5f);
@@ -1477,7 +1475,7 @@ void UNeighborGridComponent::Decouple()
 			SphereObstacleNeighbors = ValidSphereObstacleNeighbors.Array();
 			BoxObstacleNeighbors = ValidBoxObstacleNeighbors.Array();
 
-			Located.preLocation = Located.Location;
+			Located.PreLocation = Located.Location;
 
 			Avoidance.Radius = SelfRadius;
 			Avoidance.Position = RVO::Vector2(SelfLocation.X, SelfLocation.Y);
@@ -1525,7 +1523,7 @@ void UNeighborGridComponent::Evaluate()
 
 //-------------------------------RVO2D Copyright 2023, EastFoxStudio. All Rights Reserved-------------------------------
 
-void UNeighborGridComponent::ComputeNewVelocity(FAvoidance& Avoidance, TArray<FAvoiding>& SubjectNeighbors, TArray<FAvoiding>& ObstacleNeighbors, float TimeStep_)
+void UNeighborGridComponent::ComputeNewVelocity(FAvoidance& Avoidance, const TArray<FAvoiding>& SubjectNeighbors, const TArray<FAvoiding>& ObstacleNeighbors, float TimeStep_)
 {
 	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("ComputeNewVelocity");
 

@@ -25,7 +25,6 @@
 #include "Traits/Projectile.h"
 #include "Traits/DmgSphere.h"
 #include "Traits/Moving.h"
-#include "Traits/BeingSpawned.h"
 #include "Traits/Animation.h"
 #include "Traits/RenderBatch.h"
 #include "Traits/RenderBatchData.h"

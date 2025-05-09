@@ -512,8 +512,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						const float TraceHeight = Collider.Radius * 2.0f; // 根据实际需求调整高度
 
 						// ignore self
-						TArray<FSubjectHandle> IgnoreList;
-						IgnoreList.Add(FSubjectHandle(Subject));
+						FSubjectArray IgnoreList;
+						IgnoreList.Subjects.Add(FSubjectHandle(Subject));
 
 						Trace.NeighborGrid->SectorTraceForSubjects
 						(
@@ -630,6 +630,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 			{
 				BindFlowField.FlowField = BindFlowField.FlowFieldToBind.LoadSynchronous();
 			});
+
 	}
 	#pragma endregion
 
@@ -702,7 +703,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					0, 
 					ESortMode::None, 
 					FVector::ZeroVector, 
-					SphereObstacle.OverridingAgents.Array(), 
+					FSubjectArray(SphereObstacle.OverridingAgents.Array()), 
 					FFilter::Make<FAgent, FLocated, FCollider, FMoving, FActivated>(), 
 					Hit, 
 					Results
@@ -1281,7 +1282,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 									if (Distance <= Attack.Range && Angle <= Attack.AngleTolerance)
 									{
 										FDmgSphere DmgSphere = { Damage.Damage,Damage.KineticDmg,Damage.FireDmg,Damage.IceDmg,Damage.PercentDmg,Damage.CritProbability,Damage.CritMult };
-										ApplyDamageToSubjects(TArray<FSubjectHandle>{Trace.TraceResult}, TArray<FSubjectHandle>{}, FSubjectHandle{ Subject }, Located.Location, DmgSphere, Debuff, DmgResults);
+										ApplyDamageToSubjects(FSubjectArray{ TArray<FSubjectHandle>{Trace.TraceResult} }, FSubjectArray(), FSubjectHandle{ Subject }, Located.Location, DmgSphere, Debuff, DmgResults);
 									}
 								}
 							}
@@ -1294,7 +1295,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 									if (Distance <= Attack.Range)
 									{
 										FDmgSphere DmgSphere = { Damage.Damage,Damage.KineticDmg,Damage.FireDmg,Damage.IceDmg,Damage.PercentDmg,Damage.CritProbability,Damage.CritMult };
-										ApplyDamageToSubjects(TArray<FSubjectHandle>{Trace.TraceResult}, TArray<FSubjectHandle>{}, FSubjectHandle{ Subject }, Located.Location, DmgSphere, Debuff, DmgResults);
+										ApplyDamageToSubjects(FSubjectArray{ TArray<FSubjectHandle>{Trace.TraceResult} }, FSubjectArray(), FSubjectHandle{ Subject }, Located.Location, DmgSphere, Debuff, DmgResults);
 									}
 								}
 								Subject.DespawnDeferred();
@@ -2366,7 +2367,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				if (Config.Delay <= 0)
 				{
 					// 验证合批情况下的SubType
-					if (Config.SubType != ESubType::None)
+					if (Config.SubType != EESubType::None)
 					{
 						FLocated FxLocated = { Config.Transform.GetLocation() };
 						FDirected FxDirected = { Config.Transform.GetRotation().GetForwardVector() };
@@ -2508,7 +2509,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void ABattleFrameBattleControl::ApplyDamageToSubjects(TArray<FSubjectHandle> Subjects, TArray<FSubjectHandle> IgnoreSubjects, FSubjectHandle DmgInstigator, FVector HitFromLocation, FDmgSphere DmgSphere, FDebuff Debuff, TArray<FDmgResult>& DamageResults)
+void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subjects, const FSubjectArray& IgnoreSubjects, const FSubjectHandle& DmgInstigator, const FVector& HitFromLocation, const FDmgSphere& DmgSphere, const FDebuff& Debuff, TArray<FDmgResult>& DamageResults)
 {
 	// Record for deferred spawning of TemporalDamager
 	FTemporalDamaging TemporalDamaging;
@@ -2517,9 +2518,9 @@ void ABattleFrameBattleControl::ApplyDamageToSubjects(TArray<FSubjectHandle> Sub
 	TSet<FSubjectHandle> UniqueHandles;
 
 	// 将IgnoreSubjects转换为TSet以提高查找效率
-	const TSet<FSubjectHandle> IgnoreSet(IgnoreSubjects);
+	const TSet<FSubjectHandle> IgnoreSet(IgnoreSubjects.Subjects);
 
-	for (const auto& Overlapper : Subjects)
+	for (const auto& Overlapper : Subjects.Subjects)
 	{
 		// 使用TSet的Contains替代数组的Contains
 		if (IgnoreSet.Contains(Overlapper)) continue;

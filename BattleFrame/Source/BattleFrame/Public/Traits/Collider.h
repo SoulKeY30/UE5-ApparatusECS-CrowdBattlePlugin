@@ -17,7 +17,4 @@ struct BATTLEFRAME_API FCollider
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "NeighborGrid", Meta = (ToolTip = "是否启用高质量模式"))
 	bool bHightQuality = true;
 
-	/* Default constructor. */
-	FCollider() {}
-
 };

@@ -56,12 +56,4 @@ public:
     RVO::Vector2 DesiredVelocity = RVO::Vector2(0.0f, 0.0f);
     RVO::Vector2 AvoidingVelocity = RVO::Vector2(0.0f, 0.0f);
 
-    //--------------------------------------------------------------------------------
-
-    //FFilter SubjectFilter;
-
-    //TArray<FAvoiding> SubjectNeighbors;
-    //TArray<FAvoiding> SphereObstacleNeighbors;
-    //TArray<FAvoiding> BoxObstacleNeighbors;
-
 };

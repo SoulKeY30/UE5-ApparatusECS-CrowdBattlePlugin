@@ -13,7 +13,7 @@ public:
 
     FVector Location{0,0,0};
     float Radius = 0;
-    FSubjectHandle SubjectHandle = FSubjectHandle{};
+    FSubjectHandle SubjectHandle = FSubjectHandle();
     uint32 SubjectHash = 0;
 
     // 匹配Handle
@@ -33,4 +33,5 @@ public:
     {
         return Data.SubjectHash;
     }
+
 };

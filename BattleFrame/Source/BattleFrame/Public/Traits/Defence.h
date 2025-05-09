@@ -45,4 +45,5 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "对百分比伤害的免疫比例（0-1）"))
 	float PercentDmgImmune = 0.f;
+
 };

@@ -14,5 +14,4 @@ struct BATTLEFRAME_API FAging
   public:
 
 	float Age = 0;
-
 };

@@ -15,6 +15,4 @@ public:
 
     FSubjectHandle Renderer = FSubjectHandle();
 
-    FRendering() {}
-
 };

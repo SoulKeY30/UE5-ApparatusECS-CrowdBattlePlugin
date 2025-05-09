@@ -21,9 +21,8 @@
 #include "Machine.h"
 #include "NeighborGridCell.h"
 #include "Traits/Avoidance.h"
-#include "Traits/OccupiedCells.h"
-#include "Traits/TraceResult.h"
-#include "Traits/BattleFrameEnums.h"
+#include "BattleFrameEnums.h"
+#include "BattleFrameStructs.h"
 #include "BitMask.h"
 #include "RVOSimulator.h"
 #include "RVOVector2.h"
@@ -41,9 +40,7 @@ struct FCapsulePath
 	FVector End;
 	float Radius;
 
-	FCapsulePath(const FVector& InStart, const FVector& InEnd, float InRadius)
-		: Start(InStart), End(InEnd), Radius(InRadius) {
-	}
+	FCapsulePath(const FVector& InStart, const FVector& InEnd, float InRadius) : Start(InStart), End(InEnd), Radius(InRadius) {}
 };
 
 UCLASS(Category = "NeighborGrid")
@@ -98,15 +95,15 @@ public:
 
 	void SphereTraceForSubjects
 	(
-		int32 KeepCount,
+		const int32 KeepCount,
 		const FVector& Origin, 
 		const float Radius, 
 		const bool bCheckVisibility, 
 		const FVector& CheckOrigin, 
 		const float CheckRadius, 
-		ESortMode SortMode,
+		const ESortMode SortMode,
 		const FVector& SortOrigin,
-		const TArray<FSubjectHandle>& IgnoreSubjects, 
+		const FSubjectArray& IgnoreSubjects,
 		const FFilter& Filter, 
 		bool& Hit, 
 		TArray<FTraceResult>& Results
@@ -114,23 +111,24 @@ public:
 
 	void SphereSweepForSubjects
 	(
-		int32 KeepCount,
+		const int32 KeepCount,
 		const FVector& Start, 
 		const FVector& End, 
 		const float Radius, 
 		const bool bCheckVisibility, 
 		const FVector& CheckOrigin, 
 		const float CheckRadius, 
-		ESortMode SortMode, 
+		const ESortMode SortMode,
 		const FVector& SortOrigin,
-		const TArray<FSubjectHandle>& IgnoreSubjects, 
-		const FFilter& Filter, bool& Hit, 
+		const FSubjectArray& IgnoreSubjects,
+		const FFilter& Filter, 
+		bool& Hit, 
 		TArray<FTraceResult>& Results
 	) const;
 
 	void SectorTraceForSubjects
 	(
-		int32 KeepCount,
+		const int32 KeepCount,
 		const FVector& Origin, 
 		const float Radius, 
 		const float Height, 
@@ -139,9 +137,9 @@ public:
 		const bool bCheckVisibility, 
 		const FVector& CheckOrigin, 
 		const float CheckRadius, 
-		ESortMode SortMode, 
+		const ESortMode SortMode,
 		const FVector& SortOrigin, 
-		const TArray<FSubjectHandle>& IgnoreSubjects, 
+		const FSubjectArray& IgnoreSubjects,
 		const FFilter& Filter, 
 		bool& Hit, 
 		TArray<FTraceResult>& Results
@@ -160,7 +158,7 @@ public:
 	void Decouple();
 	void Evaluate();
 
-	void ComputeNewVelocity(FAvoidance& Avoidance, TArray<FAvoiding>& SubjectNeighbors, TArray<FAvoiding>& ObstacleNeighbors, float timeStep_);
+	void ComputeNewVelocity(FAvoidance& Avoidance, const TArray<FAvoiding>& SubjectNeighbors, const TArray<FAvoiding>& ObstacleNeighbors, float timeStep_);
 	bool LinearProgram1(const std::vector<RVO::Line>& lines, size_t lineNo, float radius, const RVO::Vector2& optVelocity, bool directionOpt, RVO::Vector2& result);
 	size_t LinearProgram2(const std::vector<RVO::Line>& lines, float radius, const RVO::Vector2& optVelocity, bool directionOpt, RVO::Vector2& result);
 	void LinearProgram3(const std::vector<RVO::Line>& lines, size_t numObstLines, size_t beginLine, float radius, RVO::Vector2& result);

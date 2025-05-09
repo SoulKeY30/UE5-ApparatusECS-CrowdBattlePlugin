@@ -9,5 +9,7 @@ struct BATTLEFRAME_API FAppearAnim
 	GENERATED_BODY()
 
 public:
+
 	float animTime = 0.0f;
+
 };

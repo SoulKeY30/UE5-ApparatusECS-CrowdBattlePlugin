@@ -1,11 +1,9 @@
 #pragma once
  
 #include "CoreMinimal.h"
+#include "SubjectHandle.h"
 #include "Dying.generated.h"
  
-/**
- * The state of dying.
- */
 USTRUCT(BlueprintType)
 struct BATTLEFRAME_API FDying
 {
@@ -13,13 +11,10 @@ struct BATTLEFRAME_API FDying
  
   public:
 
-	/**
-	 * The current time of the dying process in seconds.
-	 */
 	float Time = 0.0f;
 
 	float Duration = 0.0f;
 
-	FSubjectHandle Instigator;
+	FSubjectHandle Instigator = FSubjectHandle();
 
 };
