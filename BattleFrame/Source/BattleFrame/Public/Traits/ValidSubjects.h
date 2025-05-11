@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "SubjectHandle.h"
+#include "SolidSubjectHandle.h"
 #include "ValidSubjects.generated.h"
 
 

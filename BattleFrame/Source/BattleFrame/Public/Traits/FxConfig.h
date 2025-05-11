@@ -2,6 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "NiagaraSystem.h"
+#include "SubjectHandle.h"
+#include "Traits/SubType.h"
 #include "FxConfig.generated.h" 
 
 USTRUCT(BlueprintType)

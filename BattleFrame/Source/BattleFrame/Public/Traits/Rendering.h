@@ -2,6 +2,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "SubjectHandle.h"
 #include "Rendering.generated.h"
 
 

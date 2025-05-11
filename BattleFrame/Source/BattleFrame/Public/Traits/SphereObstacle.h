@@ -1,6 +1,7 @@
 #pragma once
  
 #include "CoreMinimal.h"
+#include "SubjectHandle.h"
 #include "SphereObstacle.generated.h"
 
 class UNeighborGridComponent;

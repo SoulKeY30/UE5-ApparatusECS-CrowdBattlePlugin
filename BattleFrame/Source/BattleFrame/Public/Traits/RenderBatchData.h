@@ -5,6 +5,8 @@
 // Niagara Systems
 #include "NiagaraSystem.h" 
 #include "NiagaraComponent.h"
+#include "SubjectHandle.h"
+#include "BitMask.h"
 
 #include "RenderBatchData.generated.h"
 
