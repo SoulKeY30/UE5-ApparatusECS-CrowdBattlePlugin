@@ -4,9 +4,8 @@
 [![QQ Group](https://img.shields.io/badge/QQ%20Group-916358710-blue?logo=tencentqq)](https://jq.qq.com/?_wv=1027&k=5R5X5wX)
 
 ## Version
-Please use the release version.
-The repository version is my current progress. 
-It may not compile because it's under development.
+The repository version is my current progress. It may not compile because it's under development.
+If it failed to compile, use the release version instead.
 
 ## Dependencies
 
