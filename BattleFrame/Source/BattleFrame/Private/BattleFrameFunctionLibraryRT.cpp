@@ -10,6 +10,7 @@
 #include "BattleFrameBattleControl.h"
 #include "NeighborGridActor.h"
 #include "Async/Async.h"
+#include "Engine/Engine.h"
 
 //-------------------------------Sync Traces-------------------------------
 
