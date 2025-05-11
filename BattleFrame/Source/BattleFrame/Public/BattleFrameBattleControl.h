@@ -93,38 +93,40 @@ class BATTLEFRAME_API ABattleFrameBattleControl : public AActor
 
 public:
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Performance)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = BattleFrame)
 	int32 MaxThreadsAllowed = FMath::Clamp(FPlatformMisc::NumberOfWorkerThreadsToSpawn(), 1, 20);
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Performance)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = BattleFrame)
 	int32 MinBatchSizeAllowed = 100;
 
 	int32 ThreadsCount = 1;
 	int32 BatchSize = 1;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Sound)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = BattleFrame)
 	int32 NumSoundsPerFrame = 10;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Sound)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = BattleFrame)
 	float SoundVolume = 1.f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Game)
-	bool bIsGameOver = false;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = BattleFrame)
+	bool bGamePaused = false;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Statistics)
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = BattleFrame)
 	int32 AgentCount = 0;
+
+	//UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = BattleFrame)
+	//float MaxLogicFrameTime = 0.03f;
 
 	static ABattleFrameBattleControl* Instance;
 	FStreamableManager StreamableManager;
 	UWorld* CurrentWorld = nullptr;
 	AMechanism* Mechanism = nullptr;
-	//UNeighborGridComponent* NeighborGrid = nullptr;
 	TArray<UNeighborGridComponent*> NeighborGrids;
 	TQueue<TSoftObjectPtr<USoundBase>, EQueueMode::Mpsc> SoundsToPlay;
 	TQueue<float> VolumesToPlay;
 	EFlagmarkBit ReloadFlowFieldFlag = EFlagmarkBit::R;
-	EFlagmarkBit TracingFlag = EFlagmarkBit::T;
 	TQueue<FDmgResult, EQueueMode::Mpsc> DamageResultQueue;
+	TSet<int32> ExistingRenderers;
 
 public:
 
@@ -236,7 +238,6 @@ public:
 	FORCEINLINE void CopyAnimData(FAnimation& Animation)
 	{
 		Animation.AnimLerp = 0;
-
 		Animation.AnimIndex0 = Animation.AnimIndex1;
 		Animation.AnimCurrentTime0 = Animation.AnimCurrentTime1;
 		Animation.AnimOffsetTime0 = Animation.AnimOffsetTime1;

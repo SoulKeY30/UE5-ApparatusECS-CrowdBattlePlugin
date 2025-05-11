@@ -12,7 +12,7 @@
 #include "Math/UnrealMathUtility.h"
 #include "Math/Vector2D.h"
 #include "AgentConfigDataAsset.h"
-
+#include "BattleFrameBattleControl.h"
 #include "AgentSpawner.generated.h"
 
 
@@ -40,21 +40,20 @@ public:
 	FSpawnerMult() = default;
 };
 
-
 UENUM(BlueprintType)
 enum class EInitialDirection : uint8
 {
 	FacePlayer UMETA(
-		DisplayName = "TowardsPlayer0",
-		Tooltip = "生成时面朝玩家0（第一个玩家控制器）的方向\n适用于需要立即面对玩家的场景"
+		DisplayName = "FacingPlayer0",
+		Tooltip = "生成时面朝玩家0的方向"
 	),
 	FaceForward UMETA(
 		DisplayName = "SpawnerForwardVector",
-		Tooltip = "使用生成器Actor的前向向量作为朝向\n适用于需要保持与生成器方向一致的布局"
+		Tooltip = "使用生成器的前向向量作为朝向"
 	),
-	FaceLocation UMETA(
-		DisplayName = "TowardsCustomLocation",
-		Tooltip = "面向自定义世界坐标位置\n需在FaceCustomLocation参数中指定目标位置"
+	CustomDirection UMETA(
+		DisplayName = "CustomDirection",
+		Tooltip = "自定义朝向"
 	)
 };
 
@@ -64,29 +63,9 @@ class BATTLEFRAME_API AAgentSpawner : public AActor
 {
 	GENERATED_BODY()
 
-private:
-
-	static AAgentSpawner* Instance;
-
-
 protected:
 
-	void BeginPlay() override
-	{
-		Super::BeginPlay();
-		Instance = this;
-	}
-
-	void EndPlay(const EEndPlayReason::Type EndPlayReason) override
-	{
-		if (Instance == this)
-		{
-			Instance = nullptr;
-		}
-		Super::EndPlay(EndPlayReason);
-	}
-
-	void Tick(float DeltaTime) override;
+	void BeginPlay() override;
 
 public:
 
@@ -95,36 +74,22 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Spawning)
 	TArray<TSoftObjectPtr<UAgentConfigDataAsset>> AgentConfigAssets;
 
-	UFUNCTION(BlueprintCallable, BlueprintPure)
-	static AAgentSpawner* GetInstance() { return Instance; }
-
-	static FVector2D VRand2D()
-	{
-		FVector2D Result;
-		float Length;
-
-		do
-		{
-			Result.X = FMath::FRand() * 2.0f - 1.0f;
-			Result.Y = FMath::FRand() * 2.0f - 1.0f;
-			Length = Result.SizeSquared();
-		} while ((Length > 1.0f) || (Length < KINDA_SMALL_NUMBER));
-
-		return Result * (1.0f / FMath::Sqrt(Length));
-	}
+	UWorld* CurrentWorld = nullptr;
+	AMechanism* Mechanism = nullptr;
+	ABattleFrameBattleControl* BattleControl = nullptr;
 
 	UFUNCTION(BlueprintCallable, Category = "Spawning")
 	TArray<FSubjectHandle> SpawnAgentsRectangular
 	(
 		bool bAutoActivate = true,
-		int32 configIndex = 0,
-		int32 quantity = 1,
-		int32 team = 0,
-		FVector origin = FVector::ZeroVector,
-		FVector2D region = FVector2D::ZeroVector,
+		int32 ConfigIndex = 0,
+		int32 Quantity = 1,
+		int32 Team = 0,
+		FVector Origin = FVector::ZeroVector,
+		FVector2D Region = FVector2D::ZeroVector,
 		FVector2D LaunchForce = FVector2D::ZeroVector,
-		EInitialDirection initialDirection = EInitialDirection::FaceForward,
-		FVector FaceCustomLocation = FVector::ZeroVector,
+		EInitialDirection InitialDirection = EInitialDirection::FacePlayer,
+		FVector2D CustomDirection = FVector2D(1,0),
 		FSpawnerMult Multipliers = FSpawnerMult()
 	);
 

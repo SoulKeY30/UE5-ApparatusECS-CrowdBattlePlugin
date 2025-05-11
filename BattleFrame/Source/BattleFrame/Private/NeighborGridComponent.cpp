@@ -109,9 +109,13 @@ void UNeighborGridComponent::SphereTraceForSubjects
 
 	// 预收集候选格子并按距离排序
 	TArray<FIntVector> CandidateCells;
-	for (int32 z = CagePosMin.Z; z <= CagePosMax.Z; ++z) {
-		for (int32 y = CagePosMin.Y; y <= CagePosMax.Y; ++y) {
-			for (int32 x = CagePosMin.X; x <= CagePosMax.X; ++x) {
+
+	for (int32 z = CagePosMin.Z; z <= CagePosMax.Z; ++z) 
+	{
+		for (int32 y = CagePosMin.Y; y <= CagePosMax.Y; ++y) 
+		{
+			for (int32 x = CagePosMin.X; x <= CagePosMax.X; ++x) 
+			{
 				const FIntVector CellPos(x, y, z);
 				if (!IsInside(CellPos)) continue;
 
@@ -296,7 +300,6 @@ void UNeighborGridComponent::SphereTraceForSubjects
 
 	Hit = !Results.IsEmpty();
 }
-
 
 // Multi Sweep Trace For Subjects
 void UNeighborGridComponent::SphereSweepForSubjects
@@ -1056,7 +1059,7 @@ void UNeighborGridComponent::Update()
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("RegisterSubjectMultiple");// agents can also register themselves into all overlapping cells, thus improve avoidance precision
 
-		FFilter Filter = FFilter::Make<FLocated, FCollider, FAvoiding, FActivated, FRegisterMultiple>().Exclude<FSphereObstacle>();
+		FFilter Filter = FFilter::Make<FLocated, FCollider, FAvoiding, FRegisterMultiple, FActivated>().Exclude<FSphereObstacle>();
 		auto Chain = Mechanism->EnchainSolid(Filter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
@@ -1283,7 +1286,7 @@ void UNeighborGridComponent::Decouple()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("RVO2 Decouple");
 
-	const float DeltaTime = FMath::Clamp(GetWorld()->GetDeltaSeconds(),0,0.03f);
+	const float DeltaTime = FMath::Clamp(GetWorld()->GetDeltaSeconds(),0,0.0333f);
 
 	const FFilter SphereObstacleFilter = FFilter::Make<FSphereObstacle, FAvoiding, FAvoidance, FLocated, FCollider>();
 	const FFingerprint SphereObstacleFingerprint = SphereObstacleFilter.GetFingerprint();
@@ -1292,7 +1295,7 @@ void UNeighborGridComponent::Decouple()
 	const FFingerprint BoxObstacleFingerprint = BoxObstacleFilter.GetFingerprint();
 
 	AMechanism* Mechanism = GetMechanism();
-	const FFilter Filter = FFilter::Make<FAgent, FActivated, FLocated, FCollider, FMove, FMoving, FAvoidance, FAvoiding>().Exclude<FSphereObstacle, FAppearing>();
+	const FFilter Filter = FFilter::Make<FAgent, FLocated, FCollider, FMove, FMoving, FAvoidance, FAvoiding, FActivated>().Exclude<FAppearing>();
 
 	auto Chain = Mechanism->EnchainSolid(Filter);
 	UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
@@ -1317,7 +1320,7 @@ void UNeighborGridComponent::Decouple()
 
 			//--------------------------Collect Subject Neighbors--------------------------------
 
-			FFilter SubjectFilter = FFilter::Make<FAgent, FActivated, FLocated, FCollider, FAvoidance, FAvoiding>().Exclude<FSphereObstacle, FCorpse>();
+			FFilter SubjectFilter = FFilter::Make<FLocated, FCollider, FAvoidance, FAvoiding, FActivated>().Exclude<FSphereObstacle, FBoxObstacle, FCorpse>();
 
 			if (UNLIKELY(Subject.HasTrait<FDying>()))
 			{
@@ -1500,6 +1503,7 @@ void UNeighborGridComponent::Decouple()
 
 			//-------------------------------Blocked By Obstacles------------------------------------
 
+			UE_LOG(LogTemp, Log, TEXT("PushedBack : %s"), Moving.bPushedBack ? TEXT("Enabled") : TEXT("Disabled"));
 			Avoidance.MaxSpeed = Moving.bPushedBack ? FMath::Max(Moving.CurrentVelocity.Size2D(), Moving.PushBackSpeedOverride) : Moving.CurrentVelocity.Size2D();
 			Avoidance.DesiredVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);//copy into rvo trait
 			Avoidance.CurrentVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);//copy into rvo trait

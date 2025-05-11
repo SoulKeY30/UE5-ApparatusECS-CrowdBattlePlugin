@@ -48,6 +48,7 @@
 // Debugging
 #include "DrawDebugHelpers.h"
 #include "Engine/StaticMesh.h"
+#include "BattleFrameBattleControl.h"
 
 // Generated UCLASS
 #include "NiagaraSubjectRenderer.generated.h"
@@ -97,6 +98,9 @@ public:
     bool TickEnabled = false;
     bool isActive = false;
 
+    UWorld* CurrentWorld = nullptr;
+    AMechanism* Mechanism = nullptr;
+    ABattleFrameBattleControl* BattleControl = nullptr;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Performance)
     int32 NumRenderBatch = 4;

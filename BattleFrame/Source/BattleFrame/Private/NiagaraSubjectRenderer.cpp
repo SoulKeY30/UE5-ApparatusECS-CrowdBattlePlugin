@@ -7,7 +7,6 @@
 #include "NiagaraSubjectRenderer.h"
 #include "BattleFrameFunctionLibraryRT.h"
 #include "HAL/Platform.h"
-#include "BattleFrameBattleControl.h"
 
 // Sets default values
 ANiagaraSubjectRenderer::ANiagaraSubjectRenderer()
@@ -21,6 +20,14 @@ ANiagaraSubjectRenderer::ANiagaraSubjectRenderer()
 void ANiagaraSubjectRenderer::BeginPlay()
 {
 	Super::BeginPlay();
+
+	CurrentWorld = GetWorld();
+
+	if (CurrentWorld)
+	{
+		Mechanism = UMachine::ObtainMechanism(CurrentWorld);
+		BattleControl = Cast<ABattleFrameBattleControl>(UGameplayStatics::GetActorOfClass(CurrentWorld, ABattleFrameBattleControl::StaticClass()));
+	}
 }
 
 void ANiagaraSubjectRenderer::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -37,6 +44,18 @@ void ANiagaraSubjectRenderer::EndPlay(const EEndPlayReason::Type EndPlayReason)
 			System->DestroyComponent();
 		}
 	}
+
+	CurrentWorld = GetWorld();
+
+	if (CurrentWorld)
+	{
+		BattleControl = Cast<ABattleFrameBattleControl>(UGameplayStatics::GetActorOfClass(CurrentWorld, ABattleFrameBattleControl::StaticClass()));
+
+		if (BattleControl)
+		{
+			BattleControl->ExistingRenderers.Remove(SubType.Index);
+		}
+	}
 }
 
 // Called every frame
@@ -44,7 +63,7 @@ void ANiagaraSubjectRenderer::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	float SafeDeltaTime = FMath::Clamp(DeltaTime, 0, 0.03f);
+	float SafeDeltaTime = FMath::Clamp(DeltaTime, 0, 0.0333f);
 
 	if (TickEnabled)
 	{
@@ -78,9 +97,8 @@ void ANiagaraSubjectRenderer::Tick(float DeltaTime)
 
 void ANiagaraSubjectRenderer::ActivateRenderer()
 {
-	AMechanism* Mechanism = UMachine::ObtainMechanism(GetWorld());
-
-	if (Mechanism == nullptr) { return; }
+	Mechanism = UMachine::ObtainMechanism(GetWorld());
+	if (Mechanism == nullptr) return;
 
 	for (int i = 0; i < NumRenderBatch; ++i)
 	{
@@ -121,7 +139,7 @@ void ANiagaraSubjectRenderer::Register()
 
 	if (isActive)
 	{
-		AMechanism* Mechanism = UMachine::ObtainMechanism(GetWorld());
+		Mechanism = UMachine::ObtainMechanism(GetWorld());
 		if (Mechanism == nullptr) return;
 
 		FFilter Filter = FFilter::Make<FAgent, FLocated, FDirected, FScaled, FAnimation, FHealthBar, FAnimation, FActivated>().Exclude<FRendering>();

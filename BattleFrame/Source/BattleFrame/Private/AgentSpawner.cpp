@@ -30,16 +30,22 @@
 #include "SubjectHandle.h"
 
 
-AAgentSpawner* AAgentSpawner::Instance = nullptr;
-
 AAgentSpawner::AAgentSpawner() 
 {
     PrimaryActorTick.bCanEverTick = true;
 }
 
-void AAgentSpawner::Tick(float DeltaTime)
+void AAgentSpawner::BeginPlay()
 {
-    Super::Tick(DeltaTime);
+    Super::BeginPlay();
+
+    CurrentWorld = GetWorld();
+
+    if (CurrentWorld)
+    {
+        Mechanism = UMachine::ObtainMechanism(CurrentWorld);
+        BattleControl = Cast<ABattleFrameBattleControl>(UGameplayStatics::GetActorOfClass(CurrentWorld, ABattleFrameBattleControl::StaticClass()));
+    }
 }
 
 TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
@@ -52,7 +58,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     FVector2D Region,
     FVector2D LaunchForce,
     EInitialDirection InitialDirection,
-    FVector FaceCustomLocation,
+    FVector2D CustomDirection,
     FSpawnerMult Multipliers
 )
 {
@@ -60,39 +66,56 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
 
     TArray<FSubjectHandle> SpawnedAgents;
 
-    const auto Mechanism = UMachine::ObtainMechanism(GetWorld());
-    if (!Mechanism) return SpawnedAgents;
+    if (!CurrentWorld)
+    {
+        CurrentWorld = GetWorld();
 
-    ConfigIndex = FMath::Clamp(ConfigIndex, 0, AgentConfigAssets.Num() - 1);
-    if (!AgentConfigAssets.IsValidIndex(ConfigIndex)) return SpawnedAgents;
+        if (!CurrentWorld)
+        {
+            return SpawnedAgents;
+        }
+    }
+
+    if (!Mechanism)
+    {
+        Mechanism = UMachine::ObtainMechanism(CurrentWorld);
+
+        if (!Mechanism)
+        {
+            return SpawnedAgents;
+        }
+    }
+
+    if (!BattleControl)
+    {
+        BattleControl = Cast<ABattleFrameBattleControl>(UGameplayStatics::GetActorOfClass(CurrentWorld, ABattleFrameBattleControl::StaticClass()));
+
+        if (!BattleControl)
+        {
+            return SpawnedAgents;
+        }
+    }
+
+    if (!AgentConfigAssets.IsValidIndex(ConfigIndex))
+    {
+        return SpawnedAgents;
+    }
 
     UAgentConfigDataAsset* DataAsset = AgentConfigAssets[ConfigIndex].LoadSynchronous();
-    if (!IsValid(DataAsset)) return SpawnedAgents;
 
-    // 如果场上没有，生成该怪物的渲染器
-    ANiagaraSubjectRenderer* RendererActor = Cast<ANiagaraSubjectRenderer>(UGameplayStatics::GetActorOfClass(GetWorld(), DataAsset->Animation.RendererClass));
-
-    if (!RendererActor && DataAsset->Animation.RendererClass)
+    if (!IsValid(DataAsset))
     {
-        FActorSpawnParameters SpawnParams;
-        SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-        SpawnParams.bNoFail = true;
-
-        // 直接生成目标类型
-        RendererActor = GetWorld()->SpawnActor<ANiagaraSubjectRenderer>(DataAsset->Animation.RendererClass, FTransform::Identity, SpawnParams);
-
-        // 设置SubType参数
-        if (RendererActor)
-        {
-            RendererActor->SubType.Index = DataAsset->SubType.Index;
-            RendererActor->TickEnabled = true;
-        }
+        return SpawnedAgents;
     }
 
     FSubjectRecord AgentConfig;
 
     AgentConfig.SetTrait(DataAsset->Agent);
+    AgentConfig.SetTrait(DataAsset->SubType);
+    AgentConfig.SetTrait(FTeam(Team));
     AgentConfig.SetTrait(DataAsset->Collider);
+    AgentConfig.SetTrait(FLocated());
+    AgentConfig.SetTrait(FDirected());
     AgentConfig.SetTrait(DataAsset->Scale);
     AgentConfig.SetTrait(DataAsset->Health);
     AgentConfig.SetTrait(DataAsset->Damage);
@@ -100,11 +123,13 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     AgentConfig.SetTrait(DataAsset->Defence);
     AgentConfig.SetTrait(DataAsset->Sleep);
     AgentConfig.SetTrait(DataAsset->Move);
+    AgentConfig.SetTrait(FMoving());
     AgentConfig.SetTrait(DataAsset->Patrol);
     AgentConfig.SetTrait(DataAsset->Navigation);
     AgentConfig.SetTrait(DataAsset->Avoidance);
     AgentConfig.SetTrait(DataAsset->Appear);
     AgentConfig.SetTrait(DataAsset->Trace);
+    AgentConfig.SetTrait(FTracing());
     AgentConfig.SetTrait(DataAsset->Attack);
     AgentConfig.SetTrait(DataAsset->Hit);
     AgentConfig.SetTrait(DataAsset->Death);
@@ -114,33 +139,26 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     AgentConfig.SetTrait(DataAsset->Curves);
     AgentConfig.SetTrait(DataAsset->CustomData);
 
-    AgentConfig.SetTrait(FLocated());
-    AgentConfig.SetTrait(FDirected());
-    AgentConfig.SetTrait(FTracing());
-    AgentConfig.SetTrait(FMoving());
-    AgentConfig.SetTrait(FAvoiding());
-
-    UBattleFrameFunctionLibraryRT::SetRecordTeamTraitByIndex(FMath::Clamp(Team, 0, 9), AgentConfig);
-    UBattleFrameFunctionLibraryRT::SetRecordSubTypeTraitByIndex(DataAsset->SubType.Index, AgentConfig);
-    UBattleFrameFunctionLibraryRT::SetRecordAvoGroupTraitByIndex(FMath::Clamp(DataAsset->Avoidance.Group, 0, 9), AgentConfig);
-
+    // Apply Multipliers
     auto& HealthTrait = AgentConfig.GetTraitRef<FHealth>();
-    auto& TextPopUp = AgentConfig.GetTraitRef<FTextPopUp>();
-    auto& DamageTrait = AgentConfig.GetTraitRef<FDamage>();
-    auto& ScaledTrait = AgentConfig.GetTraitRef<FScaled>();
-    auto& MoveTrait = AgentConfig.GetTraitRef<FMove>();
-    auto& ColliderTrait = AgentConfig.GetTraitRef<FCollider>();
-
-    if (ColliderTrait.bHightQuality) AgentConfig.SetTrait(FRegisterMultiple{});
-
     HealthTrait.Current *= Multipliers.HealthMult;
     HealthTrait.Maximum *= Multipliers.HealthMult;
+
+    auto& TextPopUp = AgentConfig.GetTraitRef<FTextPopUp>();
     TextPopUp.WhiteTextBelowPercent *= Multipliers.HealthMult;
     TextPopUp.OrangeTextAbovePercent *= Multipliers.HealthMult;
+
+    auto& DamageTrait = AgentConfig.GetTraitRef<FDamage>();
     DamageTrait.Damage *= Multipliers.DamageMult;
+
+    auto& ScaledTrait = AgentConfig.GetTraitRef<FScaled>();
     ScaledTrait.Factors *= Multipliers.ScaleMult;
     ScaledTrait.renderFactors = ScaledTrait.Factors;
+
+    auto& MoveTrait = AgentConfig.GetTraitRef<FMove>();
     MoveTrait.MoveSpeed *= Multipliers.SpeedMult;
+
+    auto& ColliderTrait = AgentConfig.GetTraitRef<FCollider>();
     ColliderTrait.Radius *= Multipliers.ScaleMult;
 
     while (SpawnedAgents.Num() < Quantity)// the following traits varies from agent to agent
@@ -201,10 +219,9 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
                 break;
             }
 
-            case EInitialDirection::FaceLocation:
+            case EInitialDirection::CustomDirection:
             {
-                FVector Delta = FaceCustomLocation - SpawnPoint3D;
-                Directed.Direction = Delta.GetSafeNormal2D();
+                Directed.Direction = FVector(CustomDirection,0).GetSafeNormal2D();
                 break;
             }
         }
@@ -218,8 +235,6 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
         // Spawn using the modified record
         const auto Agent = Mechanism->SpawnSubject(Config);
 
-        Agent.GetTraitRef<FAvoiding, EParadigm::Unsafe>() = { SpawnPoint3D, Collider.Radius, Agent, Agent.CalcHash() };
-
         if (bAutoActivate)
         {
             ActivateAgent(Agent);
@@ -231,20 +246,23 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     return SpawnedAgents;
 }
 
-void AAgentSpawner::ActivateAgent( FSubjectHandle Agent )
+void AAgentSpawner::ActivateAgent( FSubjectHandle Agent )// strange apparatus bug : don't use get ref or the value may expire later when use
 {
-    auto& Appear = Agent.GetTraitRef<FAppear, EParadigm::Unsafe>();
-    auto& Sleep = Agent.GetTraitRef<FSleep, EParadigm::Unsafe>();
-    auto& Patrol = Agent.GetTraitRef<FPatrol, EParadigm::Unsafe>();
-    auto& Animation = Agent.GetTraitRef<FAnimation, EParadigm::Unsafe>();
+    auto Located = Agent.GetTrait<FLocated>();
+    auto Collider = Agent.GetTrait<FCollider>();
+    auto Appear = Agent.GetTrait<FAppear>();
+    auto Sleep = Agent.GetTrait<FSleep>();
+    auto Patrol = Agent.GetTrait<FPatrol>();
+    auto Animation = Agent.GetTrait<FAnimation>();
+    auto Team = Agent.GetTrait<FTeam>();
+    auto SubType = Agent.GetTrait<FSubType>();
+    auto Avoidance = Agent.GetTrait<FAvoidance>();
 
     Animation.AnimToTextureData = Animation.AnimToTextureDataAsset.LoadSynchronous(); // DataAsset Solid Pointer
 
     if (IsValid(Animation.AnimToTextureData))
     {
-        TArray<FAnimToTextureAnimInfo> Animations = Animation.AnimToTextureData->Animations;
-
-        for (FAnimToTextureAnimInfo CurrentAnim : Animations)
+        for (FAnimToTextureAnimInfo CurrentAnim : Animation.AnimToTextureData->Animations)
         {
             Animation.AnimLengthArray.Add((CurrentAnim.EndFrame - CurrentAnim.StartFrame) / Animation.AnimToTextureData->SampleRate);
         }
@@ -252,12 +270,11 @@ void AAgentSpawner::ActivateAgent( FSubjectHandle Agent )
 
     if (Appear.bEnable)
     {
+        Animation.Dissolve = 1;
         Agent.SetTrait(FAppearing());
     }
-    else
-    {
-        Animation.Dissolve = 0;
-    }
+
+    Agent.SetTrait(Animation);
 
     if (Sleep.bEnable)
     {
@@ -269,33 +286,80 @@ void AAgentSpawner::ActivateAgent( FSubjectHandle Agent )
         Agent.SetTrait(FPatrolling());
     }
 
+    if (Collider.bHightQuality)
+    {
+        Agent.SetTrait(FRegisterMultiple());
+    }
+
+    Agent.SetTrait(FAvoiding{ Located.Location, Collider.Radius, Agent, Agent.CalcHash() });
+
+    UBattleFrameFunctionLibraryRT::SetSubjectSubTypeTraitByIndex(SubType.Index, Agent);
+    UBattleFrameFunctionLibraryRT::SetSubjectTeamTraitByIndex(FMath::Clamp(Team.index, 0, 9), Agent);
+    UBattleFrameFunctionLibraryRT::SetSubjectAvoGroupTraitByIndex(FMath::Clamp(Avoidance.Group, 0, 9), Agent);
+
+    // 如果场上没有，生成该怪物的渲染器
+    if (CurrentWorld && BattleControl && !BattleControl->ExistingRenderers.Contains(SubType.Index))
+    {
+        FActorSpawnParameters SpawnParams;
+        SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+        SpawnParams.bNoFail = true;
+
+        // 直接生成目标类型
+        ANiagaraSubjectRenderer* RendererActor = CurrentWorld->SpawnActor<ANiagaraSubjectRenderer>(Animation.RendererClass, FTransform::Identity, SpawnParams);
+
+        // 设置SubType参数
+        if (RendererActor)
+        {
+            BattleControl->ExistingRenderers.Add(SubType.Index);
+            RendererActor->SubType.Index = SubType.Index;
+            RendererActor->TickEnabled = true;
+        }
+    }
+
     Agent.SetTrait(FActivated());
 }
 
 void AAgentSpawner::KillAllAgents()
 {
-    const auto Mechanism = UMachine::ObtainMechanism(GetWorld());
+    CurrentWorld = GetWorld();
 
-    FFilter Filter = FFilter::Make<FAgent>();
-    Filter.Exclude<FDying>();
-
-    Mechanism->Operate<FUnsafeChain>(Filter,
-    [&](FSubjectHandle Subject, FAgent& Agent)
+    if (CurrentWorld)
     {
-        Subject.SetTrait(FDying{ 0,0,FSubjectHandle{} });
-    });
+        Mechanism = UMachine::ObtainMechanism(CurrentWorld);
+
+        if (Mechanism)
+        {
+            FFilter Filter = FFilter::Make<FAgent>();
+            Filter.Exclude<FDying>();
+
+            Mechanism->Operate<FUnsafeChain>(Filter,
+                [&](FSubjectHandle Subject,
+                    FAgent& Agent)
+                {
+                    Subject.SetTrait(FDying{ 0,0,FSubjectHandle() });
+                });
+        }
+    }
 }
 
 void AAgentSpawner::KillAgentsByIndex(int32 Index)
 {
-    const auto Mechanism = UMachine::ObtainMechanism(GetWorld());
+    CurrentWorld = GetWorld();
 
-    FFilter Filter = FFilter::Make<FAgent>().Exclude<FDying>();
-    UBattleFrameFunctionLibraryRT::IncludeSubTypeTraitByIndex(Index, Filter);
-
-    Mechanism->Operate<FUnsafeChain>(Filter,
-    [&](FSubjectHandle Subject)
+    if (CurrentWorld)
     {
-        Subject.SetTraitDeferred(FDying{ 0,0,FSubjectHandle{} });
-    });
+        Mechanism = UMachine::ObtainMechanism(CurrentWorld);
+
+        if (Mechanism)
+        {
+            FFilter Filter = FFilter::Make<FAgent>().Exclude<FDying>();
+            UBattleFrameFunctionLibraryRT::IncludeSubTypeTraitByIndex(Index, Filter);
+
+            Mechanism->Operate<FUnsafeChain>(Filter,
+                [&](FSubjectHandle Subject)
+                {
+                    Subject.SetTrait(FDying{ 0,0,FSubjectHandle() });
+                });
+        }
+    }
 }

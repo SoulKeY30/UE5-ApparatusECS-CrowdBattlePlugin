@@ -106,7 +106,7 @@ public:
     float HitGlow = 0;
     float FreezeFx = 0;
     float BurnFx = 0;
-    float Dissolve = 1;
+    float Dissolve = 0;
 
     //-----------------------------------------------------------
 
