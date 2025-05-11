@@ -54,6 +54,7 @@ In progress:
 2. Agent individual navigation
 3. More trace shapes
 4. Network replication
+5. Agent Formation
 
 ## Leave a star if you find this project useful ;)
 
@@ -82,9 +83,9 @@ In progress:
   - Windows
   - UE5.3/UE5.4/UE5.5
 - **性能表现**：
-  - 10,000单位：60帧
+  - 15,000单位：60帧
   - 30,000单位：30帧
-  - (测试环境：AMD锐龙5900X + RTX4080S，CPU瓶颈)
+  - (测试环境：AMD锐龙5900X + RTX4080S，CPU瓶颈.Shipping模式打包)
 - **技术栈**：
   - ECS架构处理逻辑
   - Niagara+VAT实现渲染
@@ -104,7 +105,7 @@ In progress:
 未来版本将新增：
 1. 2D图集渲染器与转换工具
 2. 单位独立导航功能
-3. 通过蓝图节点控制单位AI
-4. 更多追踪形状支持
+3. 更多追踪形状支持
+4. 阵型功能
 
 ## 如果觉得项目有用，请点个星星哦 ;)
