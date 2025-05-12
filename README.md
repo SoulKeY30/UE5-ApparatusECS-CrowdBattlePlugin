@@ -31,7 +31,7 @@ This plugin is open source, but has the following dependencies:
 - **Performance**: 
   - 60fps with 15,000 agents
   - 30fps with 30,000 agents
-  - (Tested on AMD Ryzen 5900X + RTX 4080S, CPU capped. Shipping Package)
+  - (AMD Ryzen 5900X + RTX 4080S, CPU capped. Shipping Package)
 - **Technology Stack**:
   - ECS for logic
   - Niagara + VAT for rendering
