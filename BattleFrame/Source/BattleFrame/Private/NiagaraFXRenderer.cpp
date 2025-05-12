@@ -17,7 +17,6 @@ ANiagaraFXRenderer::ANiagaraFXRenderer()
 {
     PrimaryActorTick.bCanEverTick = true;
     PrimaryActorTick.bStartWithTickEnabled = true;
-    AddTickPrerequisiteActor(ABattleFrameBattleControl::GetInstance());
 
     // Create and setup the Niagara component
     NiagaraComponent = CreateDefaultSubobject<UNiagaraComponent>(TEXT("NiagaraComponent"));
@@ -59,7 +58,7 @@ void ANiagaraFXRenderer::Tick(float DeltaTime)
             Filter1 += SubType;
 
             Mechanism->Operate<FUnsafeChain>(Filter1,
-                [&](FSubjectHandle Subject,
+                [&](FUnsafeSubjectHandle Subject,
                     const FLocated& Located,
                     const FDirected& Directed,
                     const FScaled& Scaled)
@@ -102,7 +101,7 @@ void ANiagaraFXRenderer::Tick(float DeltaTime)
 
             Mechanism->Operate<FUnsafeChain>(
                 Filter2,
-                [&](FSubjectHandle Subject,
+                [&](FUnsafeSubjectHandle Subject,
                     const FLocated& Located,
                     const FDirected& Directed,
                     const FScaled& Scaled)
@@ -114,7 +113,6 @@ void ANiagaraFXRenderer::Tick(float DeltaTime)
                     FTransform SubjectTransform(Rotation, Located.Location, Scale);
 
                     int32 NewInstanceId;
-                    FRendering Rendering;
 
                     if (FreeTransforms.Num())
                     {
@@ -159,9 +157,7 @@ void ANiagaraFXRenderer::Tick(float DeltaTime)
                         LocationEventArray.Add(true);
                     }
 
-                    Rendering.InstanceId = NewInstanceId;
-
-                    Subject.SetTrait(Rendering);
+                    Subject.SetTrait(FRendering{ NewInstanceId });
                 });
 
             ValidTransforms.Reset();
@@ -172,7 +168,7 @@ void ANiagaraFXRenderer::Tick(float DeltaTime)
 
             Mechanism->Operate<FUnsafeChain>(
                 Filter3,
-                [&](FSubjectHandle Subject,
+                [&](FUnsafeSubjectHandle Subject,
                     const FLocated& Located,
                     const FDirected& Directed,
                     const FScaled& Scaled,

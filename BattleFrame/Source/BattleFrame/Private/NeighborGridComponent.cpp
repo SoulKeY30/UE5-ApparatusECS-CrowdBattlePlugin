@@ -1503,7 +1503,7 @@ void UNeighborGridComponent::Decouple()
 
 			//-------------------------------Blocked By Obstacles------------------------------------
 
-			UE_LOG(LogTemp, Log, TEXT("PushedBack : %s"), Moving.bPushedBack ? TEXT("Enabled") : TEXT("Disabled"));
+			//UE_LOG(LogTemp, Log, TEXT("PushedBack : %s"), Moving.bPushedBack ? TEXT("Enabled") : TEXT("Disabled"));
 			Avoidance.MaxSpeed = Moving.bPushedBack ? FMath::Max(Moving.CurrentVelocity.Size2D(), Moving.PushBackSpeedOverride) : Moving.CurrentVelocity.Size2D();
 			Avoidance.DesiredVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);//copy into rvo trait
 			Avoidance.CurrentVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);//copy into rvo trait

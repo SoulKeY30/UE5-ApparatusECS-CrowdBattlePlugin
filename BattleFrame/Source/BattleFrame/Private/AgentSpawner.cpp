@@ -333,10 +333,10 @@ void AAgentSpawner::KillAllAgents()
             Filter.Exclude<FDying>();
 
             Mechanism->Operate<FUnsafeChain>(Filter,
-                [&](FSubjectHandle Subject,
+                [&](FUnsafeSubjectHandle Subject,
                     FAgent& Agent)
                 {
-                    Subject.SetTrait(FDying{ 0,0,FSubjectHandle() });
+                    Subject.SetTrait(FDying());
                 });
         }
     }
@@ -356,9 +356,9 @@ void AAgentSpawner::KillAgentsByIndex(int32 Index)
             UBattleFrameFunctionLibraryRT::IncludeSubTypeTraitByIndex(Index, Filter);
 
             Mechanism->Operate<FUnsafeChain>(Filter,
-                [&](FSubjectHandle Subject)
+                [&](FUnsafeSubjectHandle Subject)
                 {
-                    Subject.SetTrait(FDying{ 0,0,FSubjectHandle() });
+                    Subject.SetTrait(FDying());
                 });
         }
     }

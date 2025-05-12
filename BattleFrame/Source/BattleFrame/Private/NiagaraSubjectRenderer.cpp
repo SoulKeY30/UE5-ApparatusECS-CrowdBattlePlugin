@@ -13,7 +13,7 @@ ANiagaraSubjectRenderer::ANiagaraSubjectRenderer()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
-	AddTickPrerequisiteActor(ABattleFrameBattleControl::GetInstance());
+	
 }
 
 // Called when the game starts or when spawned
@@ -32,6 +32,8 @@ void ANiagaraSubjectRenderer::BeginPlay()
 
 void ANiagaraSubjectRenderer::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	Super::EndPlay(EndPlayReason);
+
 	for (FSubjectHandle Subject : SpawnedRendererSubjects)
 	{
 		Subject->DespawnDeferred();
@@ -173,12 +175,10 @@ void ANiagaraSubjectRenderer::Register()
 					FinalScale);
 
 				int32 NewInstanceId;
-				FSubjectHandle RendererSubject;
-				FRendering Rendering;
+				FSubjectHandle RendererSubject = FSubjectHandle();
 
 				int32 Selector = BatchSelector % NumRenderBatch;
-				Rendering.Renderer = SpawnedRendererSubjects[Selector];
-				FRenderBatchData* Data = Rendering.Renderer.GetTraitPtr<FRenderBatchData, EParadigm::Unsafe>();
+				FRenderBatchData* Data = SpawnedRendererSubjects[Selector].GetTraitPtr<FRenderBatchData, EParadigm::Unsafe>();
 				if (Data == nullptr) { return; }
 
 				// Lock the critical section
@@ -229,8 +229,7 @@ void ANiagaraSubjectRenderer::Register()
 				// Unlock the critical section
 				Data->Unlock();
 
-				Rendering.InstanceId = NewInstanceId;
-				Subject.SetTrait(Rendering);
+				Subject.SetTrait(FRendering{ NewInstanceId, SpawnedRendererSubjects[Selector] });
 				BatchSelector++;
 			}
 		);

@@ -11,7 +11,7 @@
 ARVOSquareObstacle::ARVOSquareObstacle()
 {
     PrimaryActorTick.bCanEverTick = false;
-    AddTickPrerequisiteActor(ABattleFrameBattleControl::GetInstance());
+    
     BoxComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("BoxComponent"));
     RootComponent = BoxComponent;
 }
@@ -149,6 +149,8 @@ void ARVOSquareObstacle::BeginPlay()
 
 void ARVOSquareObstacle::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+    Super::EndPlay(EndPlayReason);
+
     if (Obstacle1.IsValid())
     {
         Obstacle1->DespawnDeferred();

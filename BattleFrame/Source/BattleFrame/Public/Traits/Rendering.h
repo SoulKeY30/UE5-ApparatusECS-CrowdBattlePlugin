@@ -12,6 +12,7 @@ struct BATTLEFRAME_API FRendering
     GENERATED_BODY()
 
 public:
+
     int32 InstanceId = -1;
 
     FSubjectHandle Renderer = FSubjectHandle();

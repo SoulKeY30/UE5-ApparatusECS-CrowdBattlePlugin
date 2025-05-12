@@ -18,7 +18,7 @@
 ABattleFrameActor::ABattleFrameActor()
 {
 	Subjective = CreateDefaultSubobject<USubjectiveActorComponent>("Subjective");
-	AddTickPrerequisiteActor(ABattleFrameBattleControl::GetInstance());
+	
 
 	Subjective->SetTrait(FProp{});
 	Subjective->SetTrait(FHealth{});

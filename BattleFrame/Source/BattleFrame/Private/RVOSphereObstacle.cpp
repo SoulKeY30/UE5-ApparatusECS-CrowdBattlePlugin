@@ -10,7 +10,7 @@
 ARVOSphereObstacle::ARVOSphereObstacle()
 {
 	PrimaryActorTick.bCanEverTick = true;
-	AddTickPrerequisiteActor(ABattleFrameBattleControl::GetInstance());
+	
 	SphereComponent = CreateDefaultSubobject<USphereComponent>(TEXT("SphereComponent"));
 	SphereComponent->SetupAttachment(RootComponent);
 }
