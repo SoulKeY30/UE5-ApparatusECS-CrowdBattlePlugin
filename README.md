@@ -49,11 +49,14 @@ Demo maps are included in the plugin's content folder.
 ## Roadmap
 
 In progress:
-1. 2D atlas renderer and converter
+1. Tower defence demo map
 2. Agent individual navigation
-3. More trace shapes
-4. Network replication
-5. Agent Formation
+3. 2D atlas renderer and utility widget
+4. TurboSequence renderer and utility widget
+6. More trace shapes
+7. Agent Formation
+8. Network replication
+9. RTS demo map
 
 ## Leave a star if you find this project useful ;)
 
