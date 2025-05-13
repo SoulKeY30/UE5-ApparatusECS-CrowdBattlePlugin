@@ -51,8 +51,8 @@ Demo maps are included in the plugin's content folder.
 In progress:
 1. Tower defence demo map
 2. Agent individual navigation
-3. 2D atlas renderer and utility widget
-4. TurboSequence renderer and utility widget
+3. Sprite Rendering Support
+4. GPU SKM Rendering Support with TurboSequence
 6. More trace shapes
 7. Agent Formation
 8. Network replication
