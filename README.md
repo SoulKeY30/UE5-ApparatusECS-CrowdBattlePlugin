@@ -45,7 +45,7 @@ Comprehensive crowd battle system including most commonly needed features. Demo 
 
 - **AI Behaviors**: 
   - Birth, Sleep, Patrol, Chase, Attack, Hit, Death, each with many params for fine tuning
-  - Debuffs, including kinetic launching, ice slowing and fire temporal dmg, with related material Fx.
+  - Debuffs, including kinetic launching, ice slowing and fire temporal dmg, with corresponding material Fx.
   - 2.5D movement that supports flying, falling and moving on uneven surfaces
   - Navigation and avoidance take into account sphere and box colliders
 - **AI Perception**:
