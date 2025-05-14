@@ -41,7 +41,7 @@ This plugin is open source, but has the following dependencies:
 
 ## Features
 
-Comprehensive crowd battle system including most commonly needed features. Demo maps are included in the plugin's content folder.
+Comprehensive crowd battle system including many commonly needed features. Demo maps are included in the plugin's content folder.
 
 - **AI Behaviors**: 
   - Birth, Sleep, Patrol, Chase, Attack, Hit, Death, each with many params for fine tuning
