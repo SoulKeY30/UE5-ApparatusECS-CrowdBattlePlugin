@@ -38,14 +38,26 @@ This plugin is open source, but has the following dependencies:
   - RVO2 for avoidance/collision
   - Neighbour grid for collision detection
   - Flow field for navigation
-- **Editor Features**:
-  - Includes utility widget for one-click agent setup
 
 ## Features
 
 Comprehensive crowd battle system including most commonly needed features.  
 Demo maps are included in the plugin's content folder.
 
+- **AI Behaviors**: 
+  - Birth, Sleep, Patrol, Chase, Attack, Hit, Death, each with many params for fine tuning
+  - Debuffs, including kinetic launching, ice slowing and fire temporal dmg, with related material Fx.
+  - 2.5D movement that supports flying, falling and moving on uneven surfaces
+- **AI Perception**:
+  - Support vision. Agent can do sector trace for targets that are not blocked by obstacles
+- **NS GPU Particle UI**: 
+  - Healthbar, Textpop, Groundring
+- **NS GPU Particle VAT**:
+  - Basic A to B animation blending
+  - Very handy editor utility widget to set up VAT in 1 click
+- **Batched Fx**:
+  - Batched particle burst, Batched trails
+  
 ## Roadmap
 
 In progress:
