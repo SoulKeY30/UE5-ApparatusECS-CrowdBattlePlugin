@@ -52,7 +52,7 @@ Demo maps are included in the plugin's content folder.
 - **AI Perception**:
   - Support vision. Agent can do sector trace for targets, and optionally those not blocked by obstacles
 - **NS GPU Particle UI**: 
-  - Healthbar, Textpop, Groundring
+  - Health Bar, Text Pop, Ground Ring
 - **NS GPU Particle VAT**:
   - Basic A to B animation blending
   - Very handy editor utility widget to set up VAT in 1 click
