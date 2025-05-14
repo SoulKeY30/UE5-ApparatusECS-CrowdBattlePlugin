@@ -1343,6 +1343,17 @@ void UNeighborGridComponent::Decouple()
 			const FVector SubjectRange3D(NeighborDist + SelfRadius, NeighborDist + SelfRadius, SelfRadius);
 			TArray<FIntVector> NeighbourCellCoords = GetNeighborCells(SelfLocation, SubjectRange3D);
 
+			TSet<FAvoiding> CachedAvoidings;
+
+			for (const FIntVector& Coord : NeighbourCellCoords)
+			{
+				const auto& Cell = At(Coord);
+				if (LIKELY(Cell.SubjectFingerprint.Matches(SubjectFingerprint)))
+				{
+					CachedAvoidings.Append(Cell.Subjects);
+				}
+			}
+
 			// 使用最大堆收集最近的SubjectNeighbors
 			auto SubjectCompare = [&](const FAvoiding& A, const FAvoiding& B)
 			{
@@ -1351,49 +1362,40 @@ void UNeighborGridComponent::Decouple()
 
 			TSet<uint32> SeenHashes;
 
-			for (const FIntVector& Coord : NeighbourCellCoords)
+			for (const FAvoiding& AvoData : CachedAvoidings)
 			{
-				const auto& Cell = At(Coord);
-
-				// Subject Neighbors
-				if (LIKELY(Cell.SubjectFingerprint.Matches(SubjectFingerprint)))
+				// 基础过滤条件
+				if (LIKELY(AvoData.SubjectHandle.Matches(SubjectFilter)))
 				{
-					for (const FAvoiding& AvoData : Cell.Subjects)
+					// 排除自身
+					if (LIKELY(AvoData.SubjectHash != Avoiding.SubjectHash))
 					{
-						// 基础过滤条件
-						if (LIKELY(AvoData.SubjectHandle.Matches(SubjectFilter)))
+						// 距离检查
+						const float DistSqr = FVector::DistSquared(SelfLocation, AvoData.Location);
+						const float RadiusSqr = FMath::Square(AvoData.Radius) + TotalRangeSqr;
+
+						if (UNLIKELY(DistSqr > RadiusSqr)) continue;
+
+						// 高效去重（基于栈内存的TSet）
+						if (SeenHashes.Contains(AvoData.SubjectHash)) continue;
+
+						SeenHashes.Add(AvoData.SubjectHash);
+
+						// 动态维护堆
+						if (SubjectNeighbors.Num() < MaxNeighbors)
 						{
-							// 排除自身
-							if (LIKELY(AvoData.SubjectHash != Avoiding.SubjectHash))
+							SubjectNeighbors.HeapPush(AvoData, SubjectCompare);
+						}
+						else
+						{
+							const float HeapTopDist = FVector::DistSquared(SelfLocation, SubjectNeighbors.HeapTop().Location);
+
+							if (DistSqr < HeapTopDist)
 							{
-								// 距离检查
-								const float DistSqr = FVector::DistSquared(SelfLocation, AvoData.Location);
-								const float RadiusSqr = FMath::Square(AvoData.Radius) + TotalRangeSqr;
-
-								if (UNLIKELY(DistSqr > RadiusSqr)) continue;
-
-								// 高效去重（基于栈内存的TSet）
-								if (SeenHashes.Contains(AvoData.SubjectHash)) continue;
-
-								SeenHashes.Add(AvoData.SubjectHash);
-
-								// 动态维护堆
-								if (SubjectNeighbors.Num() < MaxNeighbors)
-								{
-									SubjectNeighbors.HeapPush(AvoData, SubjectCompare);
-								}
-								else
-								{
-									const float HeapTopDist = FVector::DistSquared(SelfLocation, SubjectNeighbors.HeapTop().Location);
-
-									if (DistSqr < HeapTopDist)
-									{
-										// 弹出时同步移除哈希记录
-										SeenHashes.Remove(SubjectNeighbors.HeapTop().SubjectHash);
-										SubjectNeighbors.HeapPopDiscard(SubjectCompare);
-										SubjectNeighbors.HeapPush(AvoData, SubjectCompare);
-									}
-								}
+								// 弹出时同步移除哈希记录
+								SeenHashes.Remove(SubjectNeighbors.HeapTop().SubjectHash);
+								SubjectNeighbors.HeapPopDiscard(SubjectCompare);
+								SubjectNeighbors.HeapPush(AvoData, SubjectCompare);
 							}
 						}
 					}
