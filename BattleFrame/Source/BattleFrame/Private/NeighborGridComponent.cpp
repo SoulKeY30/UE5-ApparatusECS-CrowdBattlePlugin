@@ -1364,40 +1364,36 @@ void UNeighborGridComponent::Decouple()
 
 			for (const FAvoiding& AvoData : CachedAvoidings)
 			{
-				// 基础过滤条件
-				if (LIKELY(AvoData.SubjectHandle.Matches(SubjectFilter)))
+				// 基础过滤条件（提前短路无效数据）
+				if (UNLIKELY(!AvoData.SubjectHandle.Matches(SubjectFilter))) continue;
+				if (UNLIKELY(AvoData.SubjectHash == Avoiding.SubjectHash)) continue;
+
+				// 距离检查
+				const float DistSqr = FVector::DistSquared(SelfLocation, AvoData.Location);
+				const float RadiusSqr = FMath::Square(AvoData.Radius) + TotalRangeSqr;
+
+				if (UNLIKELY(DistSqr > RadiusSqr)) continue;
+
+				// 高效去重（基于栈内存的TSet）
+				if (SeenHashes.Contains(AvoData.SubjectHash)) continue;
+
+				SeenHashes.Add(AvoData.SubjectHash);
+
+				// 动态维护堆
+				if (SubjectNeighbors.Num() < MaxNeighbors)
 				{
-					// 排除自身
-					if (LIKELY(AvoData.SubjectHash != Avoiding.SubjectHash))
+					SubjectNeighbors.HeapPush(AvoData, SubjectCompare);
+				}
+				else
+				{
+					const float HeapTopDist = FVector::DistSquared(SelfLocation, SubjectNeighbors.HeapTop().Location);
+
+					if (DistSqr < HeapTopDist)
 					{
-						// 距离检查
-						const float DistSqr = FVector::DistSquared(SelfLocation, AvoData.Location);
-						const float RadiusSqr = FMath::Square(AvoData.Radius) + TotalRangeSqr;
-
-						if (UNLIKELY(DistSqr > RadiusSqr)) continue;
-
-						// 高效去重（基于栈内存的TSet）
-						if (SeenHashes.Contains(AvoData.SubjectHash)) continue;
-
-						SeenHashes.Add(AvoData.SubjectHash);
-
-						// 动态维护堆
-						if (SubjectNeighbors.Num() < MaxNeighbors)
-						{
-							SubjectNeighbors.HeapPush(AvoData, SubjectCompare);
-						}
-						else
-						{
-							const float HeapTopDist = FVector::DistSquared(SelfLocation, SubjectNeighbors.HeapTop().Location);
-
-							if (DistSqr < HeapTopDist)
-							{
-								// 弹出时同步移除哈希记录
-								SeenHashes.Remove(SubjectNeighbors.HeapTop().SubjectHash);
-								SubjectNeighbors.HeapPopDiscard(SubjectCompare);
-								SubjectNeighbors.HeapPush(AvoData, SubjectCompare);
-							}
-						}
+						// 弹出时同步移除哈希记录
+						SeenHashes.Remove(SubjectNeighbors.HeapTop().SubjectHash);
+						SubjectNeighbors.HeapPopDiscard(SubjectCompare);
+						SubjectNeighbors.HeapPush(AvoData, SubjectCompare);
 					}
 				}
 			}

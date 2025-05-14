@@ -8,7 +8,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
-#include "SubjectiveActorComponent.h"
+#include "BFSubjectiveActorComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "DmgResultInterface.h"
 #include "BattleFrameStructs.h"
@@ -26,7 +26,7 @@ public:
 	 * The subjective of the player pawn.
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Component)
-	USubjectiveActorComponent* Subjective = nullptr;
+	UBFSubjectiveActorComponent* Subjective = nullptr;
 
 protected:
 	// Called when the game starts or when spawned
