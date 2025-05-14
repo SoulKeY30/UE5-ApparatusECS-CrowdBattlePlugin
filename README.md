@@ -50,7 +50,7 @@ Demo maps are included in the plugin's content folder.
   - 2.5D movement that supports flying, falling and moving on uneven surfaces
   - Navigation and avoidance take into account sphere and box colliders
 - **AI Perception**:
-  - Support vision. Agent can do sector trace for targets that are not blocked by obstacles
+  - Support vision. Agent can do sector trace for targets, and optionally those not blocked by obstacles
 - **NS GPU Particle UI**: 
   - Healthbar, Textpop, Groundring
 - **NS GPU Particle VAT**:
