@@ -52,7 +52,7 @@ In progress:
 1. Tower defence demo map
 2. Agent individual navigation
 3. Sprite Rendering Support
-4. GPU SKM Rendering Support with TurboSequence
+4. TurboSequence GPU ISM Rendering Support
 6. More trace shapes
 7. Agent Formation
 8. Network replication
