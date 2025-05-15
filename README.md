@@ -60,7 +60,7 @@ Comprehensive crowd battle system including many commonly needed features. Demo 
   - Very handy editor utility widget to set up VAT in 1 click
 - **NS GPU Particle UI**: 
   - Health Bar, Text Pop, Ground Ring
-- **NS CPU Batched Fx**:
+- **NS CPU Batched Emitter**:
   - Batched particle burst, Batched trails
   
 ## Roadmap
