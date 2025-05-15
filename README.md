@@ -48,6 +48,10 @@ Comprehensive crowd battle system including many commonly needed features. Demo 
   - Debuffs, including kinetic launching, ice slowing and fire temporal dmg, with corresponding material Fx.
   - 2.5D movement supporting flying, falling and moving on uneven surfaces
   - Navigation and avoidance support sphere and box obstacles
+- **BP WorkFlow**: 
+  - Getting and setting trait values to change agents' behaviors
+  - Trace agents and apply damage and debuff to them
+  - Easy set up actors or characters that can be detected and attacked by agents
 - **AI Perception**:
   - Support vision. Agent can do sector trace for targets, and optionally those not blocked by obstacles
 - **NS GPU Particle UI**: 
