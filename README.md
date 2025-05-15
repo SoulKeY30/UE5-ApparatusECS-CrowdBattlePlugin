@@ -55,11 +55,11 @@ Comprehensive crowd battle system including many commonly needed features. Demo 
   - Getting and setting trait values to change agents' behaviors runtime
   - Trace for agents and apply damage and debuff
   - Easy set up actors or characters that can be detected and attacked by agents
-- **NS GPU Particle UI**: 
-  - Health Bar, Text Pop, Ground Ring
 - **NS GPU Particle VAT**:
   - Basic A to B animation blending
   - Very handy editor utility widget to set up VAT in 1 click
+- **NS GPU Particle UI**: 
+  - Health Bar, Text Pop, Ground Ring
 - **NS CPU Batched Fx**:
   - Batched particle burst, Batched trails
   
