@@ -49,7 +49,7 @@ Comprehensive crowd battle system including many commonly needed features. Demo 
   - 2.5D movement supporting flying, falling and moving on uneven surfaces
   - Navigation and avoidance support sphere and box obstacles
 - **BP WorkFlow**: 
-  - Getting and setting trait values to change agents' behaviors
+  - Getting and setting trait values to change agents' behaviors runtime
   - Trace agents and apply damage and debuff to them
   - Easy set up actors or characters that can be detected and attacked by agents
 - **AI Perception**:
