@@ -13,6 +13,8 @@
 #include "Traits/Located.h"
 #include "Traits/DmgSphere.h"
 #include "Traits/Debuff.h"
+#include "Traits/AvoGroup.h"
+#include "Traits/Team.h"
 #include "BattleFrameEnums.h"
 #include "BattleFrameStructs.h"
 #include "BattleFrameFunctionLibraryRT.generated.h"
@@ -133,17 +135,264 @@ public:
     static FSubjectArray ConvertSubjectHandlesToSubjectArray(const TArray<FSubjectHandle>& SubjectHandles);
 
     static FVector FindNewPatrolGoalLocation(const FPatrol& Patrol, const FCollider& Collider, const FTrace& Trace, const FLocated& Located, int32 MaxAttempts);
+    static void CalculateThreadsCountAndBatchSize(int32 IterableNum, int32 MaxThreadsAllowed, int32 MinBatchSizeAllowed, int32& ThreadsCount, int32& BatchSize);
+
     static void SetRecordSubTypeTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord);
     static void SetRecordSubTypeTraitByEnum(EESubType SubType, FSubjectRecord& SubjectRecord);
     static void SetSubjectSubTypeTraitByIndex(int32 Index, FSubjectHandle SubjectHandle);
     static void IncludeSubTypeTraitByIndex(int32 Index, FFilter& Filter);
-    static void CalculateThreadsCountAndBatchSize(int32 IterableNum, int32 MaxThreadsAllowed, int32 MinBatchSizeAllowed, int32& ThreadsCount, int32& BatchSize);
-    static void SetSubjectAvoGroupTraitByIndex(int32 Index, FSubjectHandle SubjectHandle);
-    static void SetSubjectTeamTraitByIndex(int32 Index, FSubjectHandle SubjectHandle);
-    static void SetRecordAvoGroupTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord);
-    static void SetRecordTeamTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord);
-    static void IncludeAvoGroupTraitByIndex(int32 Index, FFilter& Filter);
-    static void ExcludeAvoGroupTraitByIndex(int32 Index, FFilter& Filter);
+
+    FORCEINLINE static void SetSubjectAvoGroupTraitByIndex(int32 Index, FSubjectHandle SubjectHandle)
+    {
+        switch (Index)
+        {
+            default:
+                SubjectHandle.SetTrait(FAvoGroup0());
+                break;
+            case 0:
+                SubjectHandle.SetTrait(FAvoGroup0());
+                break;
+            case 1:
+                SubjectHandle.SetTrait(FAvoGroup1());
+                break;
+            case 2:
+                SubjectHandle.SetTrait(FAvoGroup2());
+                break;
+            case 3:
+                SubjectHandle.SetTrait(FAvoGroup3());
+                break;
+            case 4:
+                SubjectHandle.SetTrait(FAvoGroup4());
+                break;
+            case 5:
+                SubjectHandle.SetTrait(FAvoGroup5());
+                break;
+            case 6:
+                SubjectHandle.SetTrait(FAvoGroup6());
+                break;
+            case 7:
+                SubjectHandle.SetTrait(FAvoGroup7());
+                break;
+            case 8:
+                SubjectHandle.SetTrait(FAvoGroup8());
+                break;
+            case 9:
+                SubjectHandle.SetTrait(FAvoGroup9());
+                break;
+        }
+    };
+
+    FORCEINLINE static void SetSubjectTeamTraitByIndex(int32 Index, FSubjectHandle SubjectHandle) 
+    {
+        switch (Index)
+        {
+            default:
+                SubjectHandle.SetTrait(FTeam0());
+                break;
+            case 0:
+                SubjectHandle.SetTrait(FTeam0());
+                break;
+            case 1:
+                SubjectHandle.SetTrait(FTeam1());
+                break;
+            case 2:
+                SubjectHandle.SetTrait(FTeam2());
+                break;
+            case 3:
+                SubjectHandle.SetTrait(FTeam3());
+                break;
+            case 4:
+                SubjectHandle.SetTrait(FTeam4());
+                break;
+            case 5:
+                SubjectHandle.SetTrait(FTeam5());
+                break;
+            case 6:
+                SubjectHandle.SetTrait(FTeam6());
+                break;
+            case 7:
+                SubjectHandle.SetTrait(FTeam7());
+                break;
+            case 8:
+                SubjectHandle.SetTrait(FTeam8());
+                break;
+            case 9:
+                SubjectHandle.SetTrait(FTeam9());
+                break;
+        }
+    };
+
+    FORCEINLINE static void SetRecordAvoGroupTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord)
+    {
+        switch (Index)
+        {
+            default:
+                SubjectRecord.SetTrait(FAvoGroup0());
+                break;
+            case 0:
+                SubjectRecord.SetTrait(FAvoGroup0());
+                break;
+            case 1:
+                SubjectRecord.SetTrait(FAvoGroup1());
+                break;
+            case 2:
+                SubjectRecord.SetTrait(FAvoGroup2());
+                break;
+            case 3:
+                SubjectRecord.SetTrait(FAvoGroup3());
+                break;
+            case 4:
+                SubjectRecord.SetTrait(FAvoGroup4());
+                break;
+            case 5:
+                SubjectRecord.SetTrait(FAvoGroup5());
+                break;
+            case 6:
+                SubjectRecord.SetTrait(FAvoGroup6());
+                break;
+            case 7:
+                SubjectRecord.SetTrait(FAvoGroup7());
+                break;
+            case 8:
+                SubjectRecord.SetTrait(FAvoGroup8());
+                break;
+            case 9:
+                SubjectRecord.SetTrait(FAvoGroup9());
+                break;
+        }
+    };
+
+    FORCEINLINE static void SetRecordTeamTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord)
+    {
+        switch (Index)
+        {
+            default:
+                SubjectRecord.SetTrait(FTeam0());
+                break;
+            case 0:
+                SubjectRecord.SetTrait(FTeam0());
+                break;
+            case 1:
+                SubjectRecord.SetTrait(FTeam1());
+                break;
+            case 2:
+                SubjectRecord.SetTrait(FTeam2());
+                break;
+            case 3:
+                SubjectRecord.SetTrait(FTeam3());
+                break;
+            case 4:
+                SubjectRecord.SetTrait(FTeam4());
+                break;
+            case 5:
+                SubjectRecord.SetTrait(FTeam5());
+                break;
+            case 6:
+                SubjectRecord.SetTrait(FTeam6());
+                break;
+            case 7:
+                SubjectRecord.SetTrait(FTeam7());
+                break;
+            case 8:
+                SubjectRecord.SetTrait(FTeam8());
+                break;
+            case 9:
+                SubjectRecord.SetTrait(FTeam9());
+                break;
+        }
+    };
+
+    FORCEINLINE static void IncludeAvoGroupTraitByIndex(int32 Index, FFilter& Filter)
+    {
+        switch (Index)
+        {
+            case 0:
+                Filter.Include<FAvoGroup0>();
+                break;
+
+            case 1:
+                Filter.Include<FAvoGroup1>();
+                break;
+
+            case 2:
+                Filter.Include<FAvoGroup2>();
+                break;
+
+            case 3:
+                Filter.Include<FAvoGroup3>();
+                break;
+
+            case 4:
+                Filter.Include<FAvoGroup4>();
+                break;
+
+            case 5:
+                Filter.Include<FAvoGroup5>();
+                break;
+
+            case 6:
+                Filter.Include<FAvoGroup6>();
+                break;
+
+            case 7:
+                Filter.Include<FAvoGroup7>();
+                break;
+
+            case 8:
+                Filter.Include<FAvoGroup8>();
+                break;
+
+            case 9:
+                Filter.Include<FAvoGroup9>();
+                break;
+        }
+    };
+
+    FORCEINLINE static void ExcludeAvoGroupTraitByIndex(int32 Index, FFilter& Filter)
+    {
+        switch (Index)
+        {
+            case 0:
+                Filter.Exclude<FAvoGroup0>();
+                break;
+
+            case 1:
+                Filter.Exclude<FAvoGroup1>();
+                break;
+
+            case 2:
+                Filter.Exclude<FAvoGroup2>();
+                break;
+
+            case 3:
+                Filter.Exclude<FAvoGroup3>();
+                break;
+
+            case 4:
+                Filter.Exclude<FAvoGroup4>();
+                break;
+
+            case 5:
+                Filter.Exclude<FAvoGroup5>();
+                break;
+
+            case 6:
+                Filter.Exclude<FAvoGroup6>();
+                break;
+
+            case 7:
+                Filter.Exclude<FAvoGroup7>();
+                break;
+
+            case 8:
+                Filter.Exclude<FAvoGroup8>();
+                break;
+
+            case 9:
+                Filter.Exclude<FAvoGroup9>();
+                break;
+        }
+    };
 };
 
 //-------------------------------Async Trace-------------------------------
