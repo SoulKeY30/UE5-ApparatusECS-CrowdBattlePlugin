@@ -105,7 +105,7 @@ public:
         ABattleFrameBattleControl* BattleControl = nullptr,
         UPARAM(ref) const FSubjectArray& Subjects = FSubjectArray(),
         UPARAM(ref) const FSubjectArray& IgnoreSubjects = FSubjectArray(),
-        UPARAM(ref) const FSubjectHandle& DmgInstigator = FSubjectHandle(),
+        UPARAM(ref) const FSubjectHandle DmgInstigator = FSubjectHandle(),
         UPARAM(ref) const FVector& HitFromLocation = FVector(0, 0, 0),
         UPARAM(ref) const FDmgSphere& DmgSphere = FDmgSphere(),
         UPARAM(ref) const FDebuff& Debuff = FDebuff()

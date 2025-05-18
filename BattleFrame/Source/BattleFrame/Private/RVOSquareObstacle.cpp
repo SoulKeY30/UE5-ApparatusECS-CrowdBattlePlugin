@@ -202,7 +202,7 @@ void ARVOSquareObstacle::Tick(float DeltaTime)
         Obstacle3.GetTraitPtr<FLocated, EParadigm::Unsafe>()->Location = Point3Location;
         Obstacle4.GetTraitPtr<FLocated, EParadigm::Unsafe>()->Location = Point4Location;
 
-        auto UpdateObstacle = [&](FSubjectHandle& Obstacle, const FVector& Location, const FVector& NextLocation) 
+        auto UpdateObstacle = [&](FSubjectHandle Obstacle, const FVector& Location, const FVector& NextLocation) 
         {
             FBoxObstacle* ObstacleData = Obstacle.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
 

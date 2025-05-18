@@ -2500,7 +2500,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subjects, const FSubjectArray& IgnoreSubjects, const FSubjectHandle& DmgInstigator, const FVector& HitFromLocation, const FDmgSphere& DmgSphere, const FDebuff& Debuff, TArray<FDmgResult>& DamageResults)
+void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subjects, const FSubjectArray& IgnoreSubjects, const FSubjectHandle DmgInstigator, const FVector& HitFromLocation, const FDmgSphere& DmgSphere, const FDebuff& Debuff, TArray<FDmgResult>& DamageResults)
 {
 	// Record for deferred spawning of TemporalDamager
 	FTemporalDamaging TemporalDamaging;

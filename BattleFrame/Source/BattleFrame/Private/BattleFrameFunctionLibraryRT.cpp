@@ -163,7 +163,7 @@ void UBattleFrameFunctionLibraryRT::ApplyDamageToSubjects
 	ABattleFrameBattleControl* BattleControl,
 	UPARAM(ref) const FSubjectArray& Subjects,
 	UPARAM(ref) const FSubjectArray& IgnoreSubjects,
-	UPARAM(ref) const FSubjectHandle& DmgInstigator,
+	UPARAM(ref) const FSubjectHandle DmgInstigator,
 	UPARAM(ref) const FVector& HitFromLocation,
 	UPARAM(ref) const FDmgSphere& DmgSphere,
 	UPARAM(ref) const FDebuff& Debuff
@@ -310,14 +310,15 @@ void USphereSweepForSubjectsAsyncAction::Activate()
 				// 创建忽略列表的哈希集合以便快速查找
 				TSet<FSubjectHandle> IgnoreSet;
 
-				for (const FSubjectHandle& Subject : IgnoreSubjects) IgnoreSet.Add(Subject);
+				for (const FSubjectHandle Subject : IgnoreSubjects)
+				{
+					IgnoreSet.Add(Subject);
+				}
 
 				// 检查每个单元中的subject
 				for (FIntVector CellCoord : CellCoords)
 				{
-					const FNeighborGridCell& CageCell = NeighborGrid->Cells[NeighborGrid->GetIndexAt(CellCoord)];
-
-					if (!CageCell.SubjectFingerprint.Matches(Filter.GetFingerprint())) continue;
+					const FNeighborGridCell& CageCell = NeighborGrid->At(CellCoord);
 
 					for (const FAvoiding& Data : CageCell.Subjects)
 					{

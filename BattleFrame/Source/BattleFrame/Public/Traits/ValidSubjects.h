@@ -27,7 +27,7 @@ public:
 		LockFlag.store(false, std::memory_order_release);
 	}
 
-	TArray<FSolidSubjectHandle, TInlineAllocator<256>> Subjects;
+	TArray<FSolidSubjectHandle, TInlineAllocator<128>> Subjects;
 
 	FValidSubjects() {};
 

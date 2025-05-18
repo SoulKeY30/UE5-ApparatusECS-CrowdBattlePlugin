@@ -44,20 +44,14 @@ public:
 		LockFlag.store(false, std::memory_order_release);
 	}
 
+
+	TArray<FAvoiding, TInlineAllocator<8>> Subjects;
+	TArray<FAvoiding, TInlineAllocator<8>> SphereObstacles;
+	TArray<FAvoiding, TInlineAllocator<8>> BoxObstacles;
+	TArray<FAvoiding, TInlineAllocator<8>> SphereObstaclesStatic;
+	TArray<FAvoiding, TInlineAllocator<8>> BoxObstaclesStatic;
+
 	bool Registered = false;
-
-	FFingerprint SubjectFingerprint;
-	FFingerprint SphereObstacleFingerprint;
-	FFingerprint BoxObstacleFingerprint;
-	FFingerprint SphereObstacleFingerprintStatic;
-	FFingerprint BoxObstacleFingerprintStatic;
-
-	TArray<FAvoiding> Subjects;
-	TArray<FAvoiding> SphereObstacles;
-	TArray<FAvoiding> BoxObstacles;
-	TArray<FAvoiding> SphereObstaclesStatic;
-	TArray<FAvoiding> BoxObstaclesStatic;
-
 
 	FNeighborGridCell(){}
 
@@ -66,11 +60,6 @@ public:
 		LockFlag.store(Cell.LockFlag.load());
 
 		Registered = Cell.Registered;
-		SubjectFingerprint = Cell.SubjectFingerprint;
-		SphereObstacleFingerprint = Cell.SphereObstacleFingerprint;
-		BoxObstacleFingerprint = Cell.BoxObstacleFingerprint;
-		SphereObstacleFingerprintStatic = Cell.SphereObstacleFingerprintStatic;
-		BoxObstacleFingerprintStatic = Cell.BoxObstacleFingerprintStatic;
 		Subjects = Cell.Subjects;
 		SphereObstacles = Cell.SphereObstacles;
 		BoxObstacles = Cell.BoxObstacles;
@@ -81,11 +70,6 @@ public:
 	FNeighborGridCell& operator=(const FNeighborGridCell& Cell)
 	{
 		Registered = Cell.Registered;
-		SubjectFingerprint = Cell.SubjectFingerprint;
-		SphereObstacleFingerprint = Cell.SphereObstacleFingerprint;
-		BoxObstacleFingerprint = Cell.BoxObstacleFingerprint;
-		SphereObstacleFingerprintStatic = Cell.SphereObstacleFingerprintStatic;
-		BoxObstacleFingerprintStatic = Cell.BoxObstacleFingerprintStatic;
 		Subjects = Cell.Subjects;
 		SphereObstacles = Cell.SphereObstacles;
 		BoxObstacles = Cell.BoxObstacles;
@@ -99,14 +83,9 @@ public:
 	{
 		Registered = false;
 
-		// 重置所有指纹
-		SubjectFingerprint.Reset();
-		SphereObstacleFingerprint.Reset();
-		BoxObstacleFingerprint.Reset();
-
 		// 清空所有存储的障碍物数据
-		Subjects.Reset();
-		SphereObstacles.Reset();
-		BoxObstacles.Reset();
+		Subjects.Empty();
+		SphereObstacles.Empty();
+		BoxObstacles.Empty();
 	}
 };
