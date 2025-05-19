@@ -1726,7 +1726,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				// Steering
 				float SlowMult = 1;
 
-				if (!Move.bEnable || bIsAppearing || bIsSleeping || Moving.bFalling || Moving.bLaunching || bIsDying || (bIsPatrolling && DistanceToGoal <= Patrol.AcceptanceRadius) || (bIsAttacking && Subject.GetTrait<FAttacking>().State == EAttackState::PreCast))
+				if (!Move.bEnable || bIsAppearing || bIsSleeping || Moving.bFalling || Moving.bLaunching || bIsDying || (bIsPatrolling && DistanceToGoal <= Patrol.AcceptanceRadius) || (bIsAttacking/* && Subject.GetTrait<FAttacking>().State == EAttackState::PreCast*/))
 				{
 					SlowMult = 0;// 不转向
 				}
