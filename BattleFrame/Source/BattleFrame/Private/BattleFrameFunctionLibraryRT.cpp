@@ -318,7 +318,9 @@ void USphereSweepForSubjectsAsyncAction::Activate()
 				// 检查每个单元中的subject
 				for (FIntVector CellCoord : CellCoords)
 				{
-					const FNeighborGridCell& CageCell = NeighborGrid->At(CellCoord);
+					if (!NeighborGrid->IsInside(CellCoord)) continue;
+
+					const auto& CageCell = NeighborGrid->At(CellCoord);
 
 					for (const FAvoiding& Data : CageCell.Subjects)
 					{

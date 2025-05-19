@@ -333,7 +333,9 @@ void UNeighborGridComponent::SphereSweepForSubjects
 	// Check subjects in each cell
 	for (const FIntVector& CellIndex : GridCells)
 	{
-		const FNeighborGridCell& CageCell = At(CellIndex.X, CellIndex.Y, CellIndex.Z);
+		if (!IsInside(CellIndex)) continue;
+
+		const auto& CageCell = At(CellIndex.X, CellIndex.Y, CellIndex.Z);
 
 		for (const FAvoiding& Data : CageCell.Subjects)
 		{
@@ -482,9 +484,13 @@ void UNeighborGridComponent::SectorTraceForSubjects
 
 	// 预收集候选格子并按距离排序
 	TArray<FIntVector> CandidateCells;
-	for (int32 z = CagePosMin.Z; z <= CagePosMax.Z; ++z) {
-		for (int32 x = CagePosMin.X; x <= CagePosMax.X; ++x) {
-			for (int32 y = CagePosMin.Y; y <= CagePosMax.Y; ++y) {
+
+	for (int32 z = CagePosMin.Z; z <= CagePosMax.Z; ++z) 
+	{
+		for (int32 x = CagePosMin.X; x <= CagePosMax.X; ++x) 
+		{
+			for (int32 y = CagePosMin.Y; y <= CagePosMax.Y; ++y) 
+			{
 				const FIntVector CellPos(x, y, z);
 				if (!IsInside(CellPos)) continue;
 
@@ -1024,7 +1030,7 @@ void UNeighborGridComponent::Update()
 
 			bool bShouldRegister = false;
 
-			auto& Cell = At(WorldToCage(Location));
+			auto& Cell = At(Location);
 
 			Cell.Lock();
 
@@ -1291,7 +1297,11 @@ void UNeighborGridComponent::Decouple()
 		{
 			//TRACE_CPUPROFILER_EVENT_SCOPE_STR("CacheTraits");
 			const auto& SelfLocation = Located.Location;
+			Avoidance.Position = RVO::Vector2(SelfLocation.X, SelfLocation.Y);
+
 			const auto SelfRadius = Collider.Radius;
+			Avoidance.Radius = SelfRadius;
+
 			const auto NeighborDist = Avoidance.NeighborDist;
 			const float TotalRangeSqr = FMath::Square(SelfRadius + NeighborDist);
 			const int32 MaxNeighbors = Avoidance.MaxNeighbors;
@@ -1333,6 +1343,7 @@ void UNeighborGridComponent::Decouple()
 			SubjectNeighbors.Reserve(MaxNeighbors);
 
 			TSet<uint32> SeenHashes;
+			SeenHashes.Reserve(MaxNeighbors);
 
 			//TRACE_CPUPROFILER_EVENT_SCOPE_STR("ForEachCell");
 			for (const auto& Coord : NeighbourCellCoords)
@@ -1384,6 +1395,24 @@ void UNeighborGridComponent::Decouple()
 						}
 					}
 				}
+			}
+
+			//----------------------------Try Avoid SubjectNeighbors---------------------------------
+			//TRACE_CPUPROFILER_EVENT_SCOPE_STR("Try Avoid SubjectNeighbors");
+			Avoidance.MaxSpeed = FMath::Clamp(Move.MoveSpeed * Moving.PassiveSpeedMult, Avoidance.RVO_MinAvoidSpeed, FLT_MAX);
+			Avoidance.DesiredVelocity = RVO::Vector2(Moving.DesiredVelocity.X, Moving.DesiredVelocity.Y);//copy into rvo trait
+			Avoidance.CurrentVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);//copy into rvo trait
+
+			TArray<FAvoiding> EmptyArray;
+
+			ComputeNewVelocity(Avoidance, SubjectNeighbors, EmptyArray, DeltaTime);
+
+			if (!Moving.bFalling && !(Moving.LaunchTimer > 0))
+			{
+				FVector AvoidingVelocity(Avoidance.AvoidingVelocity.x(), Avoidance.AvoidingVelocity.y(), 0);
+				FVector CurrentVelocity(Avoidance.CurrentVelocity.x(), Avoidance.CurrentVelocity.y(), 0);
+				FVector InterpedVelocity = FMath::VInterpTo(CurrentVelocity, AvoidingVelocity, DeltaTime, FMath::Clamp(Move.Acceleration / 100, 0.0001, FLT_MAX));
+				Moving.CurrentVelocity = FVector(InterpedVelocity.X, InterpedVelocity.Y, Moving.CurrentVelocity.Z); // velocity can only change so much because of inertia
 			}
 
 			//---------------------------Collect Obstacle Neighbors--------------------------------
@@ -1457,29 +1486,6 @@ void UNeighborGridComponent::Decouple()
 			TArray<FAvoiding> SphereObstacleNeighbors = ValidSphereObstacleNeighbors.Array();
 			TArray<FAvoiding> BoxObstacleNeighbors = ValidBoxObstacleNeighbors.Array();
 
-			Located.PreLocation = Located.Location;
-
-			Avoidance.Radius = SelfRadius;
-			Avoidance.Position = RVO::Vector2(SelfLocation.X, SelfLocation.Y);
-
-			//----------------------------Try Avoid SubjectNeighbors---------------------------------
-			//TRACE_CPUPROFILER_EVENT_SCOPE_STR("Try Avoid SubjectNeighbors");
-			Avoidance.MaxSpeed = FMath::Clamp(Move.MoveSpeed * Moving.PassiveSpeedMult, Avoidance.RVO_MinAvoidSpeed, FLT_MAX);
-			Avoidance.DesiredVelocity = RVO::Vector2(Moving.DesiredVelocity.X, Moving.DesiredVelocity.Y);//copy into rvo trait
-			Avoidance.CurrentVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);//copy into rvo trait
-
-			TArray<FAvoiding> EmptyArray;
-
-			ComputeNewVelocity(Avoidance, SubjectNeighbors, EmptyArray, DeltaTime);
-
-			if (!Moving.bFalling && !(Moving.LaunchTimer > 0))
-			{
-				FVector AvoidingVelocity(Avoidance.AvoidingVelocity.x(), Avoidance.AvoidingVelocity.y(), 0);
-				FVector CurrentVelocity(Avoidance.CurrentVelocity.x(), Avoidance.CurrentVelocity.y(), 0);
-				FVector InterpedVelocity = FMath::VInterpTo(CurrentVelocity, AvoidingVelocity, DeltaTime, FMath::Clamp(Move.Acceleration / 100, 0.0001, FLT_MAX));
-				Moving.CurrentVelocity = FVector(InterpedVelocity.X, InterpedVelocity.Y, Moving.CurrentVelocity.Z); // velocity can only change so much because of inertia
-			}
-
 			//-------------------------------Blocked By Obstacles------------------------------------
 			//TRACE_CPUPROFILER_EVENT_SCOPE_STR("Blocked By Obstacles");
 			Avoidance.MaxSpeed = Moving.bPushedBack ? FMath::Max(Moving.CurrentVelocity.Size2D(), Moving.PushBackSpeedOverride) : Moving.CurrentVelocity.Size2D();
@@ -1491,6 +1497,7 @@ void UNeighborGridComponent::Decouple()
 			Moving.CurrentVelocity = FVector(Avoidance.AvoidingVelocity.x(), Avoidance.AvoidingVelocity.y(), Moving.CurrentVelocity.Z);// since obstacles are hard, we set velocity directly without any interpolation
 		}
 
+		Located.PreLocation = Located.Location;
 		Located.Location += Moving.CurrentVelocity * DeltaTime;
 
 	}, ThreadsCount, BatchSize);
