@@ -1822,7 +1822,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 								if (Moving.bFalling)
 								{
 									Moving.bFalling = false;
-									Moving.CurrentVelocity = Moving.CurrentVelocity * Move.BounceVelocityDecay * FVector(1, 1, (FMath::Abs(Moving.CurrentVelocity.Z) > 100.f) ? -1 : 0);// zero out small number
+									FVector BounceDecay = FVector(Move.BounceVelocityDecay.X, Move.BounceVelocityDecay.X, Move.BounceVelocityDecay.Y);
+									Moving.CurrentVelocity = Moving.CurrentVelocity * BounceDecay * FVector(1, 1, (FMath::Abs(Moving.CurrentVelocity.Z) > 100.f) ? -1 : 0);// zero out small number
 								}
 
 								// 平滑移动到地面
@@ -2061,7 +2062,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("ClearValidTransforms");
 
-		FFilter Filter = FFilter::Make<FRenderBatchData>().Exclude<FDying>();
+		FFilter Filter = FFilter::Make<FRenderBatchData>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
@@ -2100,13 +2101,6 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				FHealthBar& HealthBar,
 				FCollider& Collider)
 			{
-				if (!Rendering.Renderer.IsValid())
-				{
-					// 标记为死亡
-					Subject.SetTraitDeferred(FDying{});
-					return;
-				}
-
 				FRenderBatchData& Data = Rendering.Renderer.GetTraitRef<FRenderBatchData, EParadigm::Unsafe>();
 
 				FQuat Rotation{ FQuat::Identity };
@@ -2188,7 +2182,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("WritePoolingInfo");
 
-		FFilter Filter = FFilter::Make<FRenderBatchData>().Exclude<FDying>();
+		FFilter Filter = FFilter::Make<FRenderBatchData>();
 
 		auto Chain = Mechanism->EnchainSolid(Filter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
@@ -2217,7 +2211,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("SendDataToNiagara");
 
-		FFilter Filter = FFilter::Make<FRenderBatchData>().Exclude<FDying>();
+		FFilter Filter = FFilter::Make<FRenderBatchData>();
 
 		Mechanism->Operate<FUnsafeChain>(Filter,
 			[&](FSubjectHandle Subject,

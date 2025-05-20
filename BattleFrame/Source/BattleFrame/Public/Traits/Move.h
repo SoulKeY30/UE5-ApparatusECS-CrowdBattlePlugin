@@ -49,7 +49,7 @@ public:
 	float Deceleration_Air = 100.f;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ClampMin = "0", Tooltip = "每次地面弹跳速度损耗"))
-	float BounceVelocityDecay = 0.5f;
+	FVector2D BounceVelocityDecay = FVector2D(0.5f, 0.f);
 
 	//---------------Z Movement-----------------//
 

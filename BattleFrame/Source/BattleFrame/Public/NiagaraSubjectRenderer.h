@@ -70,8 +70,11 @@ public:
     void Register();
     void ActivateRenderer();
 
-    UFUNCTION(BlueprintCallable)
-    bool IdleCheck();
+    void IdleCheck();
+
+    FSubjectHandle AddRenderBatch();
+
+    void RemoveRenderBatch(FSubjectHandle RenderBatch);
 
     // Trait Types
     UPROPERTY(BlueprintReadWrite, EditAnywhere, NoClear, Category = "Settings")
@@ -103,17 +106,14 @@ public:
     ABattleFrameBattleControl* BattleControl = nullptr;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Performance)
-    int32 NumRenderBatch = 4;
+    int32 AgentPerBatch = 1000;
 
     int32 RAMReserve = 5000;
 
     UNiagaraComponent* SpawnedNiagaraSystem;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "CachedVars")
-    TArray<UNiagaraComponent*> SpawnedNiagaraSystems;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "CachedVars")
-    TArray<FSubjectHandle> SpawnedRendererSubjects;
+    TArray<FSubjectHandle> SpawnedRenderBatches;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "CachedVars")
     UStaticMesh* StaticMesh;

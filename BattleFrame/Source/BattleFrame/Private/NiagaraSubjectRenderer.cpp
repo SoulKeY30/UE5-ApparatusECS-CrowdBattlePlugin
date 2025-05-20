@@ -34,19 +34,6 @@ void ANiagaraSubjectRenderer::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	Super::EndPlay(EndPlayReason);
 
-	for (FSubjectHandle Subject : SpawnedRendererSubjects)
-	{
-		Subject->DespawnDeferred();
-	}
-
-	for (UNiagaraComponent* System : SpawnedNiagaraSystems)
-	{
-		if (System)
-		{
-			System->DestroyComponent();
-		}
-	}
-
 	CurrentWorld = GetWorld();
 
 	if (CurrentWorld)
@@ -80,19 +67,7 @@ void ANiagaraSubjectRenderer::Tick(float DeltaTime)
 		else
 		{
 			Register();
-
-			// remove if no agent to render.
-			if (IdleCheckTimer -= SafeDeltaTime <= 0)
-			{
-				if (IdleCheck())
-				{
-					Destroy();
-				}
-				else
-				{
-					IdleCheckTimer = 1;
-				}
-			}
+			IdleCheck();
 		}
 	}
 }
@@ -100,38 +75,7 @@ void ANiagaraSubjectRenderer::Tick(float DeltaTime)
 void ANiagaraSubjectRenderer::ActivateRenderer()
 {
 	Mechanism = UMachine::ObtainMechanism(GetWorld());
-	if (Mechanism == nullptr) return;
-
-	for (int i = 0; i < NumRenderBatch; ++i)
-	{
-		FSubjectHandle RendererHandle = Mechanism->SpawnSubject(FRenderBatchData{});
-		SpawnedRendererSubjects.Add(RendererHandle);
-		
-		FRenderBatchData* Data = RendererHandle.GetTraitPtr<FRenderBatchData, EParadigm::Unsafe>();
-
-		Data->Scale = Scale;
-		Data->OffsetLocation = OffsetLocation;
-		Data->OffsetRotation = OffsetRotation;
-
-		auto System = UNiagaraFunctionLibrary::SpawnSystemAtLocation
-		(
-			GetWorld(),
-			NiagaraSystemAsset,
-			GetActorLocation() + FVector(i * 250.f, 0, 0),
-			FRotator::ZeroRotator, // rotation
-			FVector(1), // scale
-			false, // auto destroy
-			true, // auto activate
-			ENCPoolMethod::None,
-			true
-		);
-
-		System->SetVariableStaticMesh(TEXT("StaticMesh"), StaticMesh);
-
-		Data->SpawnedNiagaraSystem = System;
-		SpawnedNiagaraSystems.Add(System);		
-	}
-
+	if (!Mechanism) return;
 	isActive = true;
 }
 
@@ -142,18 +86,19 @@ void ANiagaraSubjectRenderer::Register()
 	if (isActive)
 	{
 		Mechanism = UMachine::ObtainMechanism(GetWorld());
-		if (Mechanism == nullptr) return;
+		if (!Mechanism) return;
 
-		FFilter Filter = FFilter::Make<FAgent, FLocated, FDirected, FScaled, FAnimation, FHealthBar, FAnimation, FActivated>().Exclude<FRendering>();
+		FFilter Filter = FFilter::Make<FAgent, FCollider, FLocated, FDirected, FScaled, FAnimation, FHealthBar, FAnimation, FActivated>().Exclude<FRendering>();
 		UBattleFrameFunctionLibraryRT::IncludeSubTypeTraitByIndex(SubType.Index, Filter);
 
 		Mechanism->Operate<FUnsafeChain>(Filter,
-			[&](FSubjectHandle Subject,
+			[&](const FSubjectHandle Subject,
+				const FCollider& Collider,
 				const FLocated& Located,
 				const FDirected& Directed,
 				const FScaled& Scaled,
-				FHealthBar HealthBar,
-				FAnimation Anim)
+				const FHealthBar& HealthBar,
+				const FAnimation& Anim)
 			{
 				FQuat Rotation{ FQuat::Identity };
 				Rotation = Directed.Direction.Rotation().Quaternion();
@@ -161,31 +106,36 @@ void ANiagaraSubjectRenderer::Register()
 				FVector FinalScale(Scale);
 				FinalScale *= Scaled.renderFactors;
 
-				float Radius = 0.0f;
+				float Radius = Collider.Radius;
 
-				if (Subject.HasTrait<FCollider>())
+				FTransform SubjectTransform(Rotation * OffsetRotation.Quaternion(),Located.Location + OffsetLocation - FVector(0, 0, Radius),FinalScale);
+
+				FSubjectHandle RenderBatch = FSubjectHandle();
+				FRenderBatchData* Data = nullptr;
+
+				// Get the first render batch that has a free trans slot
+				for (const FSubjectHandle Renderer : SpawnedRenderBatches)
 				{
-					const auto Collider = Subject.GetTrait<FCollider>();
-					Radius = Collider.Radius;
+					FRenderBatchData* CurrentData = Renderer.GetTraitPtr<FRenderBatchData, EParadigm::Unsafe>();
+
+					if (CurrentData->FreeTransforms.Num() > 0 || CurrentData->Transforms.Num() < AgentPerBatch)
+					{
+						RenderBatch = Renderer;
+						Data = Renderer.GetTraitPtr<FRenderBatchData, EParadigm::Unsafe>();
+						break;
+					}
 				}
 
-				FTransform SubjectTransform(
-					Rotation * OffsetRotation.Quaternion(),
-					Located.Location + OffsetLocation - FVector(0, 0, Radius),
-					FinalScale);
+				if (!Data)// all current batches are full
+				{
+					RenderBatch = AddRenderBatch();// add a new batch
+					Data = RenderBatch.GetTraitPtr<FRenderBatchData, EParadigm::Unsafe>();
+				}
 
 				int32 NewInstanceId;
-				FSubjectHandle RendererSubject = FSubjectHandle();
-
-				int32 Selector = BatchSelector % NumRenderBatch;
-				FRenderBatchData* Data = SpawnedRendererSubjects[Selector].GetTraitPtr<FRenderBatchData, EParadigm::Unsafe>();
-				if (Data == nullptr) { return; }
-
-				// Lock the critical section
-				Data->Lock();
 
 				// Check if FreeTransforms has any members
-				if (Data->FreeTransforms.Num())
+				if (!Data->FreeTransforms.IsEmpty())
 				{
 					NewInstanceId = Data->FreeTransforms.Pop(); // Reuse an existing instance ID
 					Data->Transforms[NewInstanceId] = SubjectTransform; // Update the corresponding transform
@@ -226,34 +176,70 @@ void ANiagaraSubjectRenderer::Register()
 					Data->InsidePool_Array.Add(false);
 				}
 
-				// Unlock the critical section
-				Data->Unlock();
-
-				Subject.SetTrait(FRendering{ NewInstanceId, SpawnedRendererSubjects[Selector] });
-				BatchSelector++;
+				Subject.SetTrait(FRendering{ NewInstanceId, RenderBatch });
 			}
 		);
 	}
 }
 
-bool ANiagaraSubjectRenderer::IdleCheck()
+void ANiagaraSubjectRenderer::IdleCheck()
 {
-	bool isIdle = true;
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("IdleCheck");
+	TArray<FSubjectHandle> CachedSpawnedRenderBatches = SpawnedRenderBatches;
 
-	for (int i = 0; i < NumRenderBatch; ++i)
+	for (const FSubjectHandle Renderer : CachedSpawnedRenderBatches)
 	{
-		if (isIdle)
+		FRenderBatchData* CurrentData = Renderer.GetTraitPtr<FRenderBatchData, EParadigm::Unsafe>();
+
+		if (CurrentData->FreeTransforms.Num() == CurrentData->Transforms.Num())// render batch is completely empty
 		{
-			FRenderBatchData thisRenderBatchData = SpawnedRendererSubjects[i].GetTrait<FRenderBatchData>();
-			bool thisIdle = thisRenderBatchData.FreeTransforms.Num() == thisRenderBatchData.Transforms.Num();
-			
-			if (!thisIdle)
-			{
-				isIdle = false;
-				return isIdle;
-			}
+			RemoveRenderBatch(Renderer);
 		}
 	}
 
-	return isIdle;
+	if (SpawnedRenderBatches.IsEmpty())
+	{
+		this->Destroy();
+	}
+}
+
+FSubjectHandle ANiagaraSubjectRenderer::AddRenderBatch()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("AddRenderBatch");
+	FSubjectHandle RendererHandle = Mechanism->SpawnSubject(FRenderBatchData{});
+	SpawnedRenderBatches.Add(RendererHandle);
+
+	FRenderBatchData* NewData = RendererHandle.GetTraitPtr<FRenderBatchData, EParadigm::Unsafe>();
+
+	NewData->Scale = Scale;
+	NewData->OffsetLocation = OffsetLocation;
+	NewData->OffsetRotation = OffsetRotation;
+
+	auto System = UNiagaraFunctionLibrary::SpawnSystemAtLocation
+	(
+		GetWorld(),
+		NiagaraSystemAsset,
+		GetActorLocation(),
+		FRotator::ZeroRotator, // rotation
+		FVector(1), // scale
+		false, // auto destroy
+		true, // auto activate
+		ENCPoolMethod::None,
+		true
+	);
+
+	System->SetVariableStaticMesh(TEXT("StaticMesh"), StaticMesh);
+
+	NewData->SpawnedNiagaraSystem = System;
+
+	return RendererHandle;
+}
+
+void ANiagaraSubjectRenderer::RemoveRenderBatch(FSubjectHandle RenderBatch)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("RemoveRenderBatch");
+	FRenderBatchData* RenderBatchData = RenderBatch.GetTraitPtr<FRenderBatchData, EParadigm::Unsafe>();
+	RenderBatchData->SpawnedNiagaraSystem->DestroyComponent();
+	SpawnedRenderBatches.Remove(RenderBatch);
+	RenderBatch->Despawn();
 }
