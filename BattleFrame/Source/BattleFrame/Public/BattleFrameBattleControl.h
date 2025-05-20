@@ -125,6 +125,40 @@ public:
 	TQueue<FDmgResult, EQueueMode::Mpsc> DamageResultQueue;
 	TSet<int32> ExistingRenderers;
 
+private:
+
+	// all filters we gonna use
+	bool bIsFilterReady = false;
+	FFilter AgentCountFilter;
+	FFilter AgentAgeFilter;
+	FFilter AgentAppeaFilter;
+	FFilter AgentAppearAnimFilter;
+	FFilter AgentAppearDissolveFilter;
+	FFilter AgentTraceFilter;
+	FFilter AgentAttackFilter;
+	FFilter AgentAttackingFilter;
+	FFilter AgentHitGlowFilter;
+	FFilter AgentJiggleFilter;
+	FFilter AgentBurningFilter;
+	FFilter AgentFrozenFilter;
+	FFilter DecideDamageFilter;
+	FFilter AgentHealthBarFilter;
+	FFilter AgentDeathFilter;
+	FFilter AgentDeathDissolveFilter;
+	FFilter AgentDeathAnimFilter;
+	FFilter SpeedLimitOverrideFilter;
+	FFilter AgentPatrolFilter;
+	FFilter AgentMoveFilter;
+	FFilter IdleToMoveAnimFilter;
+	FFilter AgentStateMachineFilter;
+	FFilter RenderBatchFilter;
+	FFilter AgentRenderFilter;
+	FFilter TextRenderFilter;
+	FFilter SpawnActorsFilter;
+	FFilter SpawnFxFilter;
+	FFilter PlaySoundFilter;
+
+
 public:
 
 	ABattleFrameBattleControl()
@@ -156,6 +190,8 @@ public:
 
 	static FVector FindNewPatrolGoalLocation(const FPatrol& Patrol, const FCollider& Collider, const FTrace& Trace, const FLocated& Located, int32 MaxAttempts);
 
+	void DefineFilters();
+
 	// 计算实际伤害，并返回一个pair，第一个元素是是否暴击，第二个元素是实际伤害
 	FORCEINLINE std::pair<bool, float> ProcessCritDamage(float BaseDamage, float damageMult, float Probability)
 	{
@@ -174,6 +210,16 @@ public:
 		}
 
 		return { IsCritical, ActualDamage };  // 返回pair
+	}
+
+	FORCEINLINE void CopyAnimData(FAnimation& Animation)
+	{
+		Animation.AnimLerp = 0;
+		Animation.AnimIndex0 = Animation.AnimIndex1;
+		Animation.AnimCurrentTime0 = Animation.AnimCurrentTime1;
+		Animation.AnimOffsetTime0 = Animation.AnimOffsetTime1;
+		Animation.AnimPauseTime0 = Animation.AnimPauseTime1;
+		Animation.AnimPlayRate0 = Animation.AnimPlayRate1;
 	}
 
 	FORCEINLINE static FTransform LocalOffsetToWorld(FQuat WorldRotation, FVector WorldLocation, FTransform LocalTransform)
@@ -234,13 +280,5 @@ public:
 		}
 	}
 
-	FORCEINLINE void CopyAnimData(FAnimation& Animation)
-	{
-		Animation.AnimLerp = 0;
-		Animation.AnimIndex0 = Animation.AnimIndex1;
-		Animation.AnimCurrentTime0 = Animation.AnimCurrentTime1;
-		Animation.AnimOffsetTime0 = Animation.AnimOffsetTime1;
-		Animation.AnimPauseTime0 = Animation.AnimPauseTime1;
-		Animation.AnimPlayRate0 = Animation.AnimPlayRate1;
-	}
+
 };

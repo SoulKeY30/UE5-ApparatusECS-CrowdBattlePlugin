@@ -269,7 +269,7 @@ USphereSweepForSubjectsAsyncAction* USphereSweepForSubjectsAsyncAction::SphereSw
 	}
 
 	AsyncAction->NeighborGridActor = NeighborGridActor;
-
+	AsyncAction->NeighborGrid = NeighborGridActor->FindComponentByClass<UNeighborGridComponent>();
 	AsyncAction->Start = Start;
 	AsyncAction->End = End;
 	AsyncAction->Radius = Radius;
@@ -297,13 +297,15 @@ void USphereSweepForSubjectsAsyncAction::Activate()
 	{
 		AsyncTask(ENamedThreads::GameThread, [this]()
 		{
-			NeighborGrid = NeighborGridActor->FindComponentByClass<UNeighborGridComponent>();
-			GridSize = NeighborGrid->GetSize();
+			TArray<FIntVector> CellCoords = NeighborGrid->SphereSweepForCells(Start, End, Radius);
+
+			for (const FIntVector& CellCoord : CellCoords)
+			{
+				ValidCells.Add(NeighborGrid->At(CellCoord));
+			}
 
 			AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this]()
 			{
-				TArray<FIntVector> CellCoords = NeighborGrid->SphereSweepForCells(Start, End, Radius);
-
 				const FVector TraceDir = (End - Start).GetSafeNormal();
 				const float TraceLength = FVector::Distance(Start, End);
 
@@ -316,12 +318,8 @@ void USphereSweepForSubjectsAsyncAction::Activate()
 				}
 
 				// 检查每个单元中的subject
-				for (const FIntVector& CellCoord : CellCoords)
+				for (const auto& CageCell : ValidCells)
 				{
-					if (!((CellCoord.X >= 0) && (CellCoord.X < GridSize.X) && (CellCoord.Y >= 0) && (CellCoord.Y < GridSize.Y) && (CellCoord.Z >= 0) && (CellCoord.Z < GridSize.Z))) continue;
-
-					const auto& CageCell = NeighborGrid->At(CellCoord);
-
 					for (const FAvoiding& Data : CageCell.Subjects)
 					{
 						const FSubjectHandle Subject = Data.SubjectHandle;
@@ -363,7 +361,7 @@ void USphereSweepForSubjectsAsyncAction::Activate()
 					}
 				}
 
-				// 排序逻辑（在后台线程执行）
+				// 排序逻辑
 				if (SortMode != ESortMode::None)
 				{
 					TempResults.Sort([this](const FTraceResult& A, const FTraceResult& B)
@@ -381,7 +379,6 @@ void USphereSweepForSubjectsAsyncAction::Activate()
 
 				AsyncTask(ENamedThreads::GameThread, [this]()
 				{
-					//TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereSweepForSubjectsSync");
 					Results.Reset();
 
 					int32 ValidCount = 0;

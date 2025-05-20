@@ -77,13 +77,23 @@ public:
 	FVector InvCellSizeCache = FVector(1 / 300.f, 1 / 300.f, 1 / 300.f);
 	TArray<TQueue<int32,EQueueMode::Mpsc>> OccupiedCellsQueues;
 
+	FFilter RegisterNeighborGrid_Trace_Filter;
+	FFilter RegisterNeighborGrid_SphereObstacle_Filter;
+	FFilter RegisterSubjectSingleFilter;
+	FFilter RegisterSubjectMultipleFilter;
+	FFilter RegisterSphereObstaclesFilter;
+	FFilter RegisterBoxObstaclesFilter;
+	FFilter SubjectFilterBase;
+	FFilter SphereObstacleFilter;
+	FFilter BoxObstacleFilter;
+	FFilter DecoupleFilter;
+
+
+	//---------------------------------------------Init------------------------------------------------------------------
+
 	UNeighborGridComponent();
 
 	void InitializeComponent() override;
-
-	void BeginPlay() override;
-
-	void BeginDestroy() override;
 
 	void DoInitializeCells()
 	{
@@ -92,6 +102,9 @@ public:
 		OccupiedCellsQueues.SetNum(MaxThreadsAllowed);
 		InvCellSizeCache = FVector(1 / CellSize.X, 1 / CellSize.Y, 1 / CellSize.Z);
 	}
+
+	void BeginPlay() override;
+
 
 	//---------------------------------------------Tracing------------------------------------------------------------------
 
@@ -159,6 +172,8 @@ public:
 	void Update();
 	void Decouple();
 	void Evaluate();
+
+	void DefineFilters();
 
 	//---------------------------------------------RVO2------------------------------------------------------------------
 

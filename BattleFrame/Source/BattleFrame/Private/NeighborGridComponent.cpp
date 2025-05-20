@@ -46,17 +46,12 @@ UNeighborGridComponent::UNeighborGridComponent()
 void UNeighborGridComponent::BeginPlay()
 {
 	Super::BeginPlay();
-}
 
-void UNeighborGridComponent::BeginDestroy()
-{
-	Super::BeginDestroy();
+	DefineFilters();
 }
 
 void UNeighborGridComponent::InitializeComponent()
 {
-	UE_LOG(LogTemp, Log, TEXT("InitializeComponentCalled"));
-
 	DoInitializeCells();
 	GetBounds();
 }
@@ -995,8 +990,7 @@ void UNeighborGridComponent::Update()
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("RegisterNeighborGrid_Trace");
 
-		FFilter Filter = FFilter::Make<FLocated, FTrace, FActivated>();
-		auto Chain = Mechanism->EnchainSolid(Filter);
+		auto Chain = Mechanism->EnchainSolid(RegisterNeighborGrid_Trace_Filter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, 1000, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently([&](FLocated& Located, FTrace& Trace)
@@ -1015,8 +1009,7 @@ void UNeighborGridComponent::Update()
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("RegisterNeighborGrid_SphereObstacle");
 
-		FFilter Filter = FFilter::Make<FLocated, FSphereObstacle>();
-		auto Chain = Mechanism->EnchainSolid(Filter);
+		auto Chain = Mechanism->EnchainSolid(RegisterNeighborGrid_SphereObstacle_Filter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, 1000, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently([&](FLocated& Located, FSphereObstacle& SphereObstacle)
@@ -1033,8 +1026,7 @@ void UNeighborGridComponent::Update()
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("RegisterSubjectSingle");// agents are allowed to register themselves only in the cell where their origins are in, this helps to improve performance
 
-		FFilter Filter = FFilter::Make<FLocated, FCollider, FAvoiding, FActivated>().Exclude<FRegisterMultiple>();
-		auto Chain = Mechanism->EnchainSolid(Filter);
+		auto Chain = Mechanism->EnchainSolid(RegisterSubjectSingleFilter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FLocated& Located, FCollider& Collider, FAvoiding& Avoiding)
@@ -1074,8 +1066,7 @@ void UNeighborGridComponent::Update()
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("RegisterSubjectMultiple");// agents can also register themselves into all overlapping cells, thus improve avoidance precision
 
-		FFilter Filter = FFilter::Make<FLocated, FCollider, FAvoiding, FRegisterMultiple, FActivated>().Exclude<FSphereObstacle>();
-		auto Chain = Mechanism->EnchainSolid(Filter);
+		auto Chain = Mechanism->EnchainSolid(RegisterSubjectMultipleFilter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FLocated& Located, FCollider& Collider, FAvoiding& Avoiding)
@@ -1134,8 +1125,7 @@ void UNeighborGridComponent::Update()
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("RegisterSphereObstacles");
 
-		FFilter Filter = FFilter::Make<FLocated, FCollider, FAvoiding, FSphereObstacle>();
-		auto Chain = Mechanism->EnchainSolid(Filter);
+		auto Chain = Mechanism->EnchainSolid(RegisterSphereObstaclesFilter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FSphereObstacle& SphereObstacle, FLocated& Located, FCollider& Collider, FAvoiding& Avoiding)
@@ -1205,8 +1195,7 @@ void UNeighborGridComponent::Update()
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("RegisterBoxObstacles");
 
-		FFilter Filter = FFilter::Make<FBoxObstacle, FLocated, FAvoiding>();
-		auto Chain = Mechanism->EnchainSolid(Filter);
+		auto Chain = Mechanism->EnchainSolid(RegisterBoxObstaclesFilter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, 1, ThreadsCount, BatchSize);
 
 		Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FBoxObstacle& BoxObstacle, FAvoiding& Avoiding)
@@ -1224,70 +1213,68 @@ void UNeighborGridComponent::Update()
 			const FVector& NextLocation = NextObstaclePtr->point3d_;
 			const float ObstacleHeight = BoxObstacle.height_;
 
-			if (IsInside(Location) && IsInside(NextLocation))
+			const float StartZ = Location.Z;
+			const float EndZ = StartZ + ObstacleHeight;
+			TSet<FIntVector> AllGridCells;
+			TArray<FIntVector> AllGridCellsArray;
+
+			float CurrentLayerZ = StartZ;
+
+			// 使用CellSize.Z作为Z轴步长
+			while (CurrentLayerZ < EndZ)
 			{
-				const float StartZ = Location.Z;
-				const float EndZ = StartZ + ObstacleHeight;
-				TSet<FIntVector> AllGridCells;
-				TArray<FIntVector> AllGridCellsArray;
+				const FVector LayerCurrentPoint = FVector(Location.X, Location.Y, CurrentLayerZ);
+				const FVector LayerNextPoint = FVector(NextLocation.X, NextLocation.Y, CurrentLayerZ);
 
-				float CurrentLayerZ = StartZ;
+				// 使用最大轴尺寸的2倍作为扫描半径
+				const float SweepRadius = CellSize.GetMax() * 2.0f;
+				auto LayerCells = SphereSweepForCells(LayerCurrentPoint, LayerNextPoint, SweepRadius);
 
-				// 使用CellSize.Z作为Z轴步长
-				while (CurrentLayerZ < EndZ)
+				for (const auto& CellPos : LayerCells)
 				{
-					const FVector LayerCurrentPoint = FVector(Location.X, Location.Y, CurrentLayerZ);
-					const FVector LayerNextPoint = FVector(NextLocation.X, NextLocation.Y, CurrentLayerZ);
-					// 使用最大轴尺寸的2倍作为扫描半径
-					const float SweepRadius = CellSize.GetMax() * 2.0f;
-					auto LayerCells = SphereSweepForCells(LayerCurrentPoint, LayerNextPoint, SweepRadius);
-
-					for (const auto& CellPos : LayerCells)
-					{
-						AllGridCells.Add(CellPos);
-					}
-
-					CurrentLayerZ += CellSize.Z; // 使用Z轴尺寸作为步长
+					AllGridCells.Add(CellPos);
 				}
 
-				AllGridCellsArray = AllGridCells.Array();
-
-				ParallelFor(AllGridCellsArray.Num(), [&](int32 Index)
-					{
-						const FIntVector& CellPos = AllGridCellsArray[Index];
-
-						if (!LIKELY(IsInside(CellPos))) return;
-
-						bool bShouldRegister = false;
-
-						auto& Cell = At(CellPos);
-
-						Cell.Lock();
-
-						if (!Cell.Registered)
-						{
-							bShouldRegister = true;
-							Cell.Registered = true;
-						}
-
-						if (BoxObstacle.bStatic)
-						{
-							Cell.BoxObstaclesStatic.Add(Avoiding);
-						}
-						else
-						{
-							Cell.BoxObstacles.Add(Avoiding);
-						}
-
-						Cell.Unlock();
-
-						if (bShouldRegister)
-						{
-							int32 CellIndex = GetIndexAt(CellPos);
-							OccupiedCellsQueues[CellIndex % MaxThreadsAllowed].Enqueue(CellIndex);
-						}
-					});
+				CurrentLayerZ += CellSize.Z; // 使用Z轴尺寸作为步长
 			}
+
+			AllGridCellsArray = AllGridCells.Array();
+
+			ParallelFor(AllGridCellsArray.Num(), [&](int32 Index)
+				{
+					const FIntVector& CellPos = AllGridCellsArray[Index];
+
+					//if (!LIKELY(IsInside(CellPos))) return;
+
+					bool bShouldRegister = false;
+
+					auto& Cell = At(CellPos);
+
+					Cell.Lock();
+
+					if (!Cell.Registered)
+					{
+						bShouldRegister = true;
+						Cell.Registered = true;
+					}
+
+					if (BoxObstacle.bStatic)
+					{
+						Cell.BoxObstaclesStatic.Add(Avoiding);
+					}
+					else
+					{
+						Cell.BoxObstacles.Add(Avoiding);
+					}
+
+					Cell.Unlock();
+
+					if (bShouldRegister)
+					{
+						int32 CellIndex = GetIndexAt(CellPos);
+						OccupiedCellsQueues[CellIndex % MaxThreadsAllowed].Enqueue(CellIndex);
+					}
+				});
 
 			BoxObstacle.bRegistered = true;
 
@@ -1302,14 +1289,8 @@ void UNeighborGridComponent::Decouple()
 
 	const float DeltaTime = FMath::Clamp(GetWorld()->GetDeltaSeconds(),0,0.0333f);
 
-	const FFilter SubjectFilterBase = FFilter::Make<FLocated, FCollider, FAvoidance, FAvoiding, FActivated>().Exclude<FSphereObstacle, FBoxObstacle, FCorpse>();
-	const FFilter SphereObstacleFilter = FFilter::Make<FSphereObstacle, FAvoiding, FAvoidance, FLocated, FCollider>();
-	const FFilter BoxObstacleFilter = FFilter::Make<FBoxObstacle, FAvoiding, FLocated>();
-
-	const FFilter Filter = FFilter::Make<FAgent, FLocated, FCollider, FMove, FMoving, FAvoidance, FAvoiding, FActivated>().Exclude<FAppearing>();
-
 	AMechanism* Mechanism = GetMechanism();
-	auto Chain = Mechanism->EnchainSolid(Filter);
+	auto Chain = Mechanism->EnchainSolid(DecoupleFilter);
 	UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
 	Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FMove& Move, FLocated& Located, FCollider& Collider, FMoving& Moving, FAvoidance& Avoidance, FAvoiding& Avoiding)
@@ -1361,7 +1342,7 @@ void UNeighborGridComponent::Decouple()
 			TSet<uint32> SeenHashes;
 			SeenHashes.Reserve(MaxNeighbors);
 
-			// this is the most expensive code of all
+			// this for loop is the most expensive code of all
 			for (const auto& Coord : NeighbourCellCoords)
 			{
 				const auto& Subjects = At(Coord).Subjects;
@@ -1442,9 +1423,9 @@ void UNeighborGridComponent::Decouple()
 
 				// 定义处理 SphereObstacles 的 Lambda 函数
 				auto ProcessSphereObstacles = [&](const TArray<FAvoiding, TInlineAllocator<8>>& Obstacles)
-					{
-						ValidSphereObstacleNeighbors.Append(Obstacles);
-					};
+				{
+					ValidSphereObstacleNeighbors.Append(Obstacles);
+				};
 
 				ProcessSphereObstacles(Cell.SphereObstacles);
 				ProcessSphereObstacles(Cell.SphereObstaclesStatic);
@@ -1517,6 +1498,20 @@ void UNeighborGridComponent::Evaluate()
 {
 	Update();
 	Decouple();
+}
+
+void UNeighborGridComponent::DefineFilters()
+{
+	RegisterNeighborGrid_Trace_Filter = FFilter::Make<FLocated, FTrace, FActivated>();
+	RegisterNeighborGrid_SphereObstacle_Filter = FFilter::Make<FLocated, FSphereObstacle>();
+	RegisterSubjectSingleFilter = FFilter::Make<FLocated, FCollider, FAvoiding, FActivated>().Exclude<FRegisterMultiple>();
+	RegisterSubjectMultipleFilter = FFilter::Make<FLocated, FCollider, FAvoiding, FRegisterMultiple, FActivated>().Exclude<FSphereObstacle>();
+	RegisterSphereObstaclesFilter = FFilter::Make<FLocated, FCollider, FAvoiding, FSphereObstacle>();
+	RegisterBoxObstaclesFilter = FFilter::Make<FBoxObstacle, FLocated, FAvoiding>();
+	SubjectFilterBase = FFilter::Make<FLocated, FCollider, FAvoidance, FAvoiding, FActivated>().Exclude<FSphereObstacle, FBoxObstacle, FCorpse>();
+	SphereObstacleFilter = FFilter::Make<FSphereObstacle, FAvoiding, FAvoidance, FLocated, FCollider>();
+	BoxObstacleFilter = FFilter::Make<FBoxObstacle, FAvoiding, FLocated>();
+	DecoupleFilter = FFilter::Make<FAgent, FLocated, FCollider, FMove, FMoving, FAvoidance, FAvoiding, FActivated>().Exclude<FAppearing>();
 }
 
 

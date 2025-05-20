@@ -22,5 +22,5 @@ void ABattleFrameActor::Tick(float DeltaTime)
 
 void ABattleFrameActor::ReceiveDamage_Implementation(const FDmgResult& DmgResult)
 {
-    // Implementation remains the same
+
 }

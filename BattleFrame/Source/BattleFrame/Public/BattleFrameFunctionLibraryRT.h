@@ -14,7 +14,7 @@
 #include "Traits/Team.h"
 #include "BattleFrameEnums.h"
 #include "BattleFrameStructs.h"
-
+#include "NeighborGridCell.h"
 #include "BattleFrameFunctionLibraryRT.generated.h"
 
 class ABattleFrameBattleControl;
@@ -409,7 +409,7 @@ public:
 
     TWeakObjectPtr<ANeighborGridActor> NeighborGridActor;
     TWeakObjectPtr<UNeighborGridComponent> NeighborGrid;
-    FIntVector GridSize;
+    TArray<FNeighborGridCell> ValidCells;
 
     int32 KeepCount;
     FVector Start;
