@@ -57,7 +57,6 @@ void UNeighborGridComponent::InitializeComponent()
 
 	DoInitializeCells();
 	GetBounds();
-	InvCellSizeCache = 1 / CellSize;
 }
 
 //--------------------------------------------Tracing----------------------------------------------------------------
@@ -89,10 +88,10 @@ void UNeighborGridComponent::SphereTraceForSubjects
 	// 将忽略列表转换为集合以便快速查找
 	const TSet<FSubjectHandle> IgnoreSet(IgnoreSubjects.Subjects);
 
-	// 扩展搜索范围
-	const float CellSizeXY = CellSize;
-	const float CellRadiusXY = CellSizeXY * 0.5f * FMath::Sqrt(2.0f);
-	const float ExpandedRadius = Radius + CellRadiusXY;
+	// 扩展搜索范围 - 使用各轴独立的CellSize
+	const FVector CellRadius = CellSize * 0.5f;
+	const float MaxCellRadius = FMath::Max3(CellRadius.X, CellRadius.Y, CellRadius.Z);
+	const float ExpandedRadius = Radius + MaxCellRadius * FMath::Sqrt(2.0f);
 	const FVector Range(ExpandedRadius);
 
 	const FIntVector CagePosMin = WorldToCage(Origin - Range);
@@ -108,11 +107,11 @@ void UNeighborGridComponent::SphereTraceForSubjects
 	// 预收集候选格子并按距离排序
 	TArray<FIntVector> CandidateCells;
 
-	for (int32 z = CagePosMin.Z; z <= CagePosMax.Z; ++z) 
+	for (int32 z = CagePosMin.Z; z <= CagePosMax.Z; ++z)
 	{
-		for (int32 y = CagePosMin.Y; y <= CagePosMax.Y; ++y) 
+		for (int32 y = CagePosMin.Y; y <= CagePosMax.Y; ++y)
 		{
-			for (int32 x = CagePosMin.X; x <= CagePosMax.X; ++x) 
+			for (int32 x = CagePosMin.X; x <= CagePosMax.X; ++x)
 			{
 				const FIntVector CellPos(x, y, z);
 				if (!IsInside(CellPos)) continue;
@@ -141,8 +140,9 @@ void UNeighborGridComponent::SphereTraceForSubjects
 	float ThresholdDistanceSq = FLT_MAX;
 	if (!bNoCountLimit && KeepCount > 0 && SortMode != ESortMode::None)
 	{
-		// 计算阈值：当前最远结果的距离 + 2倍格子对角线距离
-		const float ThresholdDistance = FMath::Sqrt(BestDistSq) + 2.0f * CellSizeXY * FMath::Sqrt(2.0f);
+		// 计算阈值：当前最远结果的距离 + 2倍格子对角线距离（使用最大轴尺寸）
+		const float MaxCellSize = CellSize.GetMax();
+		const float ThresholdDistance = FMath::Sqrt(BestDistSq) + 2.0f * MaxCellSize * FMath::Sqrt(2.0f);
 		ThresholdDistanceSq = FMath::Square(ThresholdDistance);
 	}
 
@@ -218,7 +218,8 @@ void UNeighborGridComponent::SphereTraceForSubjects
 					// 更新阈值
 					if (!bNoCountLimit && KeepCount > 0)
 					{
-						const float ThresholdDistance = FMath::Sqrt(BestDistSq) + 2.0f * CellSizeXY * FMath::Sqrt(2.0f);
+						const float MaxCellSize = CellSize.GetMax();
+						const float ThresholdDistance = FMath::Sqrt(BestDistSq) + 2.0f * MaxCellSize * FMath::Sqrt(2.0f);
 						ThresholdDistanceSq = FMath::Square(ThresholdDistance);
 					}
 				}
@@ -246,7 +247,8 @@ void UNeighborGridComponent::SphereTraceForSubjects
 					}
 
 					// 更新阈值
-					const float ThresholdDistance = FMath::Sqrt(CurrentThresholdDistSq) + 2.0f * CellSizeXY * FMath::Sqrt(2.0f);
+					const float MaxCellSize = CellSize.GetMax();
+					const float ThresholdDistance = FMath::Sqrt(CurrentThresholdDistSq) + 2.0f * MaxCellSize * FMath::Sqrt(2.0f);
 					ThresholdDistanceSq = FMath::Square(ThresholdDistance);
 				}
 			}
@@ -322,6 +324,7 @@ void UNeighborGridComponent::SphereSweepForSubjects
 	// Convert ignore list to set for fast lookup
 	const TSet<FSubjectHandle> IgnoreSet(IgnoreSubjects.Subjects);
 
+	// Get cells along the sweep path (already handles FVector CellSize)
 	TArray<FIntVector> GridCells = SphereSweepForCells(Start, End, Radius);
 
 	const FVector TraceDir = (End - Start).GetSafeNormal();
@@ -358,7 +361,7 @@ void UNeighborGridComponent::SphereSweepForSubjects
 			const float ProjThreshold = SubjectRadius + Radius;
 			if (ProjOnTrace < -ProjThreshold || ProjOnTrace > TraceLength + ProjThreshold) continue;
 
-			// Precise distance check
+			// Precise distance check (still spherical)
 			const float ClampedProj = FMath::Clamp(ProjOnTrace, 0.0f, TraceLength);
 			const FVector NearestPoint = Start + ClampedProj * TraceDir;
 			const float CombinedRadSq = FMath::Square(Radius + SubjectRadius);
@@ -384,7 +387,7 @@ void UNeighborGridComponent::SphereSweepForSubjects
 				FTraceResult Result;
 				Result.Subject = Subject;
 				Result.Location = SubjectPos;
-				Result.CachedDistSq = FVector::DistSquared(SortOrigin, SubjectPos); // Store distance to sort origin
+				Result.CachedDistSq = FVector::DistSquared(SortOrigin, SubjectPos);
 				TempResults.Add(Result);
 			}
 		}
@@ -423,6 +426,7 @@ void UNeighborGridComponent::SphereSweepForSubjects
 
 	Hit = !Results.IsEmpty();
 }
+
 
 void UNeighborGridComponent::SectorTraceForSubjects
 (
@@ -466,11 +470,11 @@ void UNeighborGridComponent::SectorTraceForSubjects
 		RightBoundDir = NormalizedDir.RotateAngleAxis(-Angle * 0.5f, FVector::UpVector);
 	}
 
-	// 扩展搜索范围
-	const float CellSizeXY = CellSize;
-	const float CellRadiusXY = CellSizeXY * 0.5f * FMath::Sqrt(2.0f);
-	const float ExpandedRadius = Radius + CellRadiusXY;
-	const FVector Range(ExpandedRadius, ExpandedRadius, Height / 2.0f + CellSize * 0.5f);
+	// 扩展搜索范围 - 使用各轴独立的CellSize
+	const FVector CellRadius = CellSize * 0.5f;
+	const float ExpandedRadiusXY = Radius + FMath::Max(CellRadius.X, CellRadius.Y) * FMath::Sqrt(2.0f);
+	const float ExpandedHeight = Height / 2.0f + CellRadius.Z;
+	const FVector Range(ExpandedRadiusXY, ExpandedRadiusXY, ExpandedHeight);
 
 	const FIntVector CagePosMin = WorldToCage(Origin - Range);
 	const FIntVector CagePosMax = WorldToCage(Origin + Range);
@@ -485,11 +489,11 @@ void UNeighborGridComponent::SectorTraceForSubjects
 	// 预收集候选格子并按距离排序
 	TArray<FIntVector> CandidateCells;
 
-	for (int32 z = CagePosMin.Z; z <= CagePosMax.Z; ++z) 
+	for (int32 z = CagePosMin.Z; z <= CagePosMax.Z; ++z)
 	{
-		for (int32 x = CagePosMin.X; x <= CagePosMax.X; ++x) 
+		for (int32 x = CagePosMin.X; x <= CagePosMax.X; ++x)
 		{
-			for (int32 y = CagePosMin.Y; y <= CagePosMax.Y; ++y) 
+			for (int32 y = CagePosMin.Y; y <= CagePosMax.Y; ++y)
 			{
 				const FIntVector CellPos(x, y, z);
 				if (!IsInside(CellPos)) continue;
@@ -498,10 +502,10 @@ void UNeighborGridComponent::SectorTraceForSubjects
 				const FVector DeltaXY = (CellCenter - Origin) * FVector(1, 1, 0);
 				const float DistSqXY = DeltaXY.SizeSquared();
 
-				if (DistSqXY > FMath::Square(ExpandedRadius)) continue;
+				if (DistSqXY > FMath::Square(ExpandedRadiusXY)) continue;
 
 				const float VerticalDist = FMath::Abs(CellCenter.Z - Origin.Z);
-				if (VerticalDist > (Height / 2.0f + CellRadiusXY)) continue;
+				if (VerticalDist > ExpandedHeight) continue;
 
 				if (!bFullCircle && DistSqXY > SMALL_NUMBER)
 				{
@@ -512,13 +516,13 @@ void UNeighborGridComponent::SectorTraceForSubjects
 					{
 						FVector ClosestPoint;
 						float DistToLeftBound = FMath::PointDistToLine(CellCenter, Origin, LeftBoundDir, ClosestPoint);
-						if (DistToLeftBound >= CellRadiusXY)
+						if (DistToLeftBound >= FMath::Max(CellRadius.X, CellRadius.Y))
 						{
 							float DistToRightBound = FMath::PointDistToLine(CellCenter, Origin, RightBoundDir, ClosestPoint);
-							if (DistToRightBound >= CellRadiusXY)
+							if (DistToRightBound >= FMath::Max(CellRadius.X, CellRadius.Y))
 							{
-								const FVector CellMin = CageToWorld(CellPos) - FVector(CellSizeXY * 0.5f, CellSizeXY * 0.5f, 0);
-								const FVector CellMax = CageToWorld(CellPos) + FVector(CellSizeXY * 0.5f, CellSizeXY * 0.5f, 0);
+								const FVector CellMin = CageToWorld(CellPos) - CellRadius;
+								const FVector CellMax = CageToWorld(CellPos) + CellRadius;
 								if (!(CellMin.X <= Origin.X && Origin.X <= CellMax.X &&
 									CellMin.Y <= Origin.Y && Origin.Y <= CellMax.Y))
 								{
@@ -547,9 +551,9 @@ void UNeighborGridComponent::SectorTraceForSubjects
 	float ThresholdDistanceSq = FLT_MAX;
 	if (!bNoCountLimit && KeepCount > 0 && SortMode != ESortMode::None)
 	{
-		// 计算阈值：当前最远结果的距离 + 2倍格子对角线距离
-		// 这样确保不会漏掉可能更近的subject
-		const float ThresholdDistance = FMath::Sqrt(BestDistSq) + 2.0f * CellSizeXY * FMath::Sqrt(2.0f);
+		// 计算阈值：当前最远结果的距离 + 2倍格子对角线距离（使用最大轴尺寸）
+		const float MaxCellSize = CellSize.GetMax();
+		const float ThresholdDistance = FMath::Sqrt(BestDistSq) + 2.0f * MaxCellSize * FMath::Sqrt(2.0f);
 		ThresholdDistanceSq = FMath::Square(ThresholdDistance);
 	}
 
@@ -637,7 +641,8 @@ void UNeighborGridComponent::SectorTraceForSubjects
 					// 更新阈值
 					if (!bNoCountLimit && KeepCount > 0)
 					{
-						const float ThresholdDistance = FMath::Sqrt(BestDistSq) + 2.0f * CellSizeXY * FMath::Sqrt(2.0f);
+						const float MaxCellSize = CellSize.GetMax();
+						const float ThresholdDistance = FMath::Sqrt(BestDistSq) + 2.0f * MaxCellSize * FMath::Sqrt(2.0f);
 						ThresholdDistanceSq = FMath::Square(ThresholdDistance);
 					}
 				}
@@ -665,7 +670,8 @@ void UNeighborGridComponent::SectorTraceForSubjects
 					}
 
 					// 更新阈值
-					const float ThresholdDistance = FMath::Sqrt(CurrentThresholdDistSq) + 2.0f * CellSizeXY * FMath::Sqrt(2.0f);
+					const float MaxCellSize = CellSize.GetMax();
+					const float ThresholdDistance = FMath::Sqrt(CurrentThresholdDistSq) + 2.0f * MaxCellSize * FMath::Sqrt(2.0f);
 					ThresholdDistanceSq = FMath::Square(ThresholdDistance);
 				}
 			}
@@ -716,7 +722,6 @@ void UNeighborGridComponent::SectorTraceForSubjects
 
 	Hit = !Results.IsEmpty();
 }
-
 
 // Single Sweep Trace For Nearest Obstacle
 void UNeighborGridComponent::SphereSweepForObstacle
@@ -1215,63 +1220,67 @@ void UNeighborGridComponent::Update()
 
 				float CurrentLayerZ = StartZ;
 
+				// 使用CellSize.Z作为Z轴步长
 				while (CurrentLayerZ < EndZ)
 				{
 					const FVector LayerCurrentPoint = FVector(Location.X, Location.Y, CurrentLayerZ);
 					const FVector LayerNextPoint = FVector(NextLocation.X, NextLocation.Y, CurrentLayerZ);
-					auto LayerCells = SphereSweepForCells(LayerCurrentPoint, LayerNextPoint, CellSize * 2);
+					// 使用最大轴尺寸的2倍作为扫描半径
+					const float SweepRadius = CellSize.GetMax() * 2.0f;
+					auto LayerCells = SphereSweepForCells(LayerCurrentPoint, LayerNextPoint, SweepRadius);
 
 					for (const auto& CellPos : LayerCells)
 					{
 						AllGridCells.Add(CellPos);
 					}
 
-					CurrentLayerZ += CellSize;
+					CurrentLayerZ += CellSize.Z; // 使用Z轴尺寸作为步长
 				}
 
 				AllGridCellsArray = AllGridCells.Array();
 
-				ParallelFor(AllGridCellsArray.Num(),[&](int32 Index)
-				{
-					const FIntVector& CellPos = AllGridCellsArray[Index];
-
-					if (!LIKELY(IsInside(CellPos))) return;
-
-					bool bShouldRegister = false;
-
-					auto& Cell = At(CellPos);
-
-					Cell.Lock();
-
-					if (!Cell.Registered)
+				ParallelFor(AllGridCellsArray.Num(), [&](int32 Index)
 					{
-						bShouldRegister = true;
-						Cell.Registered = true;
-					}
+						const FIntVector& CellPos = AllGridCellsArray[Index];
 
-					if (BoxObstacle.bStatic)
-					{
-						Cell.BoxObstaclesStatic.Add(Avoiding);
-					}
-					else
-					{
-						Cell.BoxObstacles.Add(Avoiding);
-					}
+						if (!LIKELY(IsInside(CellPos))) return;
 
-					Cell.Unlock();
+						bool bShouldRegister = false;
 
-					if (bShouldRegister)
-					{
-						int32 CellIndex = GetIndexAt(CellPos);
-						OccupiedCellsQueues[CellIndex % MaxThreadsAllowed].Enqueue(CellIndex);
-					}	
-				});
+						auto& Cell = At(CellPos);
+
+						Cell.Lock();
+
+						if (!Cell.Registered)
+						{
+							bShouldRegister = true;
+							Cell.Registered = true;
+						}
+
+						if (BoxObstacle.bStatic)
+						{
+							Cell.BoxObstaclesStatic.Add(Avoiding);
+						}
+						else
+						{
+							Cell.BoxObstacles.Add(Avoiding);
+						}
+
+						Cell.Unlock();
+
+						if (bShouldRegister)
+						{
+							int32 CellIndex = GetIndexAt(CellPos);
+							OccupiedCellsQueues[CellIndex % MaxThreadsAllowed].Enqueue(CellIndex);
+						}
+					});
 			}
 
 			BoxObstacle.bRegistered = true;
 
 		}, ThreadsCount, BatchSize);
 	}
+
 }
 
 

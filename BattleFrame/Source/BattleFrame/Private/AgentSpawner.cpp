@@ -312,7 +312,7 @@ void AAgentSpawner::ActivateAgent( FSubjectHandle Agent )// strange apparatus bu
         {
             BattleControl->ExistingRenderers.Add(SubType.Index);
             RendererActor->SubType.Index = SubType.Index;
-            RendererActor->TickEnabled = true;
+            RendererActor->SetActorTickEnabled(true);
         }
     }
 

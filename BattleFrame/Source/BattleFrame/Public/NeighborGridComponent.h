@@ -65,17 +65,16 @@ public:
 	#endif
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Grid")
-	float CellSize = 300.f;
+	FVector CellSize = FVector(300.f,300.f,300.f);
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Grid")
-	FIntVector Size = FIntVector(20, 20, 1);
+	FIntVector GridSize = FIntVector(20, 20, 1);
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Grid")
 	mutable FBox Bounds;
 
 	TArray<FNeighborGridCell> Cells;
-	float InvCellSizeCache = 1/ 300;
-
+	FVector InvCellSizeCache = FVector(1 / 300.f, 1 / 300.f, 1 / 300.f);
 	TArray<TQueue<int32,EQueueMode::Mpsc>> OccupiedCellsQueues;
 
 	UNeighborGridComponent();
@@ -89,8 +88,9 @@ public:
 	void DoInitializeCells()
 	{
 		Cells.Reset(); // Make sure there are no cells.
-		Cells.AddDefaulted(Size.X * Size.Y * Size.Z);
+		Cells.AddDefaulted(GridSize.X * GridSize.Y * GridSize.Z);
 		OccupiedCellsQueues.SetNum(MaxThreadsAllowed);
+		InvCellSizeCache = FVector(1 / CellSize.X, 1 / CellSize.Y, 1 / CellSize.Z);
 	}
 
 	void SphereTraceForSubjects
@@ -193,10 +193,16 @@ public:
 	{
 		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereSweepForCells");
 
-		// 预计算关键参数
-		const float RadiusInCellsValue = Radius / CellSize;
-		const int32 RadiusInCells = FMath::CeilToInt(RadiusInCellsValue);
-		const float RadiusSq = FMath::Square(RadiusInCellsValue);
+		// 预计算关键参数 - 现在每个轴有自己的半径值
+		const FVector RadiusInCellsValue(Radius / CellSize.X, Radius / CellSize.Y, Radius / CellSize.Z);
+		const FIntVector RadiusInCells(
+			FMath::CeilToInt(RadiusInCellsValue.X),
+			FMath::CeilToInt(RadiusInCellsValue.Y),
+			FMath::CeilToInt(RadiusInCellsValue.Z));
+		const FVector RadiusSq(
+			FMath::Square(RadiusInCellsValue.X),
+			FMath::Square(RadiusInCellsValue.Y),
+			FMath::Square(RadiusInCellsValue.Z));
 
 		// 改用TArray+BitArray加速去重
 		TArray<FIntVector> GridCells;
@@ -277,24 +283,24 @@ public:
 		return ResultArray;
 	}
 
-	FORCEINLINE void AddSphereCells(const FIntVector& CenterCell, int32 RadiusInCells, float RadiusSq, TSet<FIntVector>& GridCells) const
+	FORCEINLINE void AddSphereCells(const FIntVector& CenterCell, const FIntVector& RadiusInCells, const FVector& RadiusSq, TSet<FIntVector>& GridCells) const
 	{
 		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("AddSphereCells");
 
 		// 分层遍历优化：减少无效循环
-		for (int32 x = -RadiusInCells; x <= RadiusInCells; ++x)
+		for (int32 x = -RadiusInCells.X; x <= RadiusInCells.X; ++x)
 		{
-			const int32 XSq = x * x;
-			if (XSq > RadiusSq) continue;
+			const float XNormSq = FMath::Square(static_cast<float>(x) / RadiusInCells.X);
+			if (XNormSq > 1.0f) continue;
 
-			for (int32 y = -RadiusInCells; y <= RadiusInCells; ++y)
+			for (int32 y = -RadiusInCells.Y; y <= RadiusInCells.Y; ++y)
 			{
-				const int32 YSq = y * y;
-				if (XSq + YSq > RadiusSq) continue;
+				const float YNormSq = FMath::Square(static_cast<float>(y) / RadiusInCells.Y);
+				if (XNormSq + YNormSq > 1.0f) continue;
 
 				// 直接计算z范围，减少循环次数
-				const float RemainingSq = RadiusSq - (XSq + YSq);
-				const int32 MaxZ = FMath::FloorToInt(FMath::Sqrt(RemainingSq));
+				const float RemainingNormSq = 1.0f - (XNormSq + YNormSq);
+				const int32 MaxZ = FMath::FloorToInt(RadiusInCells.Z * FMath::Sqrt(RemainingNormSq));
 				for (int32 z = -MaxZ; z <= MaxZ; ++z)
 				{
 					GridCells.Add(CenterCell + FIntVector(x, y, z));
@@ -302,8 +308,6 @@ public:
 			}
 		}
 	}
-
-
 
 	/**
 	 * Get the size of a single cell in global units.
@@ -318,7 +322,7 @@ public:
 	 */
 	const FIntVector& GetSize() const
 	{
-		return Size;
+		return GridSize;
 	}
 
 	/**
@@ -326,7 +330,7 @@ public:
 	 */
 	const FBox& GetBounds() const
 	{
-		const auto Extents = CellSize * FVector(Size) * 0.5f;
+		const auto Extents = CellSize * FVector(GridSize) * 0.5f;
 		const auto Actor = GetOwner();
 		const auto Location = (Actor != nullptr) ? Actor->GetActorLocation() : FVector::ZeroVector;
 		Bounds.Min = Location - Extents;
@@ -380,10 +384,10 @@ public:
 	/* Get the index of the cage cell. */
 	FORCEINLINE int32 GetIndexAt(int32 X, int32 Y, int32 Z) const
 	{
-		X = FMath::Clamp(X, 0, Size.X - 1);
-		Y = FMath::Clamp(Y, 0, Size.Y - 1);
-		Z = FMath::Clamp(Z, 0, Size.Z - 1);
-		return X + Size.X * (Y + Size.Y * Z);
+		X = FMath::Clamp(X, 0, GridSize.X - 1);
+		Y = FMath::Clamp(Y, 0, GridSize.Y - 1);
+		Z = FMath::Clamp(Z, 0, GridSize.Z - 1);
+		return X + GridSize.X * (Y + GridSize.Y * Z);
 	}
 
 	/**
@@ -391,10 +395,10 @@ public:
 	 */
 	FORCEINLINE FIntVector GetCellPointByIndex(int32 Index) const
 	{
-		int32 z = Index / (Size.X * Size.Y);
-		int32 LayerPadding = Index - (z * Size.X * Size.Y);
+		int32 z = Index / (GridSize.X * GridSize.Y);
+		int32 LayerPadding = Index - (z * GridSize.X * GridSize.Y);
 
-		return FIntVector(LayerPadding / Size.X, LayerPadding % Size.X, z);
+		return FIntVector(LayerPadding / GridSize.X, LayerPadding % GridSize.X, z);
 	}
 
 	/* Get the index of the cage cell. */
@@ -425,9 +429,9 @@ public:
 	FORCEINLINE bool IsInside(const FIntVector& CellPoint) const
 	{
 		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("IsInside");
-		return (CellPoint.X >= 0) && (CellPoint.X < Size.X) &&
-			(CellPoint.Y >= 0) && (CellPoint.Y < Size.Y) &&
-			(CellPoint.Z >= 0) && (CellPoint.Z < Size.Z);
+		return (CellPoint.X >= 0) && (CellPoint.X < GridSize.X) &&
+			(CellPoint.Y >= 0) && (CellPoint.Y < GridSize.Y) &&
+			(CellPoint.Z >= 0) && (CellPoint.Z < GridSize.Z);
 	}
 
 	/* Check if the world point is inside the cage. */
@@ -464,7 +468,7 @@ public:
 	FORCEINLINE FBox BoxAt(const FIntVector& CellPoint)
 	{
 		const FVector Min = Bounds.Min + FVector(CellPoint) * CellSize;
-		FBox Box(Min, Min + FVector(CellSize));
+		FBox Box(Min, Min + CellSize);
 		return MoveTemp(Box);
 	}
 

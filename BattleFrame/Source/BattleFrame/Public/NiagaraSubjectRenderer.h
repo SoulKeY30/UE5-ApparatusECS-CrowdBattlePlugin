@@ -20,38 +20,18 @@
 
 // Apparatus and Custom Traits
 #include "Machine.h"
-
-#include "Traits/SubType.h"
-#include "Traits/Projectile.h"
-#include "Traits/DmgSphere.h"
-#include "Traits/Moving.h"
-#include "Traits/Animation.h"
-#include "Traits/RenderBatch.h"
-#include "Traits/RenderBatchData.h"
-#include "Traits/Aging.h"
-
-#include "Traits/Located.h" 
-#include "Traits/Rendering.h"
-#include "Traits/Directed.h"
-#include "Traits/Rotated.h"
-#include "Traits/Scaled.h"
-#include "Traits/Collider.h"
-#include "Traits/HealthBar.h"
-#include "Traits/Agent.h"
-
 #include "Stats/Stats.h"
 #include "Kismet/GameplayStatics.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "BattleFrameBattleControl.h"
 
-
 // Debugging
 #include "DrawDebugHelpers.h"
 #include "Engine/StaticMesh.h"
-#include "BattleFrameBattleControl.h"
 
 // Generated UCLASS
 #include "NiagaraSubjectRenderer.generated.h"
+
 
 UCLASS()
 class BATTLEFRAME_API ANiagaraSubjectRenderer : public AActor
@@ -68,7 +48,6 @@ public:
     
     // Public Methods
     void Register();
-    void ActivateRenderer();
 
     void IdleCheck();
 
@@ -83,42 +62,34 @@ public:
     UPROPERTY(BlueprintReadWrite, EditAnywhere, NoClear, Category = "Settings")
     FSubType SubType = FSubType{ -1 };
 
-    // Niagara Effects
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
-    UNiagaraSystem* NiagaraSystemAsset;
+    int32 RenderBatchSize = 1000;
 
     // Rendering Settings
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
-    FVector Scale = {1.0f, 1.0f, 1.0f};
+    FVector Scale = { 1.0f, 1.0f, 1.0f };
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
     FVector OffsetLocation = FVector::ZeroVector;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
-    FRotator OffsetRotation = FRotator(0,0,0);
+    FRotator OffsetRotation = FRotator(0, 0, 0);
+
+    // Niagara Effects
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
+    UNiagaraSystem* NiagaraSystemAsset;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
+    UStaticMesh* StaticMeshAsset;
+
+    UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "CachedVars")
+    TArray<FSubjectHandle> SpawnedRenderBatches;
+
 
     bool Initialized = false;
-    bool TickEnabled = false;
-    bool isActive = false;
-
     UWorld* CurrentWorld = nullptr;
     AMechanism* Mechanism = nullptr;
     ABattleFrameBattleControl* BattleControl = nullptr;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Performance)
-    int32 AgentPerBatch = 1000;
-
-    int32 RAMReserve = 5000;
-
     UNiagaraComponent* SpawnedNiagaraSystem;
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "CachedVars")
-    TArray<FSubjectHandle> SpawnedRenderBatches;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "CachedVars")
-    UStaticMesh* StaticMesh;
-
-    int64 BatchSelector = 0;
-
-    float IdleCheckTimer = 3;
 };

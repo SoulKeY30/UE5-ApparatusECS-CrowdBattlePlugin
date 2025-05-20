@@ -84,7 +84,7 @@ void UBattleFrameFunctionLibrary::SetClassDefaultProperties(
     // 设置静态网格（可选参数）
     if (NewMesh)
     {
-        CDO->StaticMesh = NewMesh;
+        CDO->StaticMeshAsset = NewMesh;
         UE_LOG(LogTemp, Log, TEXT("StaticMesh updated to: %s"), *NewMesh->GetName());
     }
 
