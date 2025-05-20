@@ -7,6 +7,7 @@
 #include "EngineUtils.h"
 #include "BattleFrameBattleControl.h"
 #include "NeighborGridActor.h"
+#include "NeighborGridComponent.h"
 #include "Async/Async.h"
 #include "Engine/Engine.h"
 
@@ -268,6 +269,7 @@ USphereSweepForSubjectsAsyncAction* USphereSweepForSubjectsAsyncAction::SphereSw
 	}
 
 	AsyncAction->NeighborGridActor = NeighborGridActor;
+
 	AsyncAction->Start = Start;
 	AsyncAction->End = End;
 	AsyncAction->Radius = Radius;
@@ -285,8 +287,6 @@ USphereSweepForSubjectsAsyncAction* USphereSweepForSubjectsAsyncAction::SphereSw
 
 void USphereSweepForSubjectsAsyncAction::Activate()
 {
-	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereSweepForSubjectsAsync");
-
 	if (!IsValid(NeighborGridActor.Get()))
 	{
 		Hit = false;
@@ -297,11 +297,11 @@ void USphereSweepForSubjectsAsyncAction::Activate()
 	{
 		AsyncTask(ENamedThreads::GameThread, [this]()
 		{
+			NeighborGrid = NeighborGridActor->FindComponentByClass<UNeighborGridComponent>();
+			GridSize = NeighborGrid->GetSize();
+
 			AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this]()
 			{
-				//TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereSweepForSubjectsAsync");
-
-				TWeakObjectPtr<UNeighborGridComponent> NeighborGrid = NeighborGridActor->FindComponentByClass<UNeighborGridComponent>();
 				TArray<FIntVector> CellCoords = NeighborGrid->SphereSweepForCells(Start, End, Radius);
 
 				const FVector TraceDir = (End - Start).GetSafeNormal();
@@ -316,9 +316,9 @@ void USphereSweepForSubjectsAsyncAction::Activate()
 				}
 
 				// 检查每个单元中的subject
-				for (FIntVector CellCoord : CellCoords)
+				for (const FIntVector& CellCoord : CellCoords)
 				{
-					if (!NeighborGrid->IsInside(CellCoord)) continue;
+					if (!((CellCoord.X >= 0) && (CellCoord.X < GridSize.X) && (CellCoord.Y >= 0) && (CellCoord.Y < GridSize.Y) && (CellCoord.Z >= 0) && (CellCoord.Z < GridSize.Z))) continue;
 
 					const auto& CageCell = NeighborGrid->At(CellCoord);
 
@@ -407,6 +407,8 @@ void USphereSweepForSubjectsAsyncAction::Activate()
 		});
 	}
 }
+
+//-------------------------------Trait Setters-------------------------------
 
 void UBattleFrameFunctionLibraryRT::SetRecordSubTypeTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord)
 {
@@ -1706,58 +1708,7 @@ void UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(int32 Iter
 }
 
 
-FVector UBattleFrameFunctionLibraryRT::FindNewPatrolGoalLocation(const FPatrol& Patrol, const FCollider& Collider, const FTrace& Trace, const FLocated& Located, int32 MaxAttempts /*= 3*/)
-{
-	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("FindNewPatrolGoalLocation");
-
-	// Early out if no neighbor grid available
-	if (!IsValid(Trace.NeighborGrid))
-	{
-		const float Angle = FMath::FRandRange(0.f, 2.f * PI);
-		const float Distance = FMath::FRandRange(Patrol.PatrolRadiusMin, Patrol.PatrolRadiusMax);
-		return Patrol.Origin + FVector(FMath::Cos(Angle) * Distance, FMath::Sin(Angle) * Distance, 0.f);
-	}
-
-	FVector BestCandidate = Patrol.Origin;
-	float BestDistanceSq = 0.f;
-
-	for (int32 Attempt = 0; Attempt < MaxAttempts; ++Attempt)
-	{
-		// Generate random position in patrol ring
-		const float Angle = FMath::FRandRange(0.f, 2.f * PI);
-		const float Distance = FMath::FRandRange(Patrol.PatrolRadiusMin, Patrol.PatrolRadiusMax);
-		const FVector Candidate = Patrol.Origin + FVector(FMath::Cos(Angle) * Distance, FMath::Sin(Angle) * Distance, 0.f);
-
-		// Skip visibility check if not required
-		if (!Patrol.bCheckVisibility)
-		{
-			return Candidate;
-		}
-
-		// Check visibility through neighbor grid
-		bool bHit = false;
-		FTraceResult Result;
-		Trace.NeighborGrid->SphereSweepForObstacle(Located.Location, Candidate, Collider.Radius, bHit, Result);
-
-		// Return first valid candidate found
-		if (!bHit)
-		{
-			return Candidate;
-		}
-
-		// Track farthest candidate as fallback
-		const float CurrentDistanceSq = (Candidate - Located.Location).SizeSquared();
-
-		if (CurrentDistanceSq > BestDistanceSq)
-		{
-			BestCandidate = Candidate;
-			BestDistanceSq = CurrentDistanceSq;
-		}
-	}
-
-	// Return best candidate if all attempts hit obstacles
-	return BestCandidate;
-}
+//-------------------------------Connector Nodes-------------------------------
 
 TArray<FSubjectHandle> UBattleFrameFunctionLibraryRT::ConvertDmgResultsToSubjectHandles(const TArray<FDmgResult>& DmgResults)
 {

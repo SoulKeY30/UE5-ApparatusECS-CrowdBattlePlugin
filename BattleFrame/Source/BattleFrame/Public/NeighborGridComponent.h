@@ -23,10 +23,10 @@
 #include "Traits/Avoidance.h"
 #include "BattleFrameEnums.h"
 #include "BattleFrameStructs.h"
-#include "BitMask.h"
 #include "RVOSimulator.h"
 #include "RVOVector2.h"
-#include "Kismet/BlueprintAsyncActionBase.h"
+#include "RVODefinitions.h"
+
 #include "NeighborGridComponent.generated.h"
 
 #define BUBBLE_DEBUG 0
@@ -93,6 +93,8 @@ public:
 		InvCellSizeCache = FVector(1 / CellSize.X, 1 / CellSize.Y, 1 / CellSize.Z);
 	}
 
+	//---------------------------------------------Tracing------------------------------------------------------------------
+
 	void SphereTraceForSubjects
 	(
 		const int32 KeepCount,
@@ -158,10 +160,167 @@ public:
 	void Decouple();
 	void Evaluate();
 
+	//---------------------------------------------RVO2------------------------------------------------------------------
+
 	void ComputeNewVelocity(FAvoidance& Avoidance, const TArray<FAvoiding>& SubjectNeighbors, const TArray<FAvoiding>& ObstacleNeighbors, float timeStep_);
-	bool LinearProgram1(const std::vector<RVO::Line>& lines, size_t lineNo, float radius, const RVO::Vector2& optVelocity, bool directionOpt, RVO::Vector2& result);
-	size_t LinearProgram2(const std::vector<RVO::Line>& lines, float radius, const RVO::Vector2& optVelocity, bool directionOpt, RVO::Vector2& result);
-	void LinearProgram3(const std::vector<RVO::Line>& lines, size_t numObstLines, size_t beginLine, float radius, RVO::Vector2& result);
+
+	FORCEINLINE bool LinearProgram1(const std::vector<RVO::Line>& lines, size_t lineNo, float radius, const RVO::Vector2& optVelocity, bool directionOpt, RVO::Vector2& result)
+	{
+		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("linearProgram1");
+		const float dotProduct = lines[lineNo].point * lines[lineNo].direction;
+		const float discriminant = RVO::sqr(dotProduct) + RVO::sqr(radius) - absSq(lines[lineNo].point);
+
+		if (discriminant < 0.0f) {
+			/* Max speed circle fully invalidates line lineNo. */
+			return false;
+		}
+
+		const float sqrtDiscriminant = std::sqrt(discriminant);
+		float tLeft = -dotProduct - sqrtDiscriminant;
+		float tRight = -dotProduct + sqrtDiscriminant;
+
+		for (size_t i = 0; i < lineNo; ++i) {
+			const float denominator = det(lines[lineNo].direction, lines[i].direction);
+			const float numerator = det(lines[i].direction, lines[lineNo].point - lines[i].point);
+
+			if (std::fabs(denominator) <= RVO_EPSILON) {
+				/* Lines lineNo and i are (almost) parallel. */
+				if (numerator < 0.0f) {
+					return false;
+				}
+				else {
+					continue;
+				}
+			}
+
+			const float t = numerator / denominator;
+
+			if (denominator >= 0.0f) {
+				/* Line i bounds line lineNo on the right. */
+				tRight = std::min(tRight, t);
+			}
+			else {
+				/* Line i bounds line lineNo on the left. */
+				tLeft = std::max(tLeft, t);
+			}
+
+			if (tLeft > tRight) {
+				return false;
+			}
+		}
+
+		if (directionOpt) {
+			/* Optimize direction. */
+			if (optVelocity * lines[lineNo].direction > 0.0f) {
+				/* Take right extreme. */
+				result = lines[lineNo].point + tRight * lines[lineNo].direction;
+			}
+			else {
+				/* Take left extreme. */
+				result = lines[lineNo].point + tLeft * lines[lineNo].direction;
+			}
+		}
+		else {
+			/* Optimize closest point. */
+			const float t = lines[lineNo].direction * (optVelocity - lines[lineNo].point);
+
+			if (t < tLeft) {
+				result = lines[lineNo].point + tLeft * lines[lineNo].direction;
+			}
+			else if (t > tRight) {
+				result = lines[lineNo].point + tRight * lines[lineNo].direction;
+			}
+			else {
+				result = lines[lineNo].point + t * lines[lineNo].direction;
+			}
+		}
+
+		return true;
+	}
+
+	FORCEINLINE size_t LinearProgram2(const std::vector<RVO::Line>& lines, float radius, const RVO::Vector2& optVelocity, bool directionOpt, RVO::Vector2& result)
+	{
+		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("linearProgram2");
+		if (directionOpt) {
+			/*
+			 * Optimize direction. Note that the optimization velocity is of unit
+			 * length in this case.
+			 */
+			result = optVelocity * radius;
+		}
+		else if (RVO::absSq(optVelocity) > RVO::sqr(radius)) {
+			/* Optimize closest point and outside circle. */
+			result = normalize(optVelocity) * radius;
+		}
+		else {
+			/* Optimize closest point and inside circle. */
+			result = optVelocity;
+		}
+
+		for (size_t i = 0; i < lines.size(); ++i) {
+			if (det(lines[i].direction, lines[i].point - result) > 0.0f) {
+				/* Result does not satisfy constraint i. Compute new optimal result. */
+				const RVO::Vector2 tempResult = result;
+
+				if (!LinearProgram1(lines, i, radius, optVelocity, directionOpt, result)) {
+					result = tempResult;
+					return i;
+				}
+			}
+		}
+
+		return lines.size();
+	}
+
+	FORCEINLINE void LinearProgram3(const std::vector<RVO::Line>& lines, size_t numObstLines, size_t beginLine, float radius, RVO::Vector2& result)
+	{
+		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("linearProgram3");
+		float distance = 0.0f;
+
+		for (size_t i = beginLine; i < lines.size(); ++i) {
+			if (det(lines[i].direction, lines[i].point - result) > distance) {
+				/* Result does not satisfy constraint of line i. */
+				std::vector<RVO::Line> projLines(lines.begin(), lines.begin() + static_cast<ptrdiff_t>(numObstLines));
+
+				for (size_t j = numObstLines; j < i; ++j) {
+					RVO::Line line;
+
+					float determinant = det(lines[i].direction, lines[j].direction);
+
+					if (std::fabs(determinant) <= RVO_EPSILON) {
+						/* Line i and line j are parallel. */
+						if (lines[i].direction * lines[j].direction > 0.0f) {
+							/* Line i and line j point in the same direction. */
+							continue;
+						}
+						else {
+							/* Line i and line j point in opposite direction. */
+							line.point = 0.5f * (lines[i].point + lines[j].point);
+						}
+					}
+					else {
+						line.point = lines[i].point + (det(lines[j].direction, lines[i].point - lines[j].point) / determinant) * lines[i].direction;
+					}
+
+					line.direction = normalize(lines[j].direction - lines[i].direction);
+					projLines.push_back(line);
+				}
+
+				const RVO::Vector2 tempResult = result;
+
+				if (LinearProgram2(projLines, radius, RVO::Vector2(-lines[i].direction.y(), lines[i].direction.x()), true, result) < projLines.size()) {
+					/* This should in principle not happen.  The result is by definition
+					 * already in the feasible region of this linear program. If it fails,
+					 * it is due to small floating point error, and the current result is
+					 * kept.
+					 */
+					result = tempResult;
+				}
+
+				distance = det(lines[i].direction, lines[i].point - result);
+			}
+		}
+	}
 
 	//---------------------------------------------Helpers------------------------------------------------------------------
 
@@ -176,11 +335,15 @@ public:
 		const int32 ExpectedCells = (Max.X - Min.X + 1) * (Max.Y - Min.Y + 1) * (Max.Z - Min.Z + 1);
 		ValidCells.Reserve(ExpectedCells); // 根据场景规模调整
 
-		for (int32 z = Min.Z; z <= Max.Z; ++z) {
-			for (int32 y = Min.Y; y <= Max.Y; ++y) {
-				for (int32 x = Min.X; x <= Max.X; ++x) {
+		for (int32 z = Min.Z; z <= Max.Z; ++z) 
+		{
+			for (int32 y = Min.Y; y <= Max.Y; ++y) 
+			{
+				for (int32 x = Min.X; x <= Max.X; ++x) 
+				{
 					const FIntVector CellPos(x, y, z);
-					if (LIKELY(IsInside(CellPos))) { // 分支预测优化
+					if (LIKELY(IsInside(CellPos))) 
+					{ // 分支预测优化
 						ValidCells.Emplace(CellPos);
 					}
 				}
@@ -309,26 +472,20 @@ public:
 		}
 	}
 
-	/**
-	 * Get the size of a single cell in global units.
-	 */
-	const auto GetCellSize() const
+	/* Get the size of a single cell in global units.*/
+	FORCEINLINE const auto GetCellSize() const
 	{
 		return CellSize;
 	}
 
-	/**
-	 * Get the size of the cage in cells among each axis.
-	 */
-	const FIntVector& GetSize() const
+	/* Get the size of the cage in cells among each axis.*/
+	FORCEINLINE const FIntVector& GetSize() const
 	{
 		return GridSize;
 	}
 
-	/**
-	 * Get the global bounds of the cage in world units.
-	 */
-	const FBox& GetBounds() const
+	/* Get the global bounds of the cage in world units.*/
+	FORCEINLINE const FBox& GetBounds() const
 	{
 		const auto Extents = CellSize * FVector(GridSize) * 0.5f;
 		const auto Actor = GetOwner();
@@ -338,9 +495,7 @@ public:
 		return Bounds;
 	}
 
-	/**
-	 * Convert a cage-local 3D location to a global 3D location. No bounding checks are performed.
-	 */
+	/* Convert a cage-local 3D location to a global 3D location. No bounding checks are performed.*/
 	FORCEINLINE FVector CageToWorld(const FIntVector& CagePoint) const
 	{
 		// Convert the cage point to a local position within the cage
@@ -350,38 +505,28 @@ public:
 		return LocalPoint + Bounds.Min;
 	}
 
-	/**
-	 * Convert a global 3D location to a position within the cage.mNo bounding checks are performed.
-	 */
+	/* Convert a global 3D location to a position within the cage.mNo bounding checks are performed.*/
 	FORCEINLINE FIntVector WorldToCage(FVector Point) const
 	{
 		Point -= Bounds.Min;
 		Point *= InvCellSizeCache;
-		return FIntVector(FMath::FloorToInt(Point.X),
-			FMath::FloorToInt(Point.Y),
-			FMath::FloorToInt(Point.Z));
+		return FIntVector(FMath::FloorToInt(Point.X), FMath::FloorToInt(Point.Y), FMath::FloorToInt(Point.Z));
 	}
 
-	/**
-	 * Convert a global 3D location to a position within the bounds. No bounding checks are performed.
-	 */
+	/* Convert a global 3D location to a position within the bounds. No bounding checks are performed.*/
 	FORCEINLINE FVector WorldToBounded(const FVector& Point) const
 	{
 		return Point - Bounds.Min;
 	}
 
-	/**
-	 * Convert a cage-local 3D location to a position within the cage. No bounding checks are performed.
-	 */
+	/* Convert a cage-local 3D location to a position within the cage. No bounding checks are performed.*/
 	FORCEINLINE FIntVector BoundedToCage(FVector Point) const
 	{
 		Point *= InvCellSizeCache;
-		return FIntVector(FMath::FloorToInt(Point.X),
-			FMath::FloorToInt(Point.Y),
-			FMath::FloorToInt(Point.Z));
+		return FIntVector(FMath::FloorToInt(Point.X), FMath::FloorToInt(Point.Y), FMath::FloorToInt(Point.Z));
 	}
 
-	/* Get the index of the cage cell. */
+	/* Get the index of the cage cell.*/
 	FORCEINLINE int32 GetIndexAt(int32 X, int32 Y, int32 Z) const
 	{
 		X = FMath::Clamp(X, 0, GridSize.X - 1);
@@ -390,9 +535,7 @@ public:
 		return X + GridSize.X * (Y + GridSize.Y * Z);
 	}
 
-	/**
-	 * Get a position within the cage by an index of the cell.
-	 */
+	/* Get a position within the cage by an index of the cell.*/
 	FORCEINLINE FIntVector GetCellPointByIndex(int32 Index) const
 	{
 		int32 z = Index / (GridSize.X * GridSize.Y);
@@ -429,9 +572,7 @@ public:
 	FORCEINLINE bool IsInside(const FIntVector& CellPoint) const
 	{
 		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("IsInside");
-		return (CellPoint.X >= 0) && (CellPoint.X < GridSize.X) &&
-			(CellPoint.Y >= 0) && (CellPoint.Y < GridSize.Y) &&
-			(CellPoint.Z >= 0) && (CellPoint.Z < GridSize.Z);
+		return (CellPoint.X >= 0) && (CellPoint.X < GridSize.X) && (CellPoint.Y >= 0) && (CellPoint.Y < GridSize.Y) && (CellPoint.Z >= 0) && (CellPoint.Z < GridSize.Z);
 	}
 
 	/* Check if the world point is inside the cage. */

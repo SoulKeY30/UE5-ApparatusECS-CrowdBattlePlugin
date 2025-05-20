@@ -7,20 +7,19 @@
 #include "Kismet/BlueprintAsyncActionBase.h"
 #include "SubjectHandle.h"
 #include "Traits/SubType.h"
-#include "Traits/Patrol.h"
-#include "Traits/Collider.h"
-#include "Traits/Trace.h"
-#include "Traits/Located.h"
+#include "Math/Vector2D.h"
 #include "Traits/DmgSphere.h"
 #include "Traits/Debuff.h"
 #include "Traits/AvoGroup.h"
 #include "Traits/Team.h"
 #include "BattleFrameEnums.h"
 #include "BattleFrameStructs.h"
+
 #include "BattleFrameFunctionLibraryRT.generated.h"
 
 class ABattleFrameBattleControl;
 class ANeighborGridActor;
+class UNeighborGridComponent;
 
 UCLASS()
 class BATTLEFRAME_API UBattleFrameFunctionLibraryRT : public UBlueprintFunctionLibrary
@@ -134,7 +133,6 @@ public:
     UFUNCTION(BlueprintCallable, BlueprintPure, meta = (DisplayName = "Convert to SubjectArray", CompactNodeTitle = "->", BlueprintAutocast), Category = "BattleFrame")
     static FSubjectArray ConvertSubjectHandlesToSubjectArray(const TArray<FSubjectHandle>& SubjectHandles);
 
-    static FVector FindNewPatrolGoalLocation(const FPatrol& Patrol, const FCollider& Collider, const FTrace& Trace, const FLocated& Located, int32 MaxAttempts);
     static void CalculateThreadsCountAndBatchSize(int32 IterableNum, int32 MaxThreadsAllowed, int32 MinBatchSizeAllowed, int32& ThreadsCount, int32& BatchSize);
 
     static void SetRecordSubTypeTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord);
@@ -410,6 +408,9 @@ public:
     FAsyncTraceOutput Completed;
 
     TWeakObjectPtr<ANeighborGridActor> NeighborGridActor;
+    TWeakObjectPtr<UNeighborGridComponent> NeighborGrid;
+    FIntVector GridSize;
+
     int32 KeepCount;
     FVector Start;
     FVector End;

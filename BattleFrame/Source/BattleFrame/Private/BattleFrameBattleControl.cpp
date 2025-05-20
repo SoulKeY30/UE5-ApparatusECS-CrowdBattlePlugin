@@ -1391,7 +1391,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						if (Patrolling.WaitTimeLeft <= 0.f)
 						{
 							ResetPatrol(Patrol, Patrolling, Located);
-							Move.Goal = UBattleFrameFunctionLibraryRT::FindNewPatrolGoalLocation(Patrol, Collider, Trace, Located, 3);
+							Move.Goal = FindNewPatrolGoalLocation(Patrol, Collider, Trace, Located, 3);
 						}
 						else
 						{
@@ -1404,7 +1404,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						if (Patrolling.MoveTimeLeft <= 0.f)
 						{
 							ResetPatrol(Patrol, Patrolling, Located);
-							Move.Goal = UBattleFrameFunctionLibraryRT::FindNewPatrolGoalLocation(Patrol, Collider, Trace, Located, 3);
+							Move.Goal = FindNewPatrolGoalLocation(Patrol, Collider, Trace, Located, 3);
 						}
 						else
 						{
@@ -2825,4 +2825,55 @@ void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subje
 
 		DamageResults.Add(DmgResult);
 	}
+}
+
+FVector ABattleFrameBattleControl::FindNewPatrolGoalLocation(const FPatrol& Patrol, const FCollider& Collider, const FTrace& Trace, const FLocated& Located, int32 MaxAttempts)
+{
+	// Early out if no neighbor grid available
+	if (!IsValid(Trace.NeighborGrid))
+	{
+		const float Angle = FMath::FRandRange(0.f, 2.f * PI);
+		const float Distance = FMath::FRandRange(Patrol.PatrolRadiusMin, Patrol.PatrolRadiusMax);
+		return Patrol.Origin + FVector(FMath::Cos(Angle) * Distance, FMath::Sin(Angle) * Distance, 0.f);
+	}
+
+	FVector BestCandidate = Patrol.Origin;
+	float BestDistanceSq = 0.f;
+
+	for (int32 Attempt = 0; Attempt < MaxAttempts; ++Attempt)
+	{
+		// Generate random position in patrol ring
+		const float Angle = FMath::FRandRange(0.f, 2.f * PI);
+		const float Distance = FMath::FRandRange(Patrol.PatrolRadiusMin, Patrol.PatrolRadiusMax);
+		const FVector Candidate = Patrol.Origin + FVector(FMath::Cos(Angle) * Distance, FMath::Sin(Angle) * Distance, 0.f);
+
+		// Skip visibility check if not required
+		if (!Patrol.bCheckVisibility)
+		{
+			return Candidate;
+		}
+
+		// Check visibility through neighbor grid
+		bool bHit = false;
+		FTraceResult Result;
+		Trace.NeighborGrid->SphereSweepForObstacle(Located.Location, Candidate, Collider.Radius, bHit, Result);
+
+		// Return first valid candidate found
+		if (!bHit)
+		{
+			return Candidate;
+		}
+
+		// Track farthest candidate as fallback
+		const float CurrentDistanceSq = (Candidate - Located.Location).SizeSquared();
+
+		if (CurrentDistanceSq > BestDistanceSq)
+		{
+			BestCandidate = Candidate;
+			BestDistanceSq = CurrentDistanceSq;
+		}
+	}
+
+	// Return best candidate if all attempts hit obstacles
+	return BestCandidate;
 }

@@ -16,7 +16,7 @@
 #include "NeighborGridComponent.h"
 #include "Runtime/Core/Public/Async/ParallelFor.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
-
+#include "BitMask.h"
 #include "Traits/RegisterMultiple.h"
 #include "Traits/Collider.h"
 #include "Traits/Located.h"
@@ -31,10 +31,12 @@
 #include "Traits/Dying.h"
 #include "Traits/Activated.h"
 #include "Traits/Agent.h"
-#include "Math/Vector2D.h"
-#include "RVODefinitions.h"
+#include "Traits/Patrol.h"
+#include "Traits/Collider.h"
+#include "Traits/Trace.h"
+#include "Traits/Located.h"
 #include "BattleFrameFunctionLibraryRT.h"
-
+#include "Kismet/BlueprintAsyncActionBase.h"
 
 UNeighborGridComponent::UNeighborGridComponent()
 {
@@ -728,29 +730,30 @@ void UNeighborGridComponent::SphereSweepForObstacle
 (
 	const FVector& Start,
 	const FVector& End,
-	float Radius, 
-	bool& Hit, 
+	float Radius,
+	bool& Hit,
 	FTraceResult& Result
 ) const
 {
-	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereSweepForObstacle");
 	Hit = false;
 	Result = FTraceResult();
 	float ClosestHitDistSq = FLT_MAX;
 
 	TArray<FIntVector> PathCells = SphereSweepForCells(Start, End, Radius);
+	const FVector CellExtent = CellSize * 0.5f;
+	const float CellMaxRadius = CellExtent.GetMax(); // 最长半轴作为单元包围球半径
 
 	auto ProcessObstacle = [&](const FAvoiding& Obstacle, float DistSqr)
-	{
-		if (DistSqr < ClosestHitDistSq)
 		{
-			ClosestHitDistSq = DistSqr;
-			Hit = true;
-			Result.Subject = Obstacle.SubjectHandle;
-			Result.Location = Obstacle.Location;
-			Result.CachedDistSq = DistSqr;
-		}
-	};
+			if (DistSqr < ClosestHitDistSq)
+			{
+				ClosestHitDistSq = DistSqr;
+				Hit = true;
+				Result.Subject = Obstacle.SubjectHandle;
+				Result.Location = Obstacle.Location;
+				Result.CachedDistSq = DistSqr;
+			}
+		};
 
 	for (const FIntVector& CellPos : PathCells)
 	{
@@ -758,26 +761,26 @@ void UNeighborGridComponent::SphereSweepForObstacle
 
 		// 检查球形障碍物
 		auto CheckSphereCollision = [&](const TArray<FAvoiding, TInlineAllocator<8>>& Obstacles)
-		{
-			for (const FAvoiding& Avoiding : Obstacles)
 			{
-				if (!Avoiding.SubjectHandle.IsValid()) continue;
-
-				const FSphereObstacle* CurrentObstacle = Avoiding.SubjectHandle.GetTraitPtr<FSphereObstacle, EParadigm::Unsafe>();
-				if (!CurrentObstacle) continue;
-				if (CurrentObstacle->bExcluded) continue;
-
-				// 计算球体到线段的最短距离平方
-				const float DistSqr = FMath::PointDistToSegmentSquared(Avoiding.Location, Start, End);
-				const float CombinedRadius = Radius + Avoiding.Radius;
-
-				// 如果距离小于合并半径，则发生碰撞
-				if (DistSqr <= FMath::Square(CombinedRadius))
+				for (const FAvoiding& Avoiding : Obstacles)
 				{
-					ProcessObstacle(Avoiding, DistSqr);
+					if (!Avoiding.SubjectHandle.IsValid()) continue;
+
+					const FSphereObstacle* CurrentObstacle = Avoiding.SubjectHandle.GetTraitPtr<FSphereObstacle, EParadigm::Unsafe>();
+					if (!CurrentObstacle) continue;
+					if (CurrentObstacle->bExcluded) continue;
+
+					// 计算球体到线段的最短距离平方
+					const float DistSqr = FMath::PointDistToSegmentSquared(Avoiding.Location, Start, End);
+					const float CombinedRadius = Radius + Avoiding.Radius;
+
+					// 如果距离小于合并半径，则发生碰撞
+					if (DistSqr <= FMath::Square(CombinedRadius))
+					{
+						ProcessObstacle(Avoiding, DistSqr);
+					}
 				}
-			}
-		};
+			};
 
 		// 检查静态/动态球形障碍物
 		CheckSphereCollision(Cell.SphereObstacles);
@@ -786,7 +789,6 @@ void UNeighborGridComponent::SphereSweepForObstacle
 		// 检查长方体障碍物碰撞
 		auto CheckBoxCollision = [&](const TArray<FAvoiding, TInlineAllocator<8>>& Obstacles)
 			{
-				TRACE_CPUPROFILER_EVENT_SCOPE_STR("CheckBoxCollision");
 				// 预计算常用向量
 				const FVector Up = FVector::UpVector;
 				const FVector SphereDir = (End - Start).GetSafeNormal();
@@ -844,8 +846,6 @@ void UNeighborGridComponent::SphereSweepForObstacle
 					auto SphereIntersectsBox = [&](const FVector& SphereStart, const FVector& SphereEnd, float SphereRadius,
 						const FVector BottomVerts[4], const FVector TopVerts[4]) -> bool
 						{
-							TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereIntersectsBox");
-
 							// 1. 快速AABB测试
 							FVector BoxMin = BottomVerts[0];
 							FVector BoxMax = TopVerts[0];
@@ -945,6 +945,19 @@ void UNeighborGridComponent::SphereSweepForObstacle
 		// 检查静态/动态盒体障碍物
 		CheckBoxCollision(Cell.BoxObstacles);
 		CheckBoxCollision(Cell.BoxObstaclesStatic);
+
+		// ============== 新增提前退出判断 ==============
+		if (Hit) // 只有发现过障碍物才需要判断
+		{
+			const FVector CellCenter = CageToWorld(CellPos);
+			const float DistToSegmentSq = FMath::PointDistToSegmentSquared(CellCenter, Start, End);
+			const float MinPossibleDist = FMath::Sqrt(DistToSegmentSq) - CellMaxRadius;
+
+			if (MinPossibleDist > 0 && (MinPossibleDist * MinPossibleDist) > ClosestHitDistSq)
+			{
+				break; // 后续单元不可能更近，提前退出循环
+			}
+		}
 	}
 }
 
@@ -1283,7 +1296,6 @@ void UNeighborGridComponent::Update()
 
 }
 
-
 void UNeighborGridComponent::Decouple()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("RVO2 Decouple");
@@ -1304,7 +1316,6 @@ void UNeighborGridComponent::Decouple()
 	{
 		if (LIKELY(Avoidance.bEnable))
 		{
-			//TRACE_CPUPROFILER_EVENT_SCOPE_STR("CacheTraits");
 			const auto& SelfLocation = Located.Location;
 			Avoidance.Position = RVO::Vector2(SelfLocation.X, SelfLocation.Y);
 
@@ -1317,7 +1328,6 @@ void UNeighborGridComponent::Decouple()
 
 			//--------------------------Collect Subject Neighbors--------------------------------
 
-			//TRACE_CPUPROFILER_EVENT_SCOPE_STR("MakeFilter");
 			FFilter SubjectFilter = SubjectFilterBase;
 
 			// 碰撞组
@@ -1336,67 +1346,58 @@ void UNeighborGridComponent::Decouple()
 				SubjectFilter.Include<FDying>();// dying subject only collide with dying subjects
 			}
 
-			//TRACE_CPUPROFILER_EVENT_SCOPE_STR("GetCoords");
 			const FVector SubjectRange3D(NeighborDist + SelfRadius, NeighborDist + SelfRadius, SelfRadius);
 			TArray<FIntVector> NeighbourCellCoords = GetNeighborCells(SelfLocation, SubjectRange3D);
 
-			//TRACE_CPUPROFILER_EVENT_SCOPE_STR("DefineCompare");
 			// 使用最大堆收集最近的SubjectNeighbors
 			auto SubjectCompare = [&](const FAvoiding& A, const FAvoiding& B)
 			{
 				return FVector::DistSquared(SelfLocation, A.Location) > FVector::DistSquared(SelfLocation, B.Location);
 			};
 
-			//TRACE_CPUPROFILER_EVENT_SCOPE_STR("PrepareData");
 			TArray<FAvoiding> SubjectNeighbors;
 			SubjectNeighbors.Reserve(MaxNeighbors);
 
 			TSet<uint32> SeenHashes;
 			SeenHashes.Reserve(MaxNeighbors);
 
-			//TRACE_CPUPROFILER_EVENT_SCOPE_STR("ForEachCell");
+			// this is the most expensive code of all
 			for (const auto& Coord : NeighbourCellCoords)
 			{
-				//TRACE_CPUPROFILER_EVENT_SCOPE_STR("ForEachSubject");
 				const auto& Subjects = At(Coord).Subjects;
 
 				for (const auto& AvoData : Subjects)
 				{
-					//TRACE_CPUPROFILER_EVENT_SCOPE_STR("DistCheck");
+					// these check are arranged so for cache optimization
 					// 距离检查
 					const float DistSqr = FVector::DistSquared(SelfLocation, AvoData.Location);
 					const float RadiusSqr = FMath::Square(AvoData.Radius) + TotalRangeSqr;
 
 					if (DistSqr > RadiusSqr) continue;
 
-					//TRACE_CPUPROFILER_EVENT_SCOPE_STR("SelfCheck");
 					// 排除自身
 					if (UNLIKELY(AvoData.SubjectHash == Avoiding.SubjectHash)) continue;
 
-					//TRACE_CPUPROFILER_EVENT_SCOPE_STR("RepetitionCheck");
 					// 去重
 					if (UNLIKELY(SeenHashes.Contains(AvoData.SubjectHash))) continue;
 
-					//TRACE_CPUPROFILER_EVENT_SCOPE_STR("FilterCheck");
 					// Filter By Traits
 					if (UNLIKELY(!AvoData.SubjectHandle.Matches(SubjectFilter))) continue;
 
 					SeenHashes.Add(AvoData.SubjectHash);
 
+					// we limit the amount of subjects. we keep the nearest MaxNeighbors amount of neighbors
 					// 动态维护堆
 					if (LIKELY(SubjectNeighbors.Num() < MaxNeighbors))
 					{
-						//TRACE_CPUPROFILER_EVENT_SCOPE_STR("HeapPush");
 						SubjectNeighbors.HeapPush(AvoData, SubjectCompare);
 					}
 					else
 					{
-						//TRACE_CPUPROFILER_EVENT_SCOPE_STR("CheckHeapReplace");
 						const float HeapTopDist = FVector::DistSquared(SelfLocation, SubjectNeighbors.HeapTop().Location);
 
 						if (UNLIKELY(DistSqr < HeapTopDist))
 						{
-							//TRACE_CPUPROFILER_EVENT_SCOPE_STR("DoHeapReplace");
 							// 弹出时同步移除哈希记录
 							SeenHashes.Remove(SubjectNeighbors.HeapTop().SubjectHash);
 							SubjectNeighbors.HeapPopDiscard(SubjectCompare);
@@ -1407,7 +1408,7 @@ void UNeighborGridComponent::Decouple()
 			}
 
 			//----------------------------Try Avoid SubjectNeighbors---------------------------------
-			//TRACE_CPUPROFILER_EVENT_SCOPE_STR("Try Avoid SubjectNeighbors");
+
 			Avoidance.MaxSpeed = FMath::Clamp(Move.MoveSpeed * Moving.PassiveSpeedMult, Avoidance.RVO_MinAvoidSpeed, FLT_MAX);
 			Avoidance.DesiredVelocity = RVO::Vector2(Moving.DesiredVelocity.X, Moving.DesiredVelocity.Y);//copy into rvo trait
 			Avoidance.CurrentVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);//copy into rvo trait
@@ -1425,7 +1426,7 @@ void UNeighborGridComponent::Decouple()
 			}
 
 			//---------------------------Collect Obstacle Neighbors--------------------------------
-			//TRACE_CPUPROFILER_EVENT_SCOPE_STR("Collect Obstacle Neighbors");
+
 			const float ObstacleRange = Avoidance.RVO_TimeHorizon_Obstacle * Avoidance.MaxSpeed + Avoidance.Radius;
 			const FVector ObstacleRange3D(ObstacleRange, ObstacleRange, Avoidance.Radius);
 			TArray<FIntVector> ObstacleCellCoords = GetNeighborCells(SelfLocation, ObstacleRange3D);
@@ -1496,7 +1497,7 @@ void UNeighborGridComponent::Decouple()
 			TArray<FAvoiding> BoxObstacleNeighbors = ValidBoxObstacleNeighbors.Array();
 
 			//-------------------------------Blocked By Obstacles------------------------------------
-			//TRACE_CPUPROFILER_EVENT_SCOPE_STR("Blocked By Obstacles");
+
 			Avoidance.MaxSpeed = Moving.bPushedBack ? FMath::Max(Moving.CurrentVelocity.Size2D(), Moving.PushBackSpeedOverride) : Moving.CurrentVelocity.Size2D();
 			Avoidance.DesiredVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);//copy into rvo trait
 			Avoidance.CurrentVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);//copy into rvo trait
@@ -1523,8 +1524,6 @@ void UNeighborGridComponent::Evaluate()
 
 void UNeighborGridComponent::ComputeNewVelocity(FAvoidance& Avoidance, const TArray<FAvoiding>& SubjectNeighbors, const TArray<FAvoiding>& ObstacleNeighbors, float TimeStep_)
 {
-	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("ComputeNewVelocity");
-
 	Avoidance.OrcaLines.clear();
 
 	/* Create obstacle ORCA lines. */
@@ -1828,163 +1827,5 @@ void UNeighborGridComponent::ComputeNewVelocity(FAvoidance& Avoidance, const TAr
 
 	if (lineFail < Avoidance.OrcaLines.size()) {
 		LinearProgram3(Avoidance.OrcaLines, numObstLines, lineFail, Avoidance.MaxSpeed, Avoidance.AvoidingVelocity);
-	}
-}
-
-bool UNeighborGridComponent::LinearProgram1(const std::vector<RVO::Line>& lines, size_t lineNo, float radius, const RVO::Vector2& optVelocity, bool directionOpt, RVO::Vector2& result)
-{
-	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("linearProgram1");
-	const float dotProduct = lines[lineNo].point * lines[lineNo].direction;
-	const float discriminant = RVO::sqr(dotProduct) + RVO::sqr(radius) - absSq(lines[lineNo].point);
-
-	if (discriminant < 0.0f) {
-		/* Max speed circle fully invalidates line lineNo. */
-		return false;
-	}
-
-	const float sqrtDiscriminant = std::sqrt(discriminant);
-	float tLeft = -dotProduct - sqrtDiscriminant;
-	float tRight = -dotProduct + sqrtDiscriminant;
-
-	for (size_t i = 0; i < lineNo; ++i) {
-		const float denominator = det(lines[lineNo].direction, lines[i].direction);
-		const float numerator = det(lines[i].direction, lines[lineNo].point - lines[i].point);
-
-		if (std::fabs(denominator) <= RVO_EPSILON) {
-			/* Lines lineNo and i are (almost) parallel. */
-			if (numerator < 0.0f) {
-				return false;
-			}
-			else {
-				continue;
-			}
-		}
-
-		const float t = numerator / denominator;
-
-		if (denominator >= 0.0f) {
-			/* Line i bounds line lineNo on the right. */
-			tRight = std::min(tRight, t);
-		}
-		else {
-			/* Line i bounds line lineNo on the left. */
-			tLeft = std::max(tLeft, t);
-		}
-
-		if (tLeft > tRight) {
-			return false;
-		}
-	}
-
-	if (directionOpt) {
-		/* Optimize direction. */
-		if (optVelocity * lines[lineNo].direction > 0.0f) {
-			/* Take right extreme. */
-			result = lines[lineNo].point + tRight * lines[lineNo].direction;
-		}
-		else {
-			/* Take left extreme. */
-			result = lines[lineNo].point + tLeft * lines[lineNo].direction;
-		}
-	}
-	else {
-		/* Optimize closest point. */
-		const float t = lines[lineNo].direction * (optVelocity - lines[lineNo].point);
-
-		if (t < tLeft) {
-			result = lines[lineNo].point + tLeft * lines[lineNo].direction;
-		}
-		else if (t > tRight) {
-			result = lines[lineNo].point + tRight * lines[lineNo].direction;
-		}
-		else {
-			result = lines[lineNo].point + t * lines[lineNo].direction;
-		}
-	}
-
-	return true;
-}
-
-size_t UNeighborGridComponent::LinearProgram2(const std::vector<RVO::Line>& lines, float radius, const RVO::Vector2& optVelocity, bool directionOpt, RVO::Vector2& result)
-{
-	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("linearProgram2");
-	if (directionOpt) {
-		/*
-		 * Optimize direction. Note that the optimization velocity is of unit
-		 * length in this case.
-		 */
-		result = optVelocity * radius;
-	}
-	else if (RVO::absSq(optVelocity) > RVO::sqr(radius)) {
-		/* Optimize closest point and outside circle. */
-		result = normalize(optVelocity) * radius;
-	}
-	else {
-		/* Optimize closest point and inside circle. */
-		result = optVelocity;
-	}
-
-	for (size_t i = 0; i < lines.size(); ++i) {
-		if (det(lines[i].direction, lines[i].point - result) > 0.0f) {
-			/* Result does not satisfy constraint i. Compute new optimal result. */
-			const RVO::Vector2 tempResult = result;
-
-			if (!LinearProgram1(lines, i, radius, optVelocity, directionOpt, result)) {
-				result = tempResult;
-				return i;
-			}
-		}
-	}
-
-	return lines.size();
-}
-
-void UNeighborGridComponent::LinearProgram3(const std::vector<RVO::Line>& lines, size_t numObstLines, size_t beginLine, float radius, RVO::Vector2& result)
-{
-	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("linearProgram3");
-	float distance = 0.0f;
-
-	for (size_t i = beginLine; i < lines.size(); ++i) {
-		if (det(lines[i].direction, lines[i].point - result) > distance) {
-			/* Result does not satisfy constraint of line i. */
-			std::vector<RVO::Line> projLines(lines.begin(), lines.begin() + static_cast<ptrdiff_t>(numObstLines));
-
-			for (size_t j = numObstLines; j < i; ++j) {
-				RVO::Line line;
-
-				float determinant = det(lines[i].direction, lines[j].direction);
-
-				if (std::fabs(determinant) <= RVO_EPSILON) {
-					/* Line i and line j are parallel. */
-					if (lines[i].direction * lines[j].direction > 0.0f) {
-						/* Line i and line j point in the same direction. */
-						continue;
-					}
-					else {
-						/* Line i and line j point in opposite direction. */
-						line.point = 0.5f * (lines[i].point + lines[j].point);
-					}
-				}
-				else {
-					line.point = lines[i].point + (det(lines[j].direction, lines[i].point - lines[j].point) / determinant) * lines[i].direction;
-				}
-
-				line.direction = normalize(lines[j].direction - lines[i].direction);
-				projLines.push_back(line);
-			}
-
-			const RVO::Vector2 tempResult = result;
-
-			if (LinearProgram2(projLines, radius, RVO::Vector2(-lines[i].direction.y(), lines[i].direction.x()), true, result) < projLines.size()) {
-				/* This should in principle not happen.  The result is by definition
-				 * already in the feasible region of this linear program. If it fails,
-				 * it is due to small floating point error, and the current result is
-				 * kept.
-				 */
-				result = tempResult;
-			}
-
-			distance = det(lines[i].direction, lines[i].point - result);
-		}
 	}
 }

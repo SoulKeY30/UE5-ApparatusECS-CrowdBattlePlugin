@@ -114,9 +114,6 @@ public:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = BattleFrame)
 	int32 AgentCount = 0;
 
-	//UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = BattleFrame)
-	//float MaxLogicFrameTime = 0.03f;
-
 	static ABattleFrameBattleControl* Instance;
 	FStreamableManager StreamableManager;
 	UWorld* CurrentWorld = nullptr;
@@ -156,6 +153,8 @@ public:
 	}
 
 	void ApplyDamageToSubjects(const FSubjectArray& Subjects, const FSubjectArray& IgnoreSubjects, const FSubjectHandle DmgInstigator, const FVector& HitFromLocation, const FDmgSphere& DmgSphere, const FDebuff& Debuff, TArray<FDmgResult>& DamageResults);
+
+	static FVector FindNewPatrolGoalLocation(const FPatrol& Patrol, const FCollider& Collider, const FTrace& Trace, const FLocated& Located, int32 MaxAttempts);
 
 	// 计算实际伤害，并返回一个pair，第一个元素是是否暴击，第二个元素是实际伤害
 	FORCEINLINE std::pair<bool, float> ProcessCritDamage(float BaseDamage, float damageMult, float Probability)
