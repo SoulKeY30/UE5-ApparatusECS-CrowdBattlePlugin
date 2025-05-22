@@ -20,9 +20,10 @@
 #include "Traits/Animation.h"
 #include "Traits/Appear.h"
 #include "Traits/Tracing.h"
-#include "Traits/Avoiding.h"
+#include "Traits/GridData.h"
 #include "Traits/RegisterMultiple.h"
 #include "Traits/Team.h"
+#include "Traits/Avoiding.h"
 #include "AnimToTextureDataAsset.h"
 #include "NiagaraSubjectRenderer.h"
 #include "BattleFrameFunctionLibraryRT.h"
@@ -127,6 +128,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     AgentConfig.SetTrait(DataAsset->Patrol);
     AgentConfig.SetTrait(DataAsset->Navigation);
     AgentConfig.SetTrait(DataAsset->Avoidance);
+    AgentConfig.SetTrait(FAvoiding());
     AgentConfig.SetTrait(DataAsset->Appear);
     AgentConfig.SetTrait(DataAsset->Trace);
     AgentConfig.SetTrait(FTracing());
@@ -291,7 +293,7 @@ void AAgentSpawner::ActivateAgent( FSubjectHandle Agent )// strange apparatus bu
         Agent.SetTrait(FRegisterMultiple());
     }
 
-    Agent.SetTrait(FAvoiding{ Located.Location, Collider.Radius, Agent, Agent.CalcHash() });
+    Agent.SetTrait(FGridData{ Located.Location, Collider.Radius, Agent, Agent.CalcHash() });
 
     UBattleFrameFunctionLibraryRT::SetSubjectSubTypeTraitByIndex(SubType.Index, Agent);
     UBattleFrameFunctionLibraryRT::SetSubjectTeamTraitByIndex(FMath::Clamp(Team.index, 0, 9), Agent);

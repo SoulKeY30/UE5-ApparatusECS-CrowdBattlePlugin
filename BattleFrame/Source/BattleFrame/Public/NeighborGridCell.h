@@ -17,7 +17,7 @@
 
 #include "CoreMinimal.h"
 #include "Machine.h"
-#include "Traits/Avoiding.h"
+#include "Traits/GridData.h"
 #include "NeighborGridCell.generated.h"
     
  /**
@@ -45,11 +45,11 @@ public:
 	}
 
 
-	TArray<FAvoiding, TInlineAllocator<8>> Subjects;
-	TArray<FAvoiding, TInlineAllocator<8>> SphereObstacles;
-	TArray<FAvoiding, TInlineAllocator<8>> BoxObstacles;
-	TArray<FAvoiding, TInlineAllocator<8>> SphereObstaclesStatic;
-	TArray<FAvoiding, TInlineAllocator<8>> BoxObstaclesStatic;
+	TArray<FGridData, TInlineAllocator<8>> Subjects;
+	TArray<FGridData, TInlineAllocator<8>> SphereObstacles;
+	TArray<FGridData, TInlineAllocator<8>> BoxObstacles;
+	TArray<FGridData, TInlineAllocator<8>> SphereObstaclesStatic;
+	TArray<FGridData, TInlineAllocator<8>> BoxObstaclesStatic;
 
 	bool Registered = false;
 

@@ -22,33 +22,31 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ClampMin = "0", Tooltip = "转向速度"))
 	float TurnSpeed = 3.f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "速度范围映射 (X: 与移动目标方向最小夹角, Y: 最小夹角时速度乘数, Z:与移动目标方向最大夹角, W:最大夹角时速度乘数 )"))
-	FVector4 TurnSpeedRangeMap = FVector4(0, 1, 180, 0);
 
 	//---------------XY Movement-----------------//
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ClampMin = "0", Tooltip = "移动速度"))
 	float MoveSpeed = 600.f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ClampMin = "0", Tooltip = "速度下限"))
-	float MinMoveSpeed = 100.f;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "速度范围映射 (X: 与移动方向的夹角, Y: 对应的速度乘数, Z:与移动方向的夹角, W:对应的速度乘数)"))
+	FVector4 SpeedRangeMapByAngle = FVector4(0, 1, 180, 1);
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "速度范围映射 (X: 距移动目标点最小距离, Y: 最小距离时速度乘数, Z:距移动目标点最大距离, W:最大距离时速度乘数 )"))
-	FVector4 MoveSpeedRangeMap = FVector4(100, 1, 1000, 1);
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "速度范围映射 (X: 与目标点的距离, Y: 对应的速度乘数, Z:与目标点的距离, W:对应的速度乘数)"))
+	FVector4 SpeedRangeMapByDist = FVector4(100, 1, 1000, 1);
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "距离低于该值时停止移动"))
-	float AcceptanceRadius = 100;
+	float AcceptanceRadius = 100.f;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ClampMin = "0", Tooltip = "加速度"))
-	float Acceleration = 1000.f;
+	float Acceleration = 3000.f;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ClampMin = "0", Tooltip = "地面摩擦减速度"))
 	float Deceleration_Ground = 3000.f;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ClampMin = "0", Tooltip = "空气阻力减速度"))
-	float Deceleration_Air = 100.f;
+	float Deceleration_Falling = 100.f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ClampMin = "0", Tooltip = "每次地面弹跳速度损耗"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ClampMin = "0", Tooltip = "每次地面弹跳速度衰减"))
 	FVector2D BounceVelocityDecay = FVector2D(0.5f, 0.f);
 
 	//---------------Z Movement-----------------//
@@ -66,5 +64,8 @@ public:
 	float KillZ = -4000.f;
 
 	FVector Goal = FVector(0, 0, 0);
+
+	//UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ClampMin = "0", Tooltip = "速度下限"))
+	//float MinMoveSpeed = 100.f;
 
 };

@@ -4,7 +4,7 @@
 #include "SubjectHandle.h"
 #include "RvoSimulator.h"
 #include "RVOVector2.h"
-
+#include "Traits/GridData.h"
 #include "Avoidance.generated.h"
    
 UENUM(BlueprintType)
@@ -31,10 +31,10 @@ public:
     TArray<int32> IgnoreGroups;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ToolTip = "视野距离", ClampMin = "0"))
-    float NeighborDist = 150.0f;
+    float NeighborDist = 300.f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ToolTip = "最大邻居数量", ClampMin = "1"))
-    int32 MaxNeighbors = 8;
+    int32 MaxNeighbors = 10;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ToolTip = "保底解耦速度", ClampMin = "0"))
     float RVO_MinAvoidSpeed = 100.f;
@@ -45,15 +45,15 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ToolTip = "提前躲避这个时间后会碰撞的障碍物", ClampMin = "0"))
     float RVO_TimeHorizon_Obstacle = 0.1f;
 
+    //UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ToolTip = "再次计算的等待时间", ClampMin = "0"))
+    //float WaitTime = 0.25f;
+
     //-------------------------------------------------------------------------------
 
-    float Radius = 100.0f;
+    //float TimeLeft = 0.f;
     float MaxSpeed = 0.f;
-    
     std::vector<RVO::Line> OrcaLines;
-    RVO::Vector2 Position = RVO::Vector2(0.0f, 0.0f);
-    RVO::Vector2 CurrentVelocity = RVO::Vector2(0.0f, 0.0f);
     RVO::Vector2 DesiredVelocity = RVO::Vector2(0.0f, 0.0f);
     RVO::Vector2 AvoidingVelocity = RVO::Vector2(0.0f, 0.0f);
-
+    //TArray<FGridData> SubjectNeighbors;
 };

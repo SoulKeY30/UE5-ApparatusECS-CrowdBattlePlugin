@@ -1,6 +1,6 @@
 #include "BFSubjectiveActorComponent.h"
 #include "Traits/Health.h"
-#include "Traits/Avoiding.h"
+#include "Traits/GridData.h"
 #include "Traits/Located.h"
 #include "Traits/Collider.h"
 #include "Traits/BindFlowField.h"
@@ -42,7 +42,7 @@ void UBFSubjectiveActorComponent::InitializeTraits(AActor* OwnerActor)
 
     const auto SubjectHandle = GetHandle();
     const auto Collider = ObtainTrait<FCollider>();
-    SetTrait(FAvoiding{ OwnerActor->GetActorLocation(), Collider.Radius, SubjectHandle, SubjectHandle.CalcHash() });
+    SetTrait(FGridData{ OwnerActor->GetActorLocation(), Collider.Radius, SubjectHandle, SubjectHandle.CalcHash() });
 
     SetTrait(FActivated{});
 }

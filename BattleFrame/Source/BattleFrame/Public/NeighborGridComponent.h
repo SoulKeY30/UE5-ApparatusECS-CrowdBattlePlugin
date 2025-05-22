@@ -20,28 +20,38 @@
 #include "MechanicalActorComponent.h"
 #include "Machine.h"
 #include "NeighborGridCell.h"
-#include "Traits/Avoidance.h"
 #include "BattleFrameEnums.h"
 #include "BattleFrameStructs.h"
 #include "RVOSimulator.h"
 #include "RVOVector2.h"
 #include "RVODefinitions.h"
-
+#include "Traits/Avoidance.h"
+#include "Traits/RegisterMultiple.h"
+#include "Traits/Collider.h"
+#include "Traits/Located.h"
+#include "Traits/BoxObstacle.h"
+#include "Traits/Moving.h"
+#include "Traits/SphereObstacle.h"
+#include "Traits/Appearing.h"
+#include "Traits/Move.h"
+#include "Traits/Trace.h"
+#include "Traits/GridData.h"
+#include "Traits/Avoiding.h"
+#include "Traits/Corpse.h"
+#include "Traits/Dying.h"
+#include "Traits/Activated.h"
+#include "Traits/Agent.h"
+#include "Traits/Patrol.h"
+#include "Traits/Collider.h"
+#include "Traits/Trace.h"
+#include "Traits/Located.h"
+#include "Traits/Directed.h"
 #include "NeighborGridComponent.generated.h"
 
 #define BUBBLE_DEBUG 0
 
 class ANeighborGridActor;
 
-// 表示运动路径的胶囊体
-struct FCapsulePath
-{
-	FVector Start;
-	FVector End;
-	float Radius;
-
-	FCapsulePath(const FVector& InStart, const FVector& InEnd, float InRadius) : Start(InStart), End(InEnd), Radius(InRadius) {}
-};
 
 UCLASS(Category = "NeighborGrid")
 class BATTLEFRAME_API UNeighborGridComponent : public UMechanicalActorComponent
@@ -177,165 +187,14 @@ public:
 
 	//---------------------------------------------RVO2------------------------------------------------------------------
 
-	void ComputeNewVelocity(FAvoidance& Avoidance, const TArray<FAvoiding>& SubjectNeighbors, const TArray<FAvoiding>& ObstacleNeighbors, float timeStep_);
+	void ComputeAvoidingVelocity(FAvoidance& Avoidance, FAvoiding& Avoiding, const TArray<FGridData>& SubjectNeighbors, const TArray<FGridData>& ObstacleNeighbors, float timeStep_);
 
-	FORCEINLINE bool LinearProgram1(const std::vector<RVO::Line>& lines, size_t lineNo, float radius, const RVO::Vector2& optVelocity, bool directionOpt, RVO::Vector2& result)
-	{
-		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("linearProgram1");
-		const float dotProduct = lines[lineNo].point * lines[lineNo].direction;
-		const float discriminant = RVO::sqr(dotProduct) + RVO::sqr(radius) - absSq(lines[lineNo].point);
+	bool LinearProgram1(const std::vector<RVO::Line>& lines, size_t lineNo, float radius, const RVO::Vector2& optVelocity, bool directionOpt, RVO::Vector2& result);
 
-		if (discriminant < 0.0f) {
-			/* Max speed circle fully invalidates line lineNo. */
-			return false;
-		}
+	size_t LinearProgram2(const std::vector<RVO::Line>& lines, float radius, const RVO::Vector2& optVelocity, bool directionOpt, RVO::Vector2& result);
 
-		const float sqrtDiscriminant = std::sqrt(discriminant);
-		float tLeft = -dotProduct - sqrtDiscriminant;
-		float tRight = -dotProduct + sqrtDiscriminant;
+	void LinearProgram3(const std::vector<RVO::Line>& lines, size_t numObstLines, size_t beginLine, float radius, RVO::Vector2& result);
 
-		for (size_t i = 0; i < lineNo; ++i) {
-			const float denominator = det(lines[lineNo].direction, lines[i].direction);
-			const float numerator = det(lines[i].direction, lines[lineNo].point - lines[i].point);
-
-			if (std::fabs(denominator) <= RVO_EPSILON) {
-				/* Lines lineNo and i are (almost) parallel. */
-				if (numerator < 0.0f) {
-					return false;
-				}
-				else {
-					continue;
-				}
-			}
-
-			const float t = numerator / denominator;
-
-			if (denominator >= 0.0f) {
-				/* Line i bounds line lineNo on the right. */
-				tRight = std::min(tRight, t);
-			}
-			else {
-				/* Line i bounds line lineNo on the left. */
-				tLeft = std::max(tLeft, t);
-			}
-
-			if (tLeft > tRight) {
-				return false;
-			}
-		}
-
-		if (directionOpt) {
-			/* Optimize direction. */
-			if (optVelocity * lines[lineNo].direction > 0.0f) {
-				/* Take right extreme. */
-				result = lines[lineNo].point + tRight * lines[lineNo].direction;
-			}
-			else {
-				/* Take left extreme. */
-				result = lines[lineNo].point + tLeft * lines[lineNo].direction;
-			}
-		}
-		else {
-			/* Optimize closest point. */
-			const float t = lines[lineNo].direction * (optVelocity - lines[lineNo].point);
-
-			if (t < tLeft) {
-				result = lines[lineNo].point + tLeft * lines[lineNo].direction;
-			}
-			else if (t > tRight) {
-				result = lines[lineNo].point + tRight * lines[lineNo].direction;
-			}
-			else {
-				result = lines[lineNo].point + t * lines[lineNo].direction;
-			}
-		}
-
-		return true;
-	}
-
-	FORCEINLINE size_t LinearProgram2(const std::vector<RVO::Line>& lines, float radius, const RVO::Vector2& optVelocity, bool directionOpt, RVO::Vector2& result)
-	{
-		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("linearProgram2");
-		if (directionOpt) {
-			/*
-			 * Optimize direction. Note that the optimization velocity is of unit
-			 * length in this case.
-			 */
-			result = optVelocity * radius;
-		}
-		else if (RVO::absSq(optVelocity) > RVO::sqr(radius)) {
-			/* Optimize closest point and outside circle. */
-			result = normalize(optVelocity) * radius;
-		}
-		else {
-			/* Optimize closest point and inside circle. */
-			result = optVelocity;
-		}
-
-		for (size_t i = 0; i < lines.size(); ++i) {
-			if (det(lines[i].direction, lines[i].point - result) > 0.0f) {
-				/* Result does not satisfy constraint i. Compute new optimal result. */
-				const RVO::Vector2 tempResult = result;
-
-				if (!LinearProgram1(lines, i, radius, optVelocity, directionOpt, result)) {
-					result = tempResult;
-					return i;
-				}
-			}
-		}
-
-		return lines.size();
-	}
-
-	FORCEINLINE void LinearProgram3(const std::vector<RVO::Line>& lines, size_t numObstLines, size_t beginLine, float radius, RVO::Vector2& result)
-	{
-		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("linearProgram3");
-		float distance = 0.0f;
-
-		for (size_t i = beginLine; i < lines.size(); ++i) {
-			if (det(lines[i].direction, lines[i].point - result) > distance) {
-				/* Result does not satisfy constraint of line i. */
-				std::vector<RVO::Line> projLines(lines.begin(), lines.begin() + static_cast<ptrdiff_t>(numObstLines));
-
-				for (size_t j = numObstLines; j < i; ++j) {
-					RVO::Line line;
-
-					float determinant = det(lines[i].direction, lines[j].direction);
-
-					if (std::fabs(determinant) <= RVO_EPSILON) {
-						/* Line i and line j are parallel. */
-						if (lines[i].direction * lines[j].direction > 0.0f) {
-							/* Line i and line j point in the same direction. */
-							continue;
-						}
-						else {
-							/* Line i and line j point in opposite direction. */
-							line.point = 0.5f * (lines[i].point + lines[j].point);
-						}
-					}
-					else {
-						line.point = lines[i].point + (det(lines[j].direction, lines[i].point - lines[j].point) / determinant) * lines[i].direction;
-					}
-
-					line.direction = normalize(lines[j].direction - lines[i].direction);
-					projLines.push_back(line);
-				}
-
-				const RVO::Vector2 tempResult = result;
-
-				if (LinearProgram2(projLines, radius, RVO::Vector2(-lines[i].direction.y(), lines[i].direction.x()), true, result) < projLines.size()) {
-					/* This should in principle not happen.  The result is by definition
-					 * already in the feasible region of this linear program. If it fails,
-					 * it is due to small floating point error, and the current result is
-					 * kept.
-					 */
-					result = tempResult;
-				}
-
-				distance = det(lines[i].direction, lines[i].point - result);
-			}
-		}
-	}
 
 	//---------------------------------------------Helpers------------------------------------------------------------------
 

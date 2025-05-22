@@ -7,7 +7,7 @@
 #include "BattleFrameCharacter.h"
 #include "Traits/Hero.h"
 #include "Traits/Health.h"
-#include "Traits/Avoiding.h"
+#include "Traits/GridData.h"
 #include "Traits/Located.h"
 #include "Traits/Collider.h"
 #include "Traits/Statistics.h"

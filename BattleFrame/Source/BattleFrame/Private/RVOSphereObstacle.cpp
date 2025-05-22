@@ -25,6 +25,7 @@ void ARVOSphereObstacle::BeginPlay()
 	Template.SetTrait(FCollider{});
 	Template.SetTrait(FSphereObstacle{});
 	Template.SetTrait(FAvoidance{});
+	Template.SetTrait(FAvoiding{});
 
 	FVector Location = SphereComponent->GetComponentLocation();
 	float Radius = SphereComponent->GetScaledSphereRadius();
@@ -39,15 +40,10 @@ void ARVOSphereObstacle::BeginPlay()
 	Template.GetTraitRef<FSphereObstacle>().bStatic = !bIsDynamicObstacle;
 	Template.GetTraitRef<FSphereObstacle>().bExcluded = bExcludeFromVisibilityCheck;
 
-	Template.GetTraitRef<FAvoidance>().Radius = Radius;
-	Template.GetTraitRef<FAvoidance>().Position = RVO::Vector2(Location.X, Location.Y);
-
-
 	AMechanism* Mechanism = UMachine::ObtainMechanism(GetWorld());
 	SubjectHandle = Mechanism->SpawnSubject(Template);
 
-	SubjectHandle.SetTrait(FAvoiding{ Location, Radius, SubjectHandle, SubjectHandle.CalcHash()});
-
+	SubjectHandle.SetTrait(FGridData{ Location, Radius, SubjectHandle, SubjectHandle.CalcHash()});
 }
 
 // Called when the actor is being destroyed or the game is ending
@@ -78,7 +74,5 @@ void ARVOSphereObstacle::Tick(float DeltaTime)
 		SubjectHandle.GetTraitRef<FSphereObstacle, EParadigm::Unsafe>().bOverrideSpeedLimit = bOverrideSpeedLimit;
 		SubjectHandle.GetTraitRef<FSphereObstacle, EParadigm::Unsafe>().NewSpeedLimit = NewSpeedLimit;
 		SubjectHandle.GetTraitRef<FSphereObstacle, EParadigm::Unsafe>().bExcluded = bExcludeFromVisibilityCheck;
-		SubjectHandle.GetTraitRef<FAvoidance, EParadigm::Unsafe>().Radius = Radius;
-		SubjectHandle.GetTraitRef<FAvoidance, EParadigm::Unsafe>().Position = RVO::Vector2(Location.X, Location.Y);
 	}
 }

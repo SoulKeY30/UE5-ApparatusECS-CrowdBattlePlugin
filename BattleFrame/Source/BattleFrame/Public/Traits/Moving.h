@@ -49,8 +49,8 @@ public:
 	  float LaunchTimer = 0;
 	  float PushBackSpeedOverride = 0;
 	  float FlyingHeight = 0;
-	  float ActiveSpeedMult = 1;// the agent want to move at
-	  float PassiveSpeedMult = 1;
+	  float SpeedMult = 1;// the agent want to move at
+	  TArray<FVector> RecentVelocities;
 
 	  FMoving() {};
 
@@ -65,13 +65,11 @@ public:
 	  	LaunchForce = Moving.LaunchForce;
 		LaunchTimer = Moving.LaunchTimer;
 		FlyingHeight = Moving.FlyingHeight;
-		ActiveSpeedMult = Moving.ActiveSpeedMult;
-		PassiveSpeedMult = Moving.PassiveSpeedMult;
-
+		SpeedMult = Moving.SpeedMult;
 		bFalling = Moving.bFalling;
 		bLaunching = Moving.bLaunching;
 		bPushedBack = Moving.bPushedBack;
-		//Goal = Moving.Goal;
+		RecentVelocities = Moving.RecentVelocities;
 	  }
 
 	  FMoving& operator=(const FMoving& Moving)
@@ -85,14 +83,11 @@ public:
 		LaunchForce = Moving.LaunchForce;
 		LaunchTimer = Moving.LaunchTimer;
 		FlyingHeight = Moving.FlyingHeight;
-		ActiveSpeedMult = Moving.ActiveSpeedMult;
-		PassiveSpeedMult = Moving.PassiveSpeedMult;
-
+		SpeedMult = Moving.SpeedMult;
 		bFalling = Moving.bFalling;
 		bLaunching = Moving.bLaunching;
 		bPushedBack = Moving.bPushedBack;
-		//Goal = Moving.Goal;
-
+		RecentVelocities = Moving.RecentVelocities;
 	  	return *this;
 	  }
 
