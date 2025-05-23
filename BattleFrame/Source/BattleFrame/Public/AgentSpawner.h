@@ -87,7 +87,7 @@ public:
 		int32 Team = 0,
 		FVector Origin = FVector::ZeroVector,
 		FVector2D Region = FVector2D::ZeroVector,
-		FVector2D LaunchForce = FVector2D::ZeroVector,
+		FVector2D LaunchVelSum = FVector2D::ZeroVector,
 		EInitialDirection InitialDirection = EInitialDirection::FacePlayer,
 		FVector2D CustomDirection = FVector2D(1,0),
 		FSpawnerMult Multipliers = FSpawnerMult()

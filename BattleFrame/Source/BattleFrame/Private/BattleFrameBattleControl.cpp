@@ -629,7 +629,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				else if (Attacking.Time >= Attack.DurationPerRound + Attack.CoolDown)
 				{
 					Subject.RemoveTraitDeferred<FAttacking>();// 移除攻击状态
-					Moving.LaunchForce = FVector::ZeroVector; // 击退力清零
+					Moving.LaunchVelSum = FVector::ZeroVector; // 击退力清零
 				}
 
 				if (Defence.bSlowATKSpeedOnFreeze && Subject.HasTrait<FFreezing>())
@@ -1478,6 +1478,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				FMoving& Moving,
 				FDirected& Directed,
 				FLocated& Located,
+				FScaled& Scaled,
 				FAttack& Attack,
 				FTrace& Trace,
 				FNavigation& Navigation,
@@ -1598,9 +1599,9 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 				//------------------------------ 击飞 ----------------------------//
 
-				if (Moving.LaunchForce != FVector::ZeroVector)// add pending deltaV into current V
+				if (Moving.LaunchVelSum != FVector::ZeroVector)// add pending deltaV into current V
 				{
-					Moving.CurrentVelocity += Moving.LaunchForce * (1 - (bIsDying ? Defence.KineticDebuffImmuneDead : Defence.KineticDebuffImmuneAlive));
+					Moving.CurrentVelocity += Moving.LaunchVelSum * (1 - (bIsDying ? Defence.KineticDebuffImmuneDead : Defence.KineticDebuffImmuneAlive));
 
 					FVector XYDir = Moving.CurrentVelocity.GetSafeNormal2D();
 					float XYSpeed = Moving.CurrentVelocity.Size2D();
@@ -1611,9 +1612,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					ZSpeed = FMath::Clamp(ZSpeed, -Defence.KineticMaxImpulse, Defence.KineticMaxImpulse);
 
 					Moving.CurrentVelocity = FVector(XYVelocity.X, XYVelocity.Y, ZSpeed);
-					Moving.LaunchTimer = Moving.CurrentVelocity.Size2D() / Move.Deceleration_Ground;
-
-					Moving.LaunchForce = FVector::ZeroVector;
+					Moving.LaunchVelSum = FVector::ZeroVector;
 					Moving.bLaunching = true;
 				}
 
@@ -1705,7 +1704,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				float TurnSpeedMult = 1;
 
 				// 这些情况不转向
-				if (!Move.bEnable || Moving.bFalling || Moving.bLaunching || bIsAppearing || bIsSleeping || bIsAttacking || bIsDying|| (bIsPatrolling && DistanceToGoal <= Patrol.AcceptanceRadius))
+				if (!Move.bEnable || Moving.bFalling || Moving.bLaunching || bIsAppearing || bIsSleeping || bIsAttacking || bIsDying || (bIsPatrolling && DistanceToGoal <= Patrol.AcceptanceRadius))
 				{
 					TurnSpeedMult = 0;
 				}
@@ -1717,29 +1716,45 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					TurnSpeedMult *= 1.0f - Freezing.FreezeStr;
 				}
 
-				// 在更新代码中
-				if (Moving.CurrentVelocity.Size2D() > KINDA_SMALL_NUMBER && TurnSpeedMult > KINDA_SMALL_NUMBER)
+				// 更新速度历史记录
+				if (UNLIKELY(Moving.bShouldInit))
 				{
-					// 记录最近的速度
-					Moving.RecentVelocities.Add(Moving.CurrentVelocity);
-					if (Moving.RecentVelocities.Num() > 30)
-					{
-						Moving.RecentVelocities.RemoveAt(0);
-					}
+					Moving.Initialize();
+				}
 
-					// 计算平均速度
-					FVector AverageVelocity = FVector::ZeroVector;
-					for (const FVector& Vel : Moving.RecentVelocities)
-					{
-						AverageVelocity += Vel;
-					}
-					AverageVelocity /= Moving.RecentVelocities.Num();
+				if (UNLIKELY(Moving.TimeLeft <= 0.f))
+				{
+					Moving.UpdateVelocityHistory(Moving.CurrentVelocity);
+				}
 
-					if (AverageVelocity.Size2D() > Move.MoveSpeed * 0.05f)
+				Moving.TimeLeft -= SafeDeltaTime;
+
+				// 更新转向逻辑
+				if (TurnSpeedMult > 0.f)
+				{
+					// 计算速度比例和混合因子
+					float SpeedRatio = FMath::Clamp(Moving.CurrentVelocity.Size2D() / Move.MoveSpeed, 0.0f, 1.0f);
+					float BlendFactor = FMath::Pow(SpeedRatio, 2.0f); // 使用平方使低速时更倾向于平均速度
+					
+					// 动态调整转向速度
+					float DynamicTurnSpeed = FMath::Lerp(Move.TurnSpeed * 1.5f, Move.TurnSpeed * 0.25f, SpeedRatio);
+					
+					// 混合当前速度和平均速度
+					FVector VelocityDirection = FMath::Lerp(Moving.VelAverage, Moving.CurrentVelocity, BlendFactor).GetSafeNormal2D();
+
+					if (VelocityDirection.Size2D()>KINDA_SMALL_NUMBER)
 					{
-						FRotator DirRotation = Directed.Direction.GetSafeNormal2D().ToOrientationRotator();
-						FRotator VelRotation = AverageVelocity.GetSafeNormal2D().ToOrientationRotator();
-						Directed.Direction = FMath::RInterpTo(DirRotation, VelRotation, DeltaTime, Move.TurnSpeed * TurnSpeedMult).Vector();
+						// 朝向-移动方向夹角 插值
+						float DP = FVector::DotProduct(DesiredMoveDirection, VelocityDirection.GetSafeNormal2D());
+						float AD = FMath::RadiansToDegrees(FMath::Acos(DP));
+
+						float bDirSign = AD > 90.f ? -1.f : 1.f;
+						FVector OrientDirection = VelocityDirection * bDirSign;
+
+						// 执行转向插值
+						FRotator CurrentRot = Directed.Direction.ToOrientationRotator();
+						FRotator TargetRot = OrientDirection.ToOrientationRotator();
+						Directed.Direction = FMath::RInterpTo(CurrentRot, TargetRot, DeltaTime, Move.TurnSpeed * TurnSpeedMult).Vector();
 					}
 				}
 
@@ -1896,13 +1911,13 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 					if (State == EAttackState::Cooling)
 					{
-						const bool IsMoving = Moving.CurrentVelocity.Size2D() > Move.MoveSpeed * 0.05f;
+						const bool IsMoving = Moving.CurrentVelocity.Size2D() > 10000/*Move.MoveSpeed * 0.05f*/;
 						Animation.SubjectState = IsMoving ? ESubjectState::Moving : ESubjectState::Idle;
 					}
 				}
 				else
 				{
-					const bool IsMoving = Moving.CurrentVelocity.Size2D() > Move.MoveSpeed * 0.05f;
+					const bool IsMoving = Moving.CurrentVelocity.Size2D() > 10000/*Move.MoveSpeed * 0.05f*/;
 					Animation.SubjectState = IsMoving ? ESubjectState::Moving : ESubjectState::Idle;
 				}
 
@@ -2672,10 +2687,10 @@ void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subje
 				auto& Moving = Overlapper.GetTraitRef<FMoving, EParadigm::Unsafe>();
 				const auto& Move = Overlapper.GetTraitRef<FMove, EParadigm::Unsafe>();
 				FVector KnockbackForce = FVector(Debuff.KnockbackSpeed.X, Debuff.KnockbackSpeed.X, 1) * HitDirection + FVector(0, 0, Debuff.KnockbackSpeed.Y);
-				FVector CombinedForce = Moving.LaunchForce + KnockbackForce;
+				FVector CombinedForce = Moving.LaunchVelSum + KnockbackForce;
 
 				Moving.Lock();
-				Moving.LaunchForce += KnockbackForce; // 累加击退力
+				Moving.LaunchVelSum += KnockbackForce; // 累加击退力
 				Moving.Unlock();
 			}
 		}
@@ -2854,7 +2869,7 @@ void ABattleFrameBattleControl::DefineFilters()
 	AgentDeathAnimFilter = FFilter::Make<FAgent, FRendering, FDeathAnim, FAnimation, FDying, FActivated>();
 	SpeedLimitOverrideFilter = FFilter::Make<FCollider, FLocated, FSphereObstacle>();
 	AgentPatrolFilter = FFilter::Make<FAgent, FCollider, FLocated, FPatrol, FTrace, FMove, FActivated, FRendering>().Exclude<FAppearing, FSleeping, FAttacking, FDying>();
-	AgentMoveFilter = FFilter::Make<FAgent, FRendering, FAnimation, FMove, FMoving, FDirected, FLocated, FAttack, FTrace, FNavigation, FAvoidance, FCollider, FDefence, FPatrol, FActivated>();
+	AgentMoveFilter = FFilter::Make<FAgent, FRendering, FAnimation, FMove, FMoving, FDirected, FLocated, FScaled, FAttack, FTrace, FNavigation, FAvoidance, FCollider, FDefence, FPatrol, FActivated>();
 	IdleToMoveAnimFilter = FFilter::Make<FAgent, FAnimation, FMove, FMoving, FDeath, FActivated>().Exclude<FAppearing, FDying>();
 	AgentStateMachineFilter = FFilter::Make<FAgent, FAnimation, FRendering, FAppear, FAttack, FDeath, FMoving, FActivated>();
 	RenderBatchFilter = FFilter::Make<FRenderBatchData>();

@@ -57,7 +57,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     int32 Team,
     FVector Origin,
     FVector2D Region,
-    FVector2D LaunchForce,
+    FVector2D LaunchVelSum,
     EInitialDirection InitialDirection,
     FVector2D CustomDirection,
     FSpawnerMult Multipliers
@@ -228,9 +228,9 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
             }
         }
 
-        if (LaunchForce.Size() > 0)
+        if (LaunchVelSum.Size() > 0)
         {
-            Moving.LaunchForce = Directed.Direction * LaunchForce.X + Directed.Direction.UpVector * LaunchForce.Y;
+            Moving.LaunchVelSum = Directed.Direction * LaunchVelSum.X + Directed.Direction.UpVector * LaunchVelSum.Y;
             Moving.bLaunching = true;
         }
 
