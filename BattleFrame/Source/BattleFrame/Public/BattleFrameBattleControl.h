@@ -79,8 +79,10 @@
 #include "Traits/FxConfig.h"
 #include "Traits/Activated.h"
 #include "Traits/IsSubjective.h"
+#include "Traits/TextPopConfig.h"
 #include "DmgResultInterface.h"
 #include "BattleFrameStructs.h"
+#include "Math/UnrealMathUtility.h"
 #include "BattleFrameBattleControl.generated.h"
 
 // Forward Declearation
@@ -121,7 +123,8 @@ public:
 	TArray<UNeighborGridComponent*> NeighborGrids;
 	TQueue<TSoftObjectPtr<USoundBase>, EQueueMode::Mpsc> SoundsToPlay;
 	TQueue<float> VolumesToPlay;
-	EFlagmarkBit ReloadFlowFieldFlag = EFlagmarkBit::R;
+	EFlagmarkBit ReloadFlowFieldFlag = EFlagmarkBit::F;
+	EFlagmarkBit HasPoppingTextFlag = EFlagmarkBit::T;
 	TQueue<FDmgResult, EQueueMode::Mpsc> DamageResultQueue;
 	TSet<int32> ExistingRenderers;
 
@@ -255,30 +258,21 @@ public:
 		Mechanism->SpawnSubjectDeferred(Config);
 	}
 
-	FORCEINLINE void QueueText(FSubjectHandle Subject, float Value, float Style, float Scale, float Radius, FVector Location)
+	FORCEINLINE void QueueText(FTextPopConfig Config)
 	{
 		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("QueueText");
 
-		if (Subject.HasTrait<FPoppingText>())
+		if (Config.Owner.HasTrait<FPoppingText>())
 		{
-			auto& PoppingText = Subject.GetTraitRef<FPoppingText, EParadigm::Unsafe>();
+			auto& PoppingText = Config.Owner.GetTraitRef<FPoppingText, EParadigm::Unsafe>();
 
 			PoppingText.Lock();
-			PoppingText.TextLocationArray.Add(Location);
-			PoppingText.Text_Value_Style_Scale_Offset_Array.Add(FVector4(Value, Style, Scale, Radius));
+			PoppingText.TextLocationArray.Add(Config.Location);
+			PoppingText.Text_Value_Style_Scale_Offset_Array.Add(FVector4(Config.Value, Config.Style, Config.Scale, Config.Radius));
 			//UE_LOG(LogTemp, Warning, TEXT("OldTrait"));
 			PoppingText.Unlock();
-		}
-		else
-		{
-			FPoppingText NewPoppingText;
-			NewPoppingText.TextLocationArray.Add(Location);
-			NewPoppingText.Text_Value_Style_Scale_Offset_Array.Add(FVector4(Value, Style, Scale, Radius));
-			//UE_LOG(LogTemp, Warning, TEXT("NewTrait"));
 
-			Subject.SetTraitDeferred(NewPoppingText);
+			Config.Owner.SetFlag(HasPoppingTextFlag,true);
 		}
 	}
-
-
 };

@@ -28,7 +28,7 @@ public:
 	float HealthMult = 1.f;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "速度乘数"))
-	float SpeedMult = 1.f;
+	float MoveSpeedMult = 1.f;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "伤害乘数"))
 	float DamageMult = 1.f;
@@ -87,7 +87,7 @@ public:
 		int32 Team = 0,
 		FVector Origin = FVector::ZeroVector,
 		FVector2D Region = FVector2D::ZeroVector,
-		FVector2D LaunchVelSum = FVector2D::ZeroVector,
+		FVector2D LaunchVelocity = FVector2D::ZeroVector,
 		EInitialDirection InitialDirection = EInitialDirection::FacePlayer,
 		FVector2D CustomDirection = FVector2D(1,0),
 		FSpawnerMult Multipliers = FSpawnerMult()

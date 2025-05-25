@@ -25,7 +25,7 @@ public:
 	FTransform Transform = FTransform::Identity;
 
 	//UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Tooltip = ""))
-	//bool bAttached = false;
+	//ESpawnOrigin SpawnOrigin = ESpawnOrigin::AtSelf;
 
 	//-----------------------------------------------
 

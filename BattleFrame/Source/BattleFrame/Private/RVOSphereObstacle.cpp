@@ -21,11 +21,11 @@ void ARVOSphereObstacle::BeginPlay()
 	Super::BeginPlay();
 
 	FSubjectRecord Template;
-	Template.SetTrait(FLocated{});
-	Template.SetTrait(FCollider{});
-	Template.SetTrait(FSphereObstacle{});
-	Template.SetTrait(FAvoidance{});
-	Template.SetTrait(FAvoiding{});
+	Template.SetTrait(FLocated());
+	Template.SetTrait(FCollider());
+	Template.SetTrait(FSphereObstacle());
+	Template.SetTrait(FAvoidance());
+	Template.SetTrait(FAvoiding{ false });
 
 	FVector Location = SphereComponent->GetComponentLocation();
 	float Radius = SphereComponent->GetScaledSphereRadius();

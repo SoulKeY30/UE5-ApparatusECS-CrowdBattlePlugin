@@ -99,7 +99,7 @@ void UBattleFrameFunctionLibraryRT::SectorTraceForSubjects
 	UPARAM(ref) const FVector& Origin,
 	float Radius,
 	float Height,
-	UPARAM(ref) const FVector& Direction,
+	UPARAM(ref) const FVector& ForwardVector,
 	float Angle,
 	bool bCheckVisibility,
 	UPARAM(ref) const FVector& CheckOrigin,
@@ -126,7 +126,7 @@ void UBattleFrameFunctionLibraryRT::SectorTraceForSubjects
 
 	UNeighborGridComponent* NeighborGrid = NeighborGridActor->GetComponentByClass<UNeighborGridComponent>();
 
-	NeighborGrid->SectorTraceForSubjects(KeepCount, Origin, Radius, Height, Direction, Angle, bCheckVisibility, CheckOrigin, CheckRadius, SortMode, SortOrigin, IgnoreSubjects, Filter, Hit, TraceResults);
+	NeighborGrid->SectorTraceForSubjects(KeepCount, Origin, Radius, Height, ForwardVector, Angle, bCheckVisibility, CheckOrigin, CheckRadius, SortMode, SortOrigin, IgnoreSubjects, Filter, Hit, TraceResults);
 }
 
 void UBattleFrameFunctionLibraryRT::SphereSweepForObstacle

@@ -15,6 +15,13 @@ enum class EAttackMode : uint8
 	SuicideATK UMETA(DisplayName = "Apply Damage And Despawn", Tooltip = "造成伤害后自毁")
 };
 
+UENUM(BlueprintType)
+enum class ESpawnOrigin : uint8
+{
+	AtSelf UMETA(DisplayName = "AtSelf", Tooltip = ""),
+	AtTarget UMETA(DisplayName = "AtTarget", Tooltip = "")
+};
+
 USTRUCT(BlueprintType)
 struct BATTLEFRAME_API FAttack
 {

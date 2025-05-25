@@ -30,10 +30,10 @@ public:
 
   public:
 
-	  UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "想移动的速度与方向"))
+	  UPROPERTY(BlueprintReadOnly, VisibleAnywhere, meta = (Tooltip = ""))
 	  FVector DesiredVelocity = FVector::ZeroVector;
 
-	  UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "实际移动的速度与方向"))
+	  UPROPERTY(BlueprintReadOnly, VisibleAnywhere, meta = (Tooltip = ""))
 	  FVector CurrentVelocity = FVector::ZeroVector;
 
 	  UPROPERTY(BlueprintReadOnly, VisibleAnywhere, meta = (Tooltip = ""))
@@ -48,12 +48,15 @@ public:
 	  FVector LaunchVelSum = FVector::ZeroVector;
 	  float PushBackSpeedOverride = 0;
 	  float FlyingHeight = 0;
-	  float SpeedMult = 1;
+	  float MoveSpeedMult = 1;
+	  float TurnSpeedMult = 1;
+	  float CurrentAngularVelocity = 0;
+	  FVector Goal = FVector::ZeroVector;
 
 	  // 速度历史记录
-	  TArray<FVector,TInlineAllocator<30>> VelHistory;
-	  FVector VelAverage = FVector::ZeroVector;
-	  FVector VelCachedSum = FVector::ZeroVector;
+	  TArray<FVector,TInlineAllocator<5>> HistoryVelocity;
+	  FVector AverageVelocity = FVector::ZeroVector;
+	  FVector CachedSumVelocity = FVector::ZeroVector;
 	  int32 CurrentIndex = 0;
 	  float TimeLeft = 0.f;
 	  bool bShouldInit = true;
@@ -61,25 +64,24 @@ public:
 
 	  FMoving() {};
 
-	  // 初始化方法
+	  // 更新速度记录
 	  void Initialize()
 	  {
-		  VelHistory.Init(FVector::ZeroVector, 30);
+		  HistoryVelocity.Init(FVector::ZeroVector, 5);
 		  bShouldInit = false;
 	  }
 
-	  // 更新速度记录
 	  void UpdateVelocityHistory(const FVector& NewVelocity)
 	  {
 		  // 减去即将被覆盖的值
-		  VelCachedSum -= VelHistory[CurrentIndex];
+		  CachedSumVelocity -= HistoryVelocity[CurrentIndex];
 
 		  // 记录新值并更新缓存
-		  VelHistory[CurrentIndex] = NewVelocity;
-		  VelCachedSum += NewVelocity;
+		  HistoryVelocity[CurrentIndex] = NewVelocity;
+		  CachedSumVelocity += NewVelocity;
 
 		  // 更新环形索引
-		  CurrentIndex = (CurrentIndex + 1) % 30;
+		  CurrentIndex = (CurrentIndex + 1) % 5;
 
 		  // 标记缓冲区是否已填满
 		  if (!bBufferFilled && CurrentIndex == 0)
@@ -88,27 +90,63 @@ public:
 		  }
 
 		  // 计算当前平均速度
-		  const int32 ValidFrames = bBufferFilled ? 30 : CurrentIndex;
-		  VelAverage = (ValidFrames > 0) ? (VelCachedSum / ValidFrames) : FVector::ZeroVector;
+		  const int32 ValidFrames = bBufferFilled ? 5 : CurrentIndex;
+		  AverageVelocity = (ValidFrames > 0) ? (CachedSumVelocity / ValidFrames) : FVector::ZeroVector;
 
-		  TimeLeft = 0.0333f;
+		  TimeLeft = 0.1f;
 	  }
 
 	  FMoving(const FMoving& Moving)
 	  {
 	  	LockFlag.store(Moving.LockFlag.load());
+
+		DesiredVelocity = Moving.DesiredVelocity;
+		CurrentVelocity = Moving.CurrentVelocity;
+		bFalling = Moving.bFalling;
 		bLaunching = Moving.bLaunching;
-	  	LaunchVelSum = Moving.LaunchVelSum;
+		bPushedBack = Moving.bPushedBack;
+		LaunchVelSum = Moving.LaunchVelSum;
+		PushBackSpeedOverride = Moving.PushBackSpeedOverride;
 		FlyingHeight = Moving.FlyingHeight;
+		MoveSpeedMult = Moving.MoveSpeedMult;
+		TurnSpeedMult = Moving.TurnSpeedMult;
+		CurrentAngularVelocity = Moving.CurrentAngularVelocity;
+		Goal = Moving.Goal;
+
+		HistoryVelocity = Moving.HistoryVelocity;
+		AverageVelocity = Moving.AverageVelocity;
+		CachedSumVelocity = Moving.CachedSumVelocity;
+		CurrentIndex = Moving.CurrentIndex;
+		TimeLeft = Moving.TimeLeft;
+		bShouldInit = Moving.bShouldInit;
+		bBufferFilled = Moving.bBufferFilled;
 	  }
 
 	  FMoving& operator=(const FMoving& Moving)
 	  {
 	  	LockFlag.store(Moving.LockFlag.load());
+
+		DesiredVelocity = Moving.DesiredVelocity;
+		CurrentVelocity = Moving.CurrentVelocity;
+		bFalling = Moving.bFalling;
 		bLaunching = Moving.bLaunching;
+		bPushedBack = Moving.bPushedBack;
 		LaunchVelSum = Moving.LaunchVelSum;
+		PushBackSpeedOverride = Moving.PushBackSpeedOverride;
 		FlyingHeight = Moving.FlyingHeight;
+		MoveSpeedMult = Moving.MoveSpeedMult;
+		TurnSpeedMult = Moving.TurnSpeedMult;
+		CurrentAngularVelocity = Moving.CurrentAngularVelocity;
+		Goal = Moving.Goal;
+
+		HistoryVelocity = Moving.HistoryVelocity;
+		AverageVelocity = Moving.AverageVelocity;
+		CachedSumVelocity = Moving.CachedSumVelocity;
+		CurrentIndex = Moving.CurrentIndex;
+		TimeLeft = Moving.TimeLeft;
+		bShouldInit = Moving.bShouldInit;
+		bBufferFilled = Moving.bBufferFilled;
+
 	  	return *this;
 	  }
-
 };

@@ -57,7 +57,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     int32 Team,
     FVector Origin,
     FVector2D Region,
-    FVector2D LaunchVelSum,
+    FVector2D LaunchVelocity,
     EInitialDirection InitialDirection,
     FVector2D CustomDirection,
     FSpawnerMult Multipliers
@@ -138,6 +138,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     AgentConfig.SetTrait(DataAsset->Animation);
     AgentConfig.SetTrait(DataAsset->HealthBar);
     AgentConfig.SetTrait(DataAsset->TextPop);
+    AgentConfig.SetTrait(FPoppingText());
     AgentConfig.SetTrait(DataAsset->Curves);
     AgentConfig.SetTrait(DataAsset->CustomData);
 
@@ -158,7 +159,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     ScaledTrait.renderFactors = ScaledTrait.Factors;
 
     auto& MoveTrait = AgentConfig.GetTraitRef<FMove>();
-    MoveTrait.MoveSpeed *= Multipliers.SpeedMult;
+    MoveTrait.MoveSpeed *= Multipliers.MoveSpeedMult;
 
     auto& ColliderTrait = AgentConfig.GetTraitRef<FCollider>();
     ColliderTrait.Radius *= Multipliers.ScaleMult;
@@ -191,7 +192,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
         }
 
         Patrol.Origin = SpawnPoint3D;
-        Move.Goal = SpawnPoint3D;
+        Moving.Goal = SpawnPoint3D;
 
         Located.Location = SpawnPoint3D;
         Located.PreLocation = SpawnPoint3D;
@@ -228,9 +229,9 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
             }
         }
 
-        if (LaunchVelSum.Size() > 0)
+        if (LaunchVelocity.Size() > 0)
         {
-            Moving.LaunchVelSum = Directed.Direction * LaunchVelSum.X + Directed.Direction.UpVector * LaunchVelSum.Y;
+            Moving.LaunchVelSum = Directed.Direction * LaunchVelocity.X + Directed.Direction.UpVector * LaunchVelocity.Y;
             Moving.bLaunching = true;
         }
 

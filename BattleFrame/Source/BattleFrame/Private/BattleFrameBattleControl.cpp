@@ -880,7 +880,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 										Location + FVector(0, 0, Radius);
 
-										QueueText(Temporal.TemporalDamageTarget, ClampedDamage, Style, TextPopUp.TextScale, Radius * 1.1, Location);
+										QueueText(FTextPopConfig( Temporal.TemporalDamageTarget, ClampedDamage, Style, TextPopUp.TextScale, Radius * 1.1, Location ));
 									}
 								}
 
@@ -1258,7 +1258,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				(
 					-1,
 					Located.Location,
-					Collider.Radius * 1.5f,
+					Collider.Radius,
 					false,
 					FVector::ZeroVector,
 					0,
@@ -1296,7 +1296,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						AgentMoving.PushBackSpeedOverride = SphereObstacle.NewSpeedLimit;
 						AgentMoving.Unlock();
 					}
-					else if (Distance > CombinedRadius * 1.25f)
+					else if (Distance >= CombinedRadius/* * 1.25f*/)
 					{
 						AgentMoving.Lock();
 						AgentMoving.bPushedBack = false;
@@ -1341,7 +1341,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				FTrace& Trace,
 				FPatrol& Patrol,
 				FCollider& Collider,
-				FMove& Move)
+				FMove& Move,
+				FMoving& Moving)
 			{
 				if (!Patrol.bEnable) return;
 
@@ -1353,7 +1354,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					auto& Patrolling = Subject.GetTraitRef<FPatrolling, EParadigm::Unsafe>();
 
 					// 检查是否到达目标点
-					const bool bHasArrived = FVector::Dist2D(Located.Location, Move.Goal) < Patrol.AcceptanceRadius;
+					const bool bHasArrived = FVector::Dist2D(Located.Location, Moving.Goal) < Patrol.AcceptanceRadius;
 
 					if (bHasArrived)
 					{
@@ -1361,7 +1362,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						if (Patrolling.WaitTimeLeft <= 0.f)
 						{
 							ResetPatrol(Patrol, Patrolling, Located);
-							Move.Goal = FindNewPatrolGoalLocation(Patrol, Collider, Trace, Located, 3);
+							Moving.Goal = FindNewPatrolGoalLocation(Patrol, Collider, Trace, Located, 3);
 						}
 						else
 						{
@@ -1374,7 +1375,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						if (Patrolling.MoveTimeLeft <= 0.f)
 						{
 							ResetPatrol(Patrol, Patrolling, Located);
-							Move.Goal = FindNewPatrolGoalLocation(Patrol, Collider, Trace, Located, 3);
+							Moving.Goal = FindNewPatrolGoalLocation(Patrol, Collider, Trace, Located, 3);
 						}
 						else
 						{
@@ -1483,6 +1484,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				FTrace& Trace,
 				FNavigation& Navigation,
 				FAvoidance& Avoidance,
+				FAvoiding& Avoiding,
 				FCollider& Collider,
 				FDefence& Defence,
 				FPatrol& Patrol)
@@ -1514,88 +1516,12 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				FVector& AgentLocation = Located.Location;
 				FVector DesiredMoveDirection = FVector::ZeroVector;
 
-				Moving.SpeedMult = 1;
+				// 移动减速比率
+				Moving.MoveSpeedMult = 1;
 
 				// 默认流场, 必须获取因为之后要用到地面高度
 				FCellStruct Cell_BaseFF = FCellStruct{};
 				bool bInside_BaseFF = Navigation.FlowField->GetCellAtLocation(AgentLocation, Cell_BaseFF);
-
-
-				//---------------------------- 流场寻路 ----------------------------//
-
-				if (Move.bEnable && !bIsAppearing)// Appearing不寻路
-				{
-					if (bIsPatrolling)// Patrolling直接向目标点移动，之后要做个体寻路
-					{
-						DesiredMoveDirection = (Move.Goal - AgentLocation).GetSafeNormal2D();
-					}
-					else
-					{
-						if (!bIsValidTraceResult) // 无攻击目标
-						{
-							if (bInside_BaseFF)
-							{
-								Move.Goal = Navigation.FlowField->goalLocation;
-								DesiredMoveDirection = Cell_BaseFF.dir.GetSafeNormal2D();
-							}
-							else
-							{
-								Moving.SpeedMult = 0;
-							}
-						}
-						else
-						{
-							// 直接向攻击目标移动，之后要做个体寻路
-							auto ApproachTraceResultDirectly = [&]()
-							{
-								if (bIsTraceResultHasLocated)
-								{
-									Move.Goal = Trace.TraceResult.GetTrait<FLocated>().Location;
-									DesiredMoveDirection = (Move.Goal - AgentLocation).GetSafeNormal2D();
-								}
-								else
-								{
-									Moving.SpeedMult = 0;
-								}
-							};
-
-							if (bIsTraceResultHasLocated)
-							{
-								Move.Goal = Trace.TraceResult.GetTrait<FLocated>().Location;
-							}
-
-							if (bIsTraceResultHasBindFlowField)
-							{
-								AFlowField* BindFlowField = Trace.TraceResult.GetTrait<FBindFlowField>().FlowField;
-
-								if (IsValid(BindFlowField)) // 从目标获取指向目标的流场
-								{
-									FCellStruct Cell_TargetFF = FCellStruct{};
-									bool bInside_TargetFF = BindFlowField->GetCellAtLocation(AgentLocation, Cell_TargetFF);
-
-									if (bInside_TargetFF)
-									{
-										Move.Goal = BindFlowField->goalLocation;
-										DesiredMoveDirection = Cell_TargetFF.dir.GetSafeNormal2D();
-									}
-									else
-									{
-										ApproachTraceResultDirectly();
-									}
-								}
-								else
-								{
-									ApproachTraceResultDirectly();
-								}
-							}
-							else
-							{
-								ApproachTraceResultDirectly();
-							}
-						}
-					}
-				}		
-
 
 				//------------------------------ 击飞 ----------------------------//
 
@@ -1624,55 +1550,132 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					}
 				}
 
-				//-------------------------- 计算水平速度 ----------------------------//
 
-				float DistanceToGoal = FVector::Dist2D(AgentLocation, Move.Goal);
+				//---------------------------- 速度方向 ----------------------------//
 
-				// stop active movement under these circumstances
+				if (Move.bEnable && !bIsAppearing)// Appearing不寻路
+				{
+					if (bIsPatrolling)// Patrolling直接向目标点移动，之后要做个体寻路
+					{
+						DesiredMoveDirection = (Moving.Goal - AgentLocation).GetSafeNormal2D();
+					}
+					else
+					{
+						if (!bIsValidTraceResult) // 无攻击目标
+						{
+							if (bInside_BaseFF)
+							{
+								Moving.Goal = Navigation.FlowField->goalLocation;
+								DesiredMoveDirection = Cell_BaseFF.dir.GetSafeNormal2D();
+							}
+							else
+							{
+								Moving.MoveSpeedMult = 0;
+							}
+						}
+						else
+						{
+							// 直接向攻击目标移动，之后要做个体寻路
+							auto ApproachTraceResultDirectly = [&]()
+							{
+								if (bIsTraceResultHasLocated)
+								{
+									Moving.Goal = Trace.TraceResult.GetTrait<FLocated>().Location;
+									DesiredMoveDirection = (Moving.Goal - AgentLocation).GetSafeNormal2D();
+								}
+								else
+								{
+									Moving.MoveSpeedMult = 0;
+								}
+							};
+
+							if (bIsTraceResultHasLocated)
+							{
+								Moving.Goal = Trace.TraceResult.GetTrait<FLocated>().Location;
+							}
+
+							if (bIsTraceResultHasBindFlowField)
+							{
+								AFlowField* BindFlowField = Trace.TraceResult.GetTrait<FBindFlowField>().FlowField;
+
+								if (IsValid(BindFlowField)) // 从目标获取指向目标的流场
+								{
+									FCellStruct Cell_TargetFF = FCellStruct{};
+									bool bInside_TargetFF = BindFlowField->GetCellAtLocation(AgentLocation, Cell_TargetFF);
+
+									if (bInside_TargetFF)
+									{
+										Moving.Goal = BindFlowField->goalLocation;
+										DesiredMoveDirection = Cell_TargetFF.dir.GetSafeNormal2D();
+									}
+									else
+									{
+										ApproachTraceResultDirectly();
+									}
+								}
+								else
+								{
+									ApproachTraceResultDirectly();
+								}
+							}
+							else
+							{
+								ApproachTraceResultDirectly();
+							}
+						}
+					}
+				}		
+
+
+				//---------------------------- 速度大小 ----------------------------//
+
+				float DistanceToGoal = FVector::Dist2D(AgentLocation, Moving.Goal);
+
+				// stop under these circumstances
 				if (!Move.bEnable || Moving.bLaunching || Moving.bFalling || bIsAppearing || bIsSleeping  || bIsDying)
 				{
-					Moving.SpeedMult = 0.0f;
+					Moving.MoveSpeedMult = 0.0f;
 				}
 				
-				// stop active movement after reaching patrol goal
+				// stop after reaching patrol goal
 				if (bIsPatrolling)
 				{
 					if (DistanceToGoal <= Patrol.AcceptanceRadius)
 					{
-						Moving.SpeedMult = 0;
+						Moving.MoveSpeedMult = 0;
 					}
 					else
 					{
-						Moving.SpeedMult *= Patrol.MoveSpeedMult;
+						Moving.MoveSpeedMult *= Patrol.MoveSpeedMult;
 					}
 				}
 				
-				// forced to stop during attack
+				// stop during attack
 				if (bIsAttacking)
 				{
 					EAttackState State = Subject.GetTraitRef<FAttacking, EParadigm::Unsafe>().State;
 
 					if (State != EAttackState::Cooling)
 					{
-						Moving.SpeedMult = 0.0f;
+						Moving.MoveSpeedMult = 0.0f;
 					}
 				}
 				
-				// forced to slow down when frozen
+				// slow down when frozen
 				if (bIsFreezing)
 				{
 					const auto& Freezing = Subject.GetTraitRef<FFreezing, EParadigm::Unsafe>();
-					Moving.SpeedMult *= 1.0f - Freezing.FreezeStr;
+					Moving.MoveSpeedMult *= 1.0f - Freezing.FreezeStr;
 				}
 
 				// 朝向-移动方向夹角 插值
-				const float DotProduct = FVector::DotProduct(Directed.Direction, Moving.CurrentVelocity.GetSafeNormal2D());
-				const float AngleDegrees = FMath::RadiansToDegrees(FMath::Acos(DotProduct));
+				float DotProduct = FVector::DotProduct(Directed.Direction, Moving.CurrentVelocity.GetSafeNormal2D());
+				float AngleDegrees = FMath::RadiansToDegrees(FMath::Acos(DotProduct));
 
-				const TRange<float> TurnInputRange(Move.SpeedRangeMapByAngle.X, Move.SpeedRangeMapByAngle.Z);
-				const TRange<float> TurnOutputRange(Move.SpeedRangeMapByAngle.Y, Move.SpeedRangeMapByAngle.W);
+				const TRange<float> TurnInputRange(Move.MoveSpeedRangeMapByAngle.X, Move.MoveSpeedRangeMapByAngle.Z);
+				const TRange<float> TurnOutputRange(Move.MoveSpeedRangeMapByAngle.Y, Move.MoveSpeedRangeMapByAngle.W);
 
-				Moving.SpeedMult *= FMath::GetMappedRangeValueClamped(TurnInputRange, TurnOutputRange, AngleDegrees);
+				Moving.MoveSpeedMult *= FMath::GetMappedRangeValueClamped(TurnInputRange, TurnOutputRange, AngleDegrees);
 
 				// 速度-与目标距离 插值
 				if (!bIsPatrolling)
@@ -1682,84 +1685,134 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 					if (DistanceToTarget <= Move.AcceptanceRadius)
 					{
-						Moving.SpeedMult = 0;
+						Moving.MoveSpeedMult = 0;
 					}
 					else
 					{
-						const TRange<float> MoveInputRange(Move.SpeedRangeMapByDist.X, Move.SpeedRangeMapByDist.Z);
-						const TRange<float> MoveOutputRange(Move.SpeedRangeMapByDist.Y, Move.SpeedRangeMapByDist.W);
+						const TRange<float> MoveInputRange(Move.MoveSpeedRangeMapByDist.X, Move.MoveSpeedRangeMapByDist.Z);
+						const TRange<float> MoveOutputRange(Move.MoveSpeedRangeMapByDist.Y, Move.MoveSpeedRangeMapByDist.W);
 
-						Moving.SpeedMult *= FMath::GetMappedRangeValueClamped(MoveInputRange, MoveOutputRange, DistanceToTarget);
+						Moving.MoveSpeedMult *= FMath::GetMappedRangeValueClamped(MoveInputRange, MoveOutputRange, DistanceToTarget);
 					}
 				}
 
-				// 最终期望达到的速度
-				float DesiredSpeed = Move.MoveSpeed * Moving.SpeedMult;
+				//---------------------------- 水平速度 ----------------------------//
+
+				float DesiredSpeed = Move.MoveSpeed * Moving.MoveSpeedMult;
 				FVector DesiredVelocity = DesiredSpeed * DesiredMoveDirection;
-				Moving.DesiredVelocity = FVector(DesiredVelocity.X, DesiredVelocity.Y, 0);
+				FVector CurrentVelocity = Moving.CurrentVelocity * FVector(1, 1, 0);
+				FVector InterpedVelocity = FMath::VInterpConstantTo(CurrentVelocity, DesiredVelocity, DeltaTime, Move.MoveAcceleration);
+				Moving.DesiredVelocity = DesiredVelocity;
 
+				//------------------------------ 朝向 ----------------------------//
 
-				//----------------------------- 朝向 ----------------------------//
-
-				float TurnSpeedMult = 1;
-
-				// 这些情况不转向
-				if (!Move.bEnable || Moving.bFalling || Moving.bLaunching || bIsAppearing || bIsSleeping || bIsAttacking || bIsDying || (bIsPatrolling && DistanceToGoal <= Patrol.AcceptanceRadius))
-				{
-					TurnSpeedMult = 0;
-				}
-
-				// 冰冻时转向减速
-				if (bIsFreezing)
-				{
-					const auto& Freezing = Subject.GetTraitRef<FFreezing, EParadigm::Unsafe>();
-					TurnSpeedMult *= 1.0f - Freezing.FreezeStr;
-				}
-
-				// 更新速度历史记录
-				if (UNLIKELY(Moving.bShouldInit))
-				{
-					Moving.Initialize();
-				}
-
-				if (UNLIKELY(Moving.TimeLeft <= 0.f))
-				{
-					Moving.UpdateVelocityHistory(Moving.CurrentVelocity);
-				}
-
-				Moving.TimeLeft -= SafeDeltaTime;
-
-				// 更新转向逻辑
-				if (TurnSpeedMult > 0.f)
+				if (Moving.TurnSpeedMult > 0.f)
 				{
 					// 计算速度比例和混合因子
 					float SpeedRatio = FMath::Clamp(Moving.CurrentVelocity.Size2D() / Move.MoveSpeed, 0.0f, 1.0f);
 					float BlendFactor = FMath::Pow(SpeedRatio, 2.0f); // 使用平方使低速时更倾向于平均速度
-					
-					// 动态调整转向速度
-					float DynamicTurnSpeed = FMath::Lerp(Move.TurnSpeed * 1.5f, Move.TurnSpeed * 0.25f, SpeedRatio);
-					
+
 					// 混合当前速度和平均速度
-					FVector VelocityDirection = FMath::Lerp(Moving.VelAverage, Moving.CurrentVelocity, BlendFactor).GetSafeNormal2D();
+					FVector LerpedVelocity = FMath::Lerp(Moving.AverageVelocity, Moving.CurrentVelocity, BlendFactor);
+					FVector VelocityDirection = LerpedVelocity.GetSafeNormal2D();
+					float VelocitySize = LerpedVelocity.Size2D();
 
-					if (VelocityDirection.Size2D()>KINDA_SMALL_NUMBER)
+					// 朝向-移动方向夹角 插值
+					DotProduct = FVector::DotProduct(Moving.DesiredVelocity.GetSafeNormal2D(), VelocityDirection);
+					AngleDegrees = FMath::RadiansToDegrees(FMath::Acos(DotProduct));
+
+					float bInvertSign = AngleDegrees > 90.f && Move.TurnMode == EOrientMode::ToMovementForwardAndBackward ? -1.f : 1.f;
+
+					FVector OrientDirection = Move.TurnMode == EOrientMode::ToPath ? DesiredVelocity.GetSafeNormal2D() : VelocityDirection * bInvertSign;
+
+					// 执行转向插值
+					FRotator CurrentRot = Directed.Direction.ToOrientationRotator();
+					FRotator TargetRot = OrientDirection.ToOrientationRotator();
+
+					// 计算当前与目标的Yaw差
+					float CurrentYaw = CurrentRot.Yaw;
+					float TargetYaw = TargetRot.Yaw;
+					float DeltaYaw = FRotator::NormalizeAxis(TargetYaw - CurrentYaw);
+
+					// 小角度容差
+					const float ANGLE_TOLERANCE = 0.1f;
+
+					if (FMath::Abs(DeltaYaw) < ANGLE_TOLERANCE)
 					{
-						// 朝向-移动方向夹角 插值
-						float DP = FVector::DotProduct(DesiredMoveDirection, VelocityDirection.GetSafeNormal2D());
-						float AD = FMath::RadiansToDegrees(FMath::Acos(DP));
+						// 已经对准目标，停止旋转
+						Moving.CurrentAngularVelocity = 0.0f;
+						CurrentRot.Yaw = TargetYaw;
+					}
+					else
+					{
+						// 旋转方向
+						const float Dir = FMath::Sign(DeltaYaw);
+						float Acceleration = 0.0f;
 
-						float bDirSign = AD > 90.f ? -1.f : 1.f;
-						FVector OrientDirection = VelocityDirection * bDirSign;
+						// 速度方向判断
+						if (FMath::Sign(Moving.CurrentAngularVelocity) == Dir)
+						{
+							// 方向正确时的减速判断
+							const float CurrentSpeed = FMath::Abs(Moving.CurrentAngularVelocity);
+							const float StopDistance = (CurrentSpeed * CurrentSpeed) / (2 * Move.TurnAcceleration);
 
-						// 执行转向插值
-						FRotator CurrentRot = Directed.Direction.ToOrientationRotator();
-						FRotator TargetRot = OrientDirection.ToOrientationRotator();
-						Directed.Direction = FMath::RInterpTo(CurrentRot, TargetRot, DeltaTime, Move.TurnSpeed * TurnSpeedMult).Vector();
+							if (StopDistance >= FMath::Abs(DeltaYaw))
+							{
+								// 需要减速停止
+								Acceleration = -Dir * Move.TurnAcceleration;
+							}
+							else if (CurrentSpeed < Move.TurnSpeed)
+							{
+								// 可以继续加速
+								Acceleration = Dir * Move.TurnAcceleration;
+							}
+						}
+						else
+						{
+							// 方向错误时先减速到0
+							if (!FMath::IsNearlyZero(Moving.CurrentAngularVelocity, 0.1f))
+							{
+								Acceleration = -FMath::Sign(Moving.CurrentAngularVelocity) * Move.TurnAcceleration;
+							}
+							else
+							{
+								// 静止状态直接开始加速
+								Acceleration = Dir * Move.TurnAcceleration;
+							}
+						}
+
+						// 计算新角速度
+						float NewAngularVelocity = Moving.CurrentAngularVelocity + Acceleration * DeltaTime;
+						NewAngularVelocity = FMath::Clamp(NewAngularVelocity, -Move.TurnSpeed, Move.TurnSpeed);
+
+						// 使用平均速度计算实际转动角度
+						const float AvgAngularVelocity = 0.5f * (Moving.CurrentAngularVelocity + NewAngularVelocity);
+						float AppliedDeltaYaw = AvgAngularVelocity * DeltaTime;
+
+						// 防止角度过冲
+						if (FMath::Abs(AppliedDeltaYaw) > FMath::Abs(DeltaYaw))
+						{
+							AppliedDeltaYaw = DeltaYaw;
+							NewAngularVelocity = 0.0f; // 到达目标后停止
+						}
+
+						// 应用旋转
+						CurrentRot.Yaw = FRotator::NormalizeAxis(CurrentRot.Yaw + AppliedDeltaYaw);
+						Moving.CurrentAngularVelocity = NewAngularVelocity * Moving.TurnSpeedMult;
+					}
+
+					// 保持Pitch和Roll不变
+					CurrentRot.Pitch = TargetRot.Pitch;
+					CurrentRot.Roll = TargetRot.Roll;
+
+					if (VelocitySize > Move.MoveSpeed * 0.05f)
+					{
+						Directed.Direction = CurrentRot.Vector();
 					}
 				}
 
 
-				//-----------------------------垂直速度-----------------------------//
+				//---------------------------垂直速度-----------------------------//
 
 				if (bIsValidFF)// 没有流场则跳过，因为不知道地面高度，所以不考虑垂直运动
 				{
@@ -1833,7 +1886,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 								if (Moving.bFalling)
 								{
 									Moving.bFalling = false;
-									FVector BounceDecay = FVector(Move.BounceVelocityDecay.X, Move.BounceVelocityDecay.X, Move.BounceVelocityDecay.Y);
+									FVector BounceDecay = FVector(Move.MoveBounceVelocityDecay.X, Move.MoveBounceVelocityDecay.X, Move.MoveBounceVelocityDecay.Y);
 									Moving.CurrentVelocity = Moving.CurrentVelocity * BounceDecay * FVector(1, 1, (FMath::Abs(Moving.CurrentVelocity.Z) > 100.f) ? -1 : 0);// zero out small number
 								}
 
@@ -1865,6 +1918,24 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					Moving.CurrentVelocity.Z = 0;
 				}
 
+
+				//----------------------------- 朝向 ----------------------------//
+
+				// 计算朝向减速比率
+				Moving.TurnSpeedMult = 1;
+
+				// 这些情况不转向
+				if (!Move.bEnable || Moving.bFalling || Moving.bLaunching || bIsAppearing || bIsSleeping || bIsAttacking || bIsDying || (bIsPatrolling && DistanceToGoal <= Patrol.AcceptanceRadius))
+				{
+					Moving.TurnSpeedMult = 0;
+				}
+
+				// 冰冻时减慢转向速度
+				if (bIsFreezing)
+				{
+					const auto& Freezing = Subject.GetTraitRef<FFreezing, EParadigm::Unsafe>();
+					Moving.TurnSpeedMult *= 1.0f - Freezing.FreezeStr;
+				}
 
 			}, ThreadsCount, BatchSize);
 	}
@@ -1911,13 +1982,13 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 					if (State == EAttackState::Cooling)
 					{
-						const bool IsMoving = Moving.CurrentVelocity.Size2D() > 10000/*Move.MoveSpeed * 0.05f*/;
+						const bool IsMoving = Moving.CurrentVelocity.Size2D() > Move.MoveSpeed * 0.05f;
 						Animation.SubjectState = IsMoving ? ESubjectState::Moving : ESubjectState::Idle;
 					}
 				}
 				else
 				{
-					const bool IsMoving = Moving.CurrentVelocity.Size2D() > 10000/*Move.MoveSpeed * 0.05f*/;
+					const bool IsMoving = Moving.CurrentVelocity.Size2D() > Move.MoveSpeed * 0.05f;
 					Animation.SubjectState = IsMoving ? ESubjectState::Moving : ESubjectState::Idle;
 				}
 
@@ -2141,8 +2212,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
-				FRendering Rendering,
-				FPoppingText PoppingText)
+				FRendering& Rendering,
+				FPoppingText& PoppingText)
 			{
 				FRenderBatchData& Data = Rendering.Renderer.GetTraitRef<FRenderBatchData, EParadigm::Unsafe>();
 
@@ -2154,7 +2225,10 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				Data.Text_Value_Style_Scale_Offset_Array.Append(CombinedArray);
 				Data.Unlock();
 
-				Subject.RemoveTraitDeferred<FPoppingText>();
+				PoppingText.TextLocationArray.Empty();
+				PoppingText.Text_Value_Style_Scale_Offset_Array.Empty();
+
+				Subject.SetFlag(HasPoppingTextFlag,false);
 
 			}, ThreadsCount, BatchSize);
 	}
@@ -2570,8 +2644,6 @@ void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subje
 			// 应用伤害
 			Health.DamageToTake.Enqueue(ClampedDamage);
 
-			//if (DmgResult.IsKill) Overlapper.SetTrait(FDying());
-
 			// 记录伤害施加者
 			if (DmgInstigator.IsValid())
 			{
@@ -2621,7 +2693,7 @@ void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subje
 
 					Location += FVector(0, 0, Radius);
 
-					QueueText(Overlapper, PostCritDamage, Style, TextPopUp.TextScale, Radius * 1.1, Location);
+					QueueText(FTextPopConfig( Overlapper, PostCritDamage, Style, TextPopUp.TextScale, Radius * 1.1, Location ));
 				}
 			}
 
@@ -2868,13 +2940,13 @@ void ABattleFrameBattleControl::DefineFilters()
 	AgentDeathDissolveFilter = FFilter::Make<FAgent, FRendering, FDeathDissolve, FAnimation, FDying, FDeath, FCurves, FActivated>();
 	AgentDeathAnimFilter = FFilter::Make<FAgent, FRendering, FDeathAnim, FAnimation, FDying, FActivated>();
 	SpeedLimitOverrideFilter = FFilter::Make<FCollider, FLocated, FSphereObstacle>();
-	AgentPatrolFilter = FFilter::Make<FAgent, FCollider, FLocated, FPatrol, FTrace, FMove, FActivated, FRendering>().Exclude<FAppearing, FSleeping, FAttacking, FDying>();
-	AgentMoveFilter = FFilter::Make<FAgent, FRendering, FAnimation, FMove, FMoving, FDirected, FLocated, FScaled, FAttack, FTrace, FNavigation, FAvoidance, FCollider, FDefence, FPatrol, FActivated>();
+	AgentPatrolFilter = FFilter::Make<FAgent, FCollider, FLocated, FPatrol, FTrace, FMove, FMoving, FActivated, FRendering>().Exclude<FAppearing, FSleeping, FAttacking, FDying>();
+	AgentMoveFilter = FFilter::Make<FAgent, FRendering, FAnimation, FMove, FMoving, FDirected, FLocated, FScaled, FAttack, FTrace, FNavigation, FAvoidance, FAvoiding, FCollider, FDefence, FPatrol, FActivated>();
 	IdleToMoveAnimFilter = FFilter::Make<FAgent, FAnimation, FMove, FMoving, FDeath, FActivated>().Exclude<FAppearing, FDying>();
 	AgentStateMachineFilter = FFilter::Make<FAgent, FAnimation, FRendering, FAppear, FAttack, FDeath, FMoving, FActivated>();
 	RenderBatchFilter = FFilter::Make<FRenderBatchData>();
 	AgentRenderFilter = FFilter::Make<FAgent, FRendering, FDirected, FScaled, FLocated, FAnimation, FHealth, FHealthBar, FCollider, FActivated>();
-	TextRenderFilter = FFilter::Make<FAgent, FRendering, FPoppingText, FActivated>();
+	TextRenderFilter = FFilter::Make<FAgent, FRendering, FTextPopUp, FPoppingText, FActivated>().IncludeFlag(HasPoppingTextFlag);
 	SpawnActorsFilter = FFilter::Make<FActorSpawnConfig>();
 	SpawnFxFilter = FFilter::Make<FFxConfig>();
 	PlaySoundFilter = FFilter::Make<FSoundConfig>();

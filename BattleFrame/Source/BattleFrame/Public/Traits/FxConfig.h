@@ -35,7 +35,7 @@ public:
 	float Delay = 0;
 
 	//UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Tooltip = ""))
-	//bool bAttached = false;
+	//ESpawnOrigin SpawnOrigin = ESpawnOrigin::AtSelf;
 
 	//-----------------------------------------------
 

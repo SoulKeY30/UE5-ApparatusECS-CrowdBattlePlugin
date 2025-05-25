@@ -65,7 +65,7 @@ public:
         UPARAM(ref) const FFilter& Filter = FFilter()
     );
 
-    UFUNCTION(BlueprintCallable, Category = "BattleFrame", meta = (AutoCreateRefTerm = "Origin, Direction, CheckOrigin, SortOrigin, IgnoreSubjects, Filter"))
+    UFUNCTION(BlueprintCallable, Category = "BattleFrame", meta = (AutoCreateRefTerm = "Origin, ForwardVector, CheckOrigin, SortOrigin, IgnoreSubjects, Filter"))
     static void SectorTraceForSubjects
     (
         bool& Hit,
@@ -75,7 +75,7 @@ public:
         UPARAM(ref) const FVector& Origin = FVector(0, 0, 0),
         float Radius = 300.f,
         float Height = 100.f,
-        UPARAM(ref) const FVector& Direction = FVector(1, 0, 0),
+        UPARAM(ref) const FVector& ForwardVector = FVector(1, 0, 0),
         float Angle = 360.f,
         bool bCheckVisibility = false, 
         UPARAM(ref) const FVector& CheckOrigin = FVector(0, 0, 0),

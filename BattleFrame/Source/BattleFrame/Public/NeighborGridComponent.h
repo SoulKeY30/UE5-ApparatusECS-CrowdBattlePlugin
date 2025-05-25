@@ -42,10 +42,8 @@
 #include "Traits/Activated.h"
 #include "Traits/Agent.h"
 #include "Traits/Patrol.h"
-#include "Traits/Collider.h"
-#include "Traits/Trace.h"
-#include "Traits/Located.h"
 #include "Traits/Directed.h"
+#include "Math/UnrealMathUtility.h"
 #include "NeighborGridComponent.generated.h"
 
 #define BUBBLE_DEBUG 0
