@@ -1550,7 +1550,6 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					}
 				}
 
-
 				//---------------------------- 速度方向 ----------------------------//
 
 				if (Move.bEnable && !bIsAppearing)// Appearing不寻路
@@ -1625,7 +1624,6 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						}
 					}
 				}		
-
 
 				//---------------------------- 速度大小 ----------------------------//
 
@@ -1811,7 +1809,6 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					}
 				}
 
-
 				//---------------------------垂直速度-----------------------------//
 
 				if (bIsValidFF)// 没有流场则跳过，因为不知道地面高度，所以不考虑垂直运动
@@ -1917,7 +1914,6 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				{
 					Moving.CurrentVelocity.Z = 0;
 				}
-
 
 				//----------------------------- 朝向 ----------------------------//
 

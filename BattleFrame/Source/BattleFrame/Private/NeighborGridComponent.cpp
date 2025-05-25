@@ -421,7 +421,6 @@ void UNeighborGridComponent::SphereSweepForSubjects
 	Hit = !Results.IsEmpty();
 }
 
-
 void UNeighborGridComponent::SectorTraceForSubjects
 (
 	int32 KeepCount,
@@ -1330,184 +1329,187 @@ void UNeighborGridComponent::Decouple()
 			const int32 MaxNeighbors = Avoidance.MaxNeighbors;
 
 			//--------------------------Avoid Subject Neighbors--------------------------------
-
-			FFilter SubjectFilter = SubjectFilterBase;
-
-			// 碰撞组
-			if (!Avoidance.IgnoreGroups.IsEmpty())
 			{
-				const int32 ClampedGroups = FMath::Clamp(Avoidance.IgnoreGroups.Num(), 0, 9);
+				TRACE_CPUPROFILER_EVENT_SCOPE_STR("Avoid Subject Neighbors");
 
-				for (int32 i = 0; i < ClampedGroups; ++i)
+				FFilter SubjectFilter = SubjectFilterBase;
+
+				// 碰撞组
+				if (!Avoidance.IgnoreGroups.IsEmpty())
 				{
-					UBattleFrameFunctionLibraryRT::ExcludeAvoGroupTraitByIndex(Avoidance.IgnoreGroups[i], SubjectFilter);
-				}
-			}
+					const int32 ClampedGroups = FMath::Clamp(Avoidance.IgnoreGroups.Num(), 0, 9);
 
-			if (UNLIKELY(Subject.HasTrait<FDying>()))
-			{
-				SubjectFilter.Include<FDying>();// dying subject only collide with dying subjects
-			}
-
-			const FVector SubjectRange3D(TraceDist + SelfRadius, TraceDist + SelfRadius, SelfRadius);
-			TArray<FIntVector> NeighbourCellCoords = GetNeighborCells(SelfLocation, SubjectRange3D);
-
-			// 使用最大堆收集最近的SubjectNeighbors
-			auto SubjectCompare = [&](const FGridData& A, const FGridData& B)
-			{
-				return FVector::DistSquared(SelfLocation, A.Location) > FVector::DistSquared(SelfLocation, B.Location);
-			};
-
-			TArray<FGridData> SubjectNeighbors;
-			SubjectNeighbors.Reserve(MaxNeighbors + 1);
-
-			TSet<uint32> SeenHashes;
-			SeenHashes.Add(GridData.SubjectHash);
-
-			// this for loop is the most expensive code of all
-			for (const auto& Coord : NeighbourCellCoords)
-			{
-				const auto& Subjects = At(Coord).Subjects;
-
-				for (const auto& Data : Subjects)
-				{
-					// these check are arranged so for cache optimization
-					// 距离检查
-					const float DistSqr = FVector::DistSquared(SelfLocation, Data.Location);
-					const float RadiusSqr = FMath::Square(Data.Radius) + TotalRangeSqr;
-
-					if (DistSqr > RadiusSqr) continue;
-
-					// 去重
-					if (UNLIKELY(SeenHashes.Contains(Data.SubjectHash))) continue;
-
-					// Filter By Traits
-					if (UNLIKELY(!Data.SubjectHandle.Matches(SubjectFilter))) continue;
-
-					SeenHashes.Add(Data.SubjectHash);
-
-					// we limit the amount of subjects. we keep the nearest MaxNeighbors amount of neighbors
-					// 动态维护堆
-					if (LIKELY(SubjectNeighbors.Num() < MaxNeighbors))
+					for (int32 i = 0; i < ClampedGroups; ++i)
 					{
-						SubjectNeighbors.HeapPush(Data, SubjectCompare);
+						UBattleFrameFunctionLibraryRT::ExcludeAvoGroupTraitByIndex(Avoidance.IgnoreGroups[i], SubjectFilter);
 					}
-					else
-					{
-						const float HeapTopDist = FVector::DistSquared(SelfLocation, SubjectNeighbors.HeapTop().Location);
+				}
 
-						if (UNLIKELY(DistSqr < HeapTopDist))
+				if (UNLIKELY(Subject.HasTrait<FDying>()))
+				{
+					SubjectFilter.Include<FDying>();// dying subject only collide with dying subjects
+				}
+
+				const FVector SubjectRange3D(TraceDist + SelfRadius, TraceDist + SelfRadius, SelfRadius);
+				TArray<FIntVector> NeighbourCellCoords = GetNeighborCells(SelfLocation, SubjectRange3D);
+
+				// 使用最大堆收集最近的SubjectNeighbors
+				auto SubjectCompare = [&](const FGridData& A, const FGridData& B)
+					{
+						return FVector::DistSquared(SelfLocation, A.Location) > FVector::DistSquared(SelfLocation, B.Location);
+					};
+
+				TArray<FGridData> SubjectNeighbors;
+				SubjectNeighbors.Reserve(MaxNeighbors + 1);
+
+				TSet<uint32> SeenHashes;
+				SeenHashes.Add(GridData.SubjectHash);
+
+				// this for loop is the most expensive code of all
+				for (const auto& Coord : NeighbourCellCoords)
+				{
+					const auto& Subjects = At(Coord).Subjects;
+
+					for (const auto& Data : Subjects)
+					{
+						// these check are arranged so for cache optimization
+						// 距离检查
+						const float DistSqr = FVector::DistSquared(SelfLocation, Data.Location);
+						const float RadiusSqr = FMath::Square(Data.Radius) + TotalRangeSqr;
+
+						if (DistSqr > RadiusSqr) continue;
+
+						// 去重
+						if (UNLIKELY(SeenHashes.Contains(Data.SubjectHash))) continue;
+
+						// Filter By Traits
+						if (UNLIKELY(!Data.SubjectHandle.Matches(SubjectFilter))) continue;
+
+						SeenHashes.Add(Data.SubjectHash);
+
+						// we limit the amount of subjects. we keep the nearest MaxNeighbors amount of neighbors
+						// 动态维护堆
+						if (LIKELY(SubjectNeighbors.Num() < MaxNeighbors))
 						{
-							// 弹出时同步移除哈希记录
-							SeenHashes.Remove(SubjectNeighbors.HeapTop().SubjectHash);
-							SubjectNeighbors.HeapPopDiscard(SubjectCompare);
 							SubjectNeighbors.HeapPush(Data, SubjectCompare);
 						}
+						else
+						{
+							const float HeapTopDist = FVector::DistSquared(SelfLocation, SubjectNeighbors.HeapTop().Location);
+
+							if (UNLIKELY(DistSqr < HeapTopDist))
+							{
+								// 弹出时同步移除哈希记录
+								SeenHashes.Remove(SubjectNeighbors.HeapTop().SubjectHash);
+								SubjectNeighbors.HeapPopDiscard(SubjectCompare);
+								SubjectNeighbors.HeapPush(Data, SubjectCompare);
+							}
+						}
 					}
+				}
+
+				Avoidance.MaxSpeed = Moving.DesiredVelocity.Size2D();
+				Avoidance.DesiredVelocity = RVO::Vector2(Moving.DesiredVelocity.X, Moving.DesiredVelocity.Y);
+				Avoiding.CurrentVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);
+
+				// suggest the velocity to avoid collision
+				TArray<FGridData> EmptyArray;
+				ComputeAvoidingVelocity(Avoidance, Avoiding, SubjectNeighbors, EmptyArray, DeltaTime);
+
+				// apply velocity
+				if (LIKELY(!Moving.bFalling && !Moving.bLaunching))
+				{
+					FVector AvoidingVelocity(Avoidance.AvoidingVelocity.x(), Avoidance.AvoidingVelocity.y(), 0);
+					Moving.CurrentVelocity = FVector(AvoidingVelocity.X, AvoidingVelocity.Y, Moving.CurrentVelocity.Z);
+				}
+				else if (Moving.bLaunching)
+				{
+					FVector DeceleratingVelocity = FMath::VInterpConstantTo(Moving.CurrentVelocity * FVector(1, 1, 0), FVector::ZeroVector, DeltaTime, Move.MoveDeceleration);
+					Moving.CurrentVelocity = FVector(DeceleratingVelocity.X, DeceleratingVelocity.Y, Moving.CurrentVelocity.Z);
 				}
 			}
 
-			Avoidance.MaxSpeed = Moving.DesiredVelocity.Size2D();
-			Avoidance.DesiredVelocity = RVO::Vector2(Moving.DesiredVelocity.X, Moving.DesiredVelocity.Y);
-			Avoiding.CurrentVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);
-
-			// suggest the velocity to avoid collision
-			TArray<FGridData> EmptyArray;
-			ComputeAvoidingVelocity(Avoidance, Avoiding, SubjectNeighbors, EmptyArray, DeltaTime);
-
-			// apply velocity
-			if (LIKELY(!Moving.bFalling && !Moving.bLaunching))
-			{
-				FVector AvoidingVelocity(Avoidance.AvoidingVelocity.x(), Avoidance.AvoidingVelocity.y(), 0);
-				Moving.CurrentVelocity = FVector(AvoidingVelocity.X, AvoidingVelocity.Y, Moving.CurrentVelocity.Z);
-			}
-			else if (Moving.bLaunching)
-			{
-				FVector DeceleratingVelocity = FMath::VInterpConstantTo(Moving.CurrentVelocity * FVector(1,1,0), FVector::ZeroVector, DeltaTime, Move.MoveDeceleration);
-				Moving.CurrentVelocity = FVector(DeceleratingVelocity.X, DeceleratingVelocity.Y, Moving.CurrentVelocity.Z);
-			}
-
-
 			//---------------------------Avoid Obstacle Neighbors--------------------------------
-
-			TRACE_CPUPROFILER_EVENT_SCOPE_STR("Avoid Obstacle Neighbors");
-
-			const float ObstacleRange = Avoidance.RVO_TimeHorizon_Obstacle * Avoidance.MaxSpeed + Avoiding.Radius;
-			const FVector ObstacleRange3D(ObstacleRange, ObstacleRange, Avoiding.Radius);
-			TArray<FIntVector> ObstacleCellCoords = GetNeighborCells(SelfLocation, ObstacleRange3D);
-
-			TSet<FGridData> ValidSphereObstacleNeighbors;
-			TSet<FGridData> ValidBoxObstacleNeighbors;
-			ValidSphereObstacleNeighbors.Reserve(MaxNeighbors);
-			ValidBoxObstacleNeighbors.Reserve(MaxNeighbors);
-
-			for (const FIntVector& Coord : ObstacleCellCoords)
 			{
-				const auto& Cell = At(Coord);
+				TRACE_CPUPROFILER_EVENT_SCOPE_STR("Avoid Obstacle Neighbors");
 
-				// 定义处理 SphereObstacles 的 Lambda 函数
-				auto ProcessSphereObstacles = [&](const TArray<FGridData, TInlineAllocator<8>>& Obstacles)
+				const float ObstacleRange = Avoidance.RVO_TimeHorizon_Obstacle * Avoidance.MaxSpeed + Avoiding.Radius;
+				const FVector ObstacleRange3D(ObstacleRange, ObstacleRange, Avoiding.Radius);
+				TArray<FIntVector> ObstacleCellCoords = GetNeighborCells(SelfLocation, ObstacleRange3D);
+
+				TSet<FGridData> ValidSphereObstacleNeighbors;
+				TSet<FGridData> ValidBoxObstacleNeighbors;
+				ValidSphereObstacleNeighbors.Reserve(MaxNeighbors);
+				ValidBoxObstacleNeighbors.Reserve(MaxNeighbors);
+
+				for (const FIntVector& Coord : ObstacleCellCoords)
 				{
-					ValidSphereObstacleNeighbors.Append(Obstacles);
-				};
+					const auto& Cell = At(Coord);
 
-				ProcessSphereObstacles(Cell.SphereObstacles);
-				ProcessSphereObstacles(Cell.SphereObstaclesStatic);
-
-				// 定义处理 BoxObstacles 的 Lambda 函数
-				auto ProcessBoxObstacles = [&](const TArray<FGridData, TInlineAllocator<8>>& Obstacles)
-				{
-					for (const FGridData& AvoData : Obstacles)
+					// 定义处理 SphereObstacles 的 Lambda 函数
+					auto ProcessSphereObstacles = [&](const TArray<FGridData, TInlineAllocator<8>>& Obstacles)
 						{
-							const FSubjectHandle ObstacleHandle = AvoData.SubjectHandle;
-							if (!ObstacleHandle.IsValid()) continue;
-							const auto ObstacleData = ObstacleHandle.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
-							if (!ObstacleData) continue;
-							const FSubjectHandle NextObstacleHandle = ObstacleData->nextObstacle_;
-							if (!NextObstacleHandle.IsValid()) continue;
-							const auto NextObstacleData = NextObstacleHandle.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
-							if (!NextObstacleData) continue;
+							ValidSphereObstacleNeighbors.Append(Obstacles);
+						};
 
-							const FVector ObstaclePoint = ObstacleData->point3d_;
-							const float ObstacleHalfHeight = ObstacleData->height_ * 0.5f;
-							const FVector NextPoint = NextObstacleData->point3d_;
+					ProcessSphereObstacles(Cell.SphereObstacles);
+					ProcessSphereObstacles(Cell.SphereObstaclesStatic);
 
-							// Z 轴范围检查
-							const float ObstacleZMin = ObstaclePoint.Z - ObstacleHalfHeight;
-							const float ObstacleZMax = ObstaclePoint.Z + ObstacleHalfHeight;
-							const float SubjectZMin = SelfLocation.Z - SelfRadius;
-							const float SubjectZMax = SelfLocation.Z + SelfRadius;
-
-							if (SubjectZMax < ObstacleZMin || SubjectZMin > ObstacleZMax) continue;
-
-							// 2D 碰撞检测（RVO）
-							RVO::Vector2 currentPos(Located.Location.X, Located.Location.Y);
-							RVO::Vector2 obstacleStart(ObstaclePoint.X, ObstaclePoint.Y);
-							RVO::Vector2 obstacleEnd(NextPoint.X, NextPoint.Y);
-
-							float leftOfValue = RVO::leftOf(obstacleStart, obstacleEnd, currentPos);
-
-							if (leftOfValue < 0.0f)
+					// 定义处理 BoxObstacles 的 Lambda 函数
+					auto ProcessBoxObstacles = [&](const TArray<FGridData, TInlineAllocator<8>>& Obstacles)
+						{
+							for (const FGridData& AvoData : Obstacles)
 							{
-								ValidBoxObstacleNeighbors.Add(AvoData);
+								const FSubjectHandle ObstacleHandle = AvoData.SubjectHandle;
+								if (!ObstacleHandle.IsValid()) continue;
+								const auto ObstacleData = ObstacleHandle.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
+								if (!ObstacleData) continue;
+								const FSubjectHandle NextObstacleHandle = ObstacleData->nextObstacle_;
+								if (!NextObstacleHandle.IsValid()) continue;
+								const auto NextObstacleData = NextObstacleHandle.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
+								if (!NextObstacleData) continue;
+
+								const FVector ObstaclePoint = ObstacleData->point3d_;
+								const float ObstacleHalfHeight = ObstacleData->height_ * 0.5f;
+								const FVector NextPoint = NextObstacleData->point3d_;
+
+								// Z 轴范围检查
+								const float ObstacleZMin = ObstaclePoint.Z - ObstacleHalfHeight;
+								const float ObstacleZMax = ObstaclePoint.Z + ObstacleHalfHeight;
+								const float SubjectZMin = SelfLocation.Z - SelfRadius;
+								const float SubjectZMax = SelfLocation.Z + SelfRadius;
+
+								if (SubjectZMax < ObstacleZMin || SubjectZMin > ObstacleZMax) continue;
+
+								// 2D 碰撞检测（RVO）
+								RVO::Vector2 currentPos(Located.Location.X, Located.Location.Y);
+								RVO::Vector2 obstacleStart(ObstaclePoint.X, ObstaclePoint.Y);
+								RVO::Vector2 obstacleEnd(NextPoint.X, NextPoint.Y);
+
+								float leftOfValue = RVO::leftOf(obstacleStart, obstacleEnd, currentPos);
+
+								if (leftOfValue < 0.0f)
+								{
+									ValidBoxObstacleNeighbors.Add(AvoData);
+								}
 							}
-						}
-				};
+						};
 
-				ProcessBoxObstacles(Cell.BoxObstacles);
-				ProcessBoxObstacles(Cell.BoxObstaclesStatic);
+					ProcessBoxObstacles(Cell.BoxObstacles);
+					ProcessBoxObstacles(Cell.BoxObstaclesStatic);
+				}
+
+				TArray<FGridData> SphereObstacleNeighbors = ValidSphereObstacleNeighbors.Array();
+				TArray<FGridData> BoxObstacleNeighbors = ValidBoxObstacleNeighbors.Array();
+
+				Avoidance.MaxSpeed = Moving.bPushedBack ? FMath::Max(Moving.CurrentVelocity.Size2D(), Moving.PushBackSpeedOverride) : Moving.CurrentVelocity.Size2D();
+				Avoidance.DesiredVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);
+				Avoiding.CurrentVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);
+
+				ComputeAvoidingVelocity(Avoidance, Avoiding, SphereObstacleNeighbors, BoxObstacleNeighbors, DeltaTime);
+
+				Moving.CurrentVelocity = FVector(Avoidance.AvoidingVelocity.x(), Avoidance.AvoidingVelocity.y(), Moving.CurrentVelocity.Z);
 			}
-
-			TArray<FGridData> SphereObstacleNeighbors = ValidSphereObstacleNeighbors.Array();
-			TArray<FGridData> BoxObstacleNeighbors = ValidBoxObstacleNeighbors.Array();
-
-			Avoidance.MaxSpeed = Moving.bPushedBack ? FMath::Max(Moving.CurrentVelocity.Size2D(), Moving.PushBackSpeedOverride) : Moving.CurrentVelocity.Size2D();
-			Avoidance.DesiredVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);
-			Avoiding.CurrentVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);
-
-			ComputeAvoidingVelocity(Avoidance, Avoiding, SphereObstacleNeighbors, BoxObstacleNeighbors, DeltaTime);
-
-			Moving.CurrentVelocity = FVector(Avoidance.AvoidingVelocity.x(), Avoidance.AvoidingVelocity.y(), Moving.CurrentVelocity.Z);
 		}
 
 		// 更新速度历史记录
