@@ -74,5 +74,6 @@ In progress:
 7. Agent Formation
 8. Network replication
 9. RTS demo map
+10. Mass Entity branch
 
 ## Leave a star if you find this project useful ;)
