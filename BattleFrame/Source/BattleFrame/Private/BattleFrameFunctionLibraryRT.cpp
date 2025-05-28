@@ -327,7 +327,7 @@ void USphereSweepForSubjectsAsyncAction::Activate()
 						// 检查是否在忽略列表中
 						if (IgnoreSet.Contains(Subject)) continue;
 
-						const FVector SubjectPos = Data.Location;
+						const FVector SubjectPos = FVector(Data.Location);
 						float SubjectRadius = Data.Radius;
 
 						// 距离计算

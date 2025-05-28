@@ -251,6 +251,8 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
 
 void AAgentSpawner::ActivateAgent( FSubjectHandle Agent )// strange apparatus bug : don't use get ref or the value may expire later when use
 {
+    TRACE_CPUPROFILER_EVENT_SCOPE_STR("ActivateAgent");
+
     auto Located = Agent.GetTrait<FLocated>();
     auto Collider = Agent.GetTrait<FCollider>();
     auto Appear = Agent.GetTrait<FAppear>();
@@ -294,7 +296,7 @@ void AAgentSpawner::ActivateAgent( FSubjectHandle Agent )// strange apparatus bu
         Agent.SetTrait(FRegisterMultiple());
     }
 
-    Agent.SetTrait(FGridData{ Located.Location, Collider.Radius, Agent, Agent.CalcHash() });
+    Agent.SetTrait(FGridData{ FVector3f(Located.Location), Collider.Radius, Agent, Agent.CalcHash() });
 
     UBattleFrameFunctionLibraryRT::SetSubjectSubTypeTraitByIndex(SubType.Index, Agent);
     UBattleFrameFunctionLibraryRT::SetSubjectTeamTraitByIndex(FMath::Clamp(Team.index, 0, 9), Agent);

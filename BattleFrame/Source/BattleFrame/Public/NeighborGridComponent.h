@@ -87,6 +87,7 @@ public:
 
 	FFilter RegisterNeighborGrid_Trace_Filter;
 	FFilter RegisterNeighborGrid_SphereObstacle_Filter;
+	FFilter RegisterSubjectFilter;
 	FFilter RegisterSubjectSingleFilter;
 	FFilter RegisterSubjectMultipleFilter;
 	FFilter RegisterSphereObstaclesFilter;
@@ -178,20 +179,8 @@ public:
 	) const;
 
 	void Update();
-	void Decouple();
-	void Evaluate();
 
 	void DefineFilters();
-
-	//---------------------------------------------RVO2------------------------------------------------------------------
-
-	void ComputeAvoidingVelocity(FAvoidance& Avoidance, FAvoiding& Avoiding, const TArray<FGridData>& SubjectNeighbors, const TArray<FGridData>& ObstacleNeighbors, float timeStep_);
-
-	bool LinearProgram1(const std::vector<RVO::Line>& lines, size_t lineNo, float radius, const RVO::Vector2& optVelocity, bool directionOpt, RVO::Vector2& result);
-
-	size_t LinearProgram2(const std::vector<RVO::Line>& lines, float radius, const RVO::Vector2& optVelocity, bool directionOpt, RVO::Vector2& result);
-
-	void LinearProgram3(const std::vector<RVO::Line>& lines, size_t numObstLines, size_t beginLine, float radius, RVO::Vector2& result);
 
 
 	//---------------------------------------------Helpers------------------------------------------------------------------

@@ -111,9 +111,9 @@ bool AFlowField::WorldToGridBP(UPARAM(ref) const FVector& Location, FVector2D& g
 	return WorldToGrid(Location, gridCoord);
 }
 
-bool AFlowField::GetCellAtLocationBP(UPARAM(ref) const FVector& Location, FCellStruct& CurrentCell)
+FCellStruct& AFlowField::GetCellAtLocationBP(const FVector& Location, bool& bOutIsValid)
 {
-	return GetCellAtLocation(Location, CurrentCell);
+	return GetCellAtLocation(Location, bOutIsValid);
 }
 
 void AFlowField::InitFlowField(EInitMode InitMode)

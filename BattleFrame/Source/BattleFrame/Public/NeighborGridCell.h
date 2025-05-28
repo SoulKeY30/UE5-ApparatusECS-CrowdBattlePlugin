@@ -47,8 +47,8 @@ public:
 
 	TArray<FGridData, TInlineAllocator<8>> Subjects;
 	TArray<FGridData, TInlineAllocator<8>> SphereObstacles;
-	TArray<FGridData, TInlineAllocator<8>> BoxObstacles;
 	TArray<FGridData, TInlineAllocator<8>> SphereObstaclesStatic;
+	TArray<FGridData, TInlineAllocator<8>> BoxObstacles;
 	TArray<FGridData, TInlineAllocator<8>> BoxObstaclesStatic;
 
 	bool Registered = false;

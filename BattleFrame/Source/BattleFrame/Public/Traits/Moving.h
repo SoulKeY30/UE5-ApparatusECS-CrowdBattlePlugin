@@ -65,13 +65,13 @@ public:
 	  FMoving() {};
 
 	  // 更新速度记录
-	  void Initialize()
+	  FORCEINLINE void Initialize()
 	  {
 		  HistoryVelocity.Init(FVector::ZeroVector, 5);
 		  bShouldInit = false;
 	  }
 
-	  void UpdateVelocityHistory(const FVector& NewVelocity)
+	  FORCEINLINE void UpdateVelocityHistory(const FVector& NewVelocity)
 	  {
 		  // 减去即将被覆盖的值
 		  CachedSumVelocity -= HistoryVelocity[CurrentIndex];

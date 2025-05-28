@@ -115,7 +115,7 @@ public:
 	bool WorldToGridBP(UPARAM(ref) const FVector& Location, FVector2D& gridCoord);
 
 	UFUNCTION(BlueprintCallable, Category = "FFCanvas", meta = (ToolTip = "Get the cell at the given world location"))
-	bool GetCellAtLocationBP(UPARAM(ref) const FVector& Location, FCellStruct& CurrentCell);
+	FCellStruct& GetCellAtLocationBP(const FVector& Location, bool& bOutIsValid);
 
 	FORCEINLINE int32 CoordToIndex(const FVector2D& GridCoord)
 	{
@@ -141,27 +141,29 @@ public:
 		return bIsValidCoord;
 	};
 
-	FORCEINLINE bool GetCellAtLocation(const FVector& Location, FCellStruct& CurrentCell)
+	FORCEINLINE FCellStruct& GetCellAtLocation(const FVector& Location, bool& bOutIsValid)
 	{
-		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("GetCellAtLocation");
-
-		CurrentCell = FCellStruct();
+		// 默认返回第一个单元格（防止返回无效引用）
+		FCellStruct* ResultCell = &CurrentCellsArray[0];
+		bOutIsValid = false;
 
 		FVector2D NearestCoord;
-		bool bIsValidCoord = WorldToGrid(Location, NearestCoord);
+		const bool bIsValidCoord = WorldToGrid(Location, NearestCoord);
 
-		int32 Index = CoordToIndex(NearestCoord);
-		int32 CellCount = CurrentCellsArray.Num();
+		const int32 Index = CoordToIndex(NearestCoord);
+		const int32 CellCount = CurrentCellsArray.Num();
+		const bool bIsValidIndex = Index < CellCount;
 
-		bool bIsValidIndex = Index < CellCount;
+		// 计算最终索引（确保不越界）
+		const int32 NearestIndex = FMath::Clamp(Index, 0, CellCount - 1);
+		ResultCell = &CurrentCellsArray[NearestIndex];
 
-		// clamp to max index
-		int32 NearestIndex = FMath::Clamp(Index, 0, CellCount - 1);
+		// 设置有效性标志
+		bOutIsValid = bIsValidCoord && bIsValidIndex;
 
-		CurrentCell = CurrentCellsArray[NearestIndex];
+		return *ResultCell;
+	}
 
-		return bIsValidCoord && bIsValidIndex;
-	};
 
 
 	void InitFlowField(EInitMode InitMode);

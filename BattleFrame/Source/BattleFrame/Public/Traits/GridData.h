@@ -5,14 +5,14 @@
 #include "GridData.generated.h"
 
 // these values are cached for cpu cache optimizaiton
-USTRUCT(BlueprintType, meta = (ForceAlignment = 8))
+USTRUCT(BlueprintType, meta = (ForceAlignment = 4))
 struct BATTLEFRAME_API FGridData
 {
     GENERATED_BODY()
 
 public:
 
-    FVector Location{0,0,0};
+    FVector3f Location{0,0,0};
     float Radius = 0;
     FSubjectHandle SubjectHandle = FSubjectHandle();
     uint32 SubjectHash = 0;

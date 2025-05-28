@@ -62,6 +62,7 @@
 #include "Traits/Directed.h"
 #include "Traits/Located.h"
 #include "Traits/Avoidance.h"
+#include "Traits/Avoiding.h"
 #include "Traits/Collider.h"
 #include "Traits/Curves.h"
 #include "Traits/Corpse.h"
@@ -144,7 +145,7 @@ private:
 	FFilter AgentJiggleFilter;
 	FFilter AgentBurningFilter;
 	FFilter AgentFrozenFilter;
-	FFilter DecideDamageFilter;
+	FFilter DecideHealthFilter;
 	FFilter AgentHealthBarFilter;
 	FFilter AgentDeathFilter;
 	FFilter AgentDeathDissolveFilter;
@@ -160,6 +161,7 @@ private:
 	FFilter SpawnActorsFilter;
 	FFilter SpawnFxFilter;
 	FFilter PlaySoundFilter;
+	FFilter SubjectFilterBase;
 
 
 public:
@@ -194,6 +196,16 @@ public:
 	static FVector FindNewPatrolGoalLocation(const FPatrol& Patrol, const FCollider& Collider, const FTrace& Trace, const FLocated& Located, int32 MaxAttempts);
 
 	void DefineFilters();
+
+	//---------------------------------------------RVO2------------------------------------------------------------------
+
+	static void ComputeAvoidingVelocity(FAvoidance& Avoidance, FAvoiding& Avoiding, const TArray<FGridData>& SubjectNeighbors, const TArray<FGridData>& ObstacleNeighbors, float timeStep_);
+
+	static bool LinearProgram1(const std::vector<RVO::Line>& lines, size_t lineNo, float radius, const RVO::Vector2& optVelocity, bool directionOpt, RVO::Vector2& result);
+
+	static size_t LinearProgram2(const std::vector<RVO::Line>& lines, float radius, const RVO::Vector2& optVelocity, bool directionOpt, RVO::Vector2& result);
+
+	static void LinearProgram3(const std::vector<RVO::Line>& lines, size_t numObstLines, size_t beginLine, float radius, RVO::Vector2& result);
 
 	// 计算实际伤害，并返回一个pair，第一个元素是是否暴击，第二个元素是实际伤害
 	FORCEINLINE std::pair<bool, float> ProcessCritDamage(float BaseDamage, float damageMult, float Probability)
