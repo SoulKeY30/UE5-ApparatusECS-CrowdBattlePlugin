@@ -1487,18 +1487,15 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
-				FMove& Move,
-				FMoving& Moving,
-				FAvoidance& Avoidance,
-				FAvoiding& Avoiding,
 				FDirected& Directed,
 				FLocated& Located,
-				FTrace& Trace,
-				FNavigation& Navigation,
 				FCollider& Collider,
-				FDefence& Defence,
 				FPatrol& Patrol,
-				FGridData& GridData)
+				FMove& Move,
+				FMoving& Moving,
+				FNavigation& Navigation,
+				FTrace& Trace,
+				FDefence& Defence)
 			{
 				// 死亡区域检测
 				if (Located.Location.Z < Move.KillZ)
@@ -1510,7 +1507,12 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				const bool bIsValidFF = IsValid(Navigation.FlowField);
 
 				// 必须要有一个流场
-				if (!bIsValidFF) return;
+				if (UNLIKELY(!bIsValidFF)) return;
+
+				// 必须获取因为之后要用到地面高度
+				FVector& AgentLocation = Located.Location;
+				bool bInside_BaseFF;
+				FCellStruct& Cell_BaseFF = Navigation.FlowField->GetCellAtLocation(AgentLocation, bInside_BaseFF);
 
 				const bool bIsAppearing = Subject.HasTrait<FAppearing>();
 				const bool bIsSleeping = Subject.HasTrait<FSleeping>();
@@ -1523,16 +1525,6 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				const bool bIsTraceResultHasLocated = bIsValidTraceResult ? Trace.TraceResult.HasTrait<FLocated>() : false;
 				const bool bIsTraceResultHasBindFlowField = bIsValidTraceResult ? Trace.TraceResult.HasTrait<FBindFlowField>() : false;
 
-				// 初始化
-				FVector& AgentLocation = Located.Location;
-				FVector DesiredMoveDirection = FVector::ZeroVector;
-
-				// 移动减速比率
-				Moving.MoveSpeedMult = 1;
-
-				// 默认流场, 必须获取因为之后要用到地面高度
-				bool bInside_BaseFF;
-				FCellStruct& Cell_BaseFF = Navigation.FlowField->GetCellAtLocation(AgentLocation, bInside_BaseFF);
 
 				//------------------------------ 击飞 ----------------------------//
 
@@ -1562,6 +1554,10 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				}
 
 				//---------------------------- 速度方向 ----------------------------//
+				
+				// 移动减速比率
+				Moving.MoveSpeedMult = 1;
+				FVector DesiredMoveDirection = FVector::ZeroVector;
 
 				if (Move.bEnable && !bIsAppearing)// Appearing不寻路
 				{
@@ -1641,7 +1637,9 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				float DistanceToGoal = FVector::Dist2D(AgentLocation, Moving.Goal);
 
 				// stop under these circumstances
-				if (!Move.bEnable || Moving.bLaunching || Moving.bFalling || bIsAppearing || bIsSleeping  || bIsDying)
+				const bool bShouldStopMoving = !Move.bEnable || Moving.bLaunching || Moving.bFalling || bIsAppearing || bIsSleeping || bIsDying;
+
+				if (bShouldStopMoving)
 				{
 					Moving.MoveSpeedMult = 0.0f;
 				}
@@ -1714,12 +1712,14 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				Moving.DesiredVelocity = DesiredVelocity;
 
 				//---------------------------- 执行朝向 ----------------------------//
-
+				
 				// 计算朝向减速比率
 				Moving.TurnSpeedMult = 1;
 
 				// 这些情况不转向
-				if (!Move.bEnable || Moving.bFalling || Moving.bLaunching || bIsAppearing || bIsSleeping || bIsAttacking || bIsDying || (bIsPatrolling && DistanceToGoal <= Patrol.AcceptanceRadius))
+				const bool bShouldStopTurning = !Move.bEnable || Moving.bFalling || Moving.bLaunching || bIsAppearing || bIsSleeping || bIsAttacking || bIsDying || (bIsPatrolling && DistanceToGoal <= Patrol.AcceptanceRadius);
+
+				if (bShouldStopTurning)
 				{
 					Moving.TurnSpeedMult = 0;
 				}
@@ -1836,218 +1836,10 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					}
 				}
 
-				//----------------------------- 避障 ----------------------------//
-
-				const auto NeighborGrid = Trace.NeighborGrid;
-
-				if (LIKELY(Avoidance.bEnable) && LIKELY(IsValid(NeighborGrid)))
-				{
-					const auto& SelfLocation = Located.Location;
-					const auto SelfRadius = Collider.Radius;
-					const auto TraceDist = Avoidance.TraceDist;
-					const float TotalRangeSqr = FMath::Square(SelfRadius + TraceDist);
-					const int32 MaxNeighbors = Avoidance.MaxNeighbors;
-
-					// Avoid Subject Neighbors
-					{
-						FFilter SubjectFilter = SubjectFilterBase;
-
-						// 碰撞组
-						if (!Avoidance.IgnoreGroups.IsEmpty())
-						{
-							const int32 ClampedGroups = FMath::Clamp(Avoidance.IgnoreGroups.Num(), 0, 9);
-
-							for (int32 i = 0; i < ClampedGroups; ++i)
-							{
-								UBattleFrameFunctionLibraryRT::ExcludeAvoGroupTraitByIndex(Avoidance.IgnoreGroups[i], SubjectFilter);
-							}
-						}
-
-						if (UNLIKELY(Subject.HasTrait<FDying>()))
-						{
-							SubjectFilter.Include<FDying>();// dying subject only collide with dying subjects
-						}
-
-						const FVector SubjectRange3D(TraceDist + SelfRadius, TraceDist + SelfRadius, SelfRadius);
-						TArray<FIntVector> NeighbourCellCoords = NeighborGrid->GetNeighborCells(SelfLocation, SubjectRange3D);
-
-						// 使用最大堆收集最近的SubjectNeighbors
-						auto SubjectCompare = [&](const FGridData& A, const FGridData& B)
-						{
-							return FVector::DistSquared(SelfLocation, FVector(A.Location)) > FVector::DistSquared(SelfLocation, FVector(B.Location));
-						};
-
-						TArray<FGridData> SubjectNeighbors;
-						SubjectNeighbors.Reserve(MaxNeighbors + 1);
-
-						TSet<uint32> SeenHashes;
-						SeenHashes.Reserve(16);
-
-						SeenHashes.Add(GridData.SubjectHash);
-
-						// this for loop is the most expensive code of all
-						for (const auto& Coord : NeighbourCellCoords)
-						{
-							const auto& Subjects = NeighborGrid->At(Coord).Subjects;
-
-							for (const auto& Data : Subjects)
-							{
-								// these check are arranged so for cache optimization
-								// 距离检查
-								const float DistSqr = FVector::DistSquared(SelfLocation, FVector(Data.Location));
-								const float RadiusSqr = FMath::Square(Data.Radius) + TotalRangeSqr;
-
-								if (DistSqr > RadiusSqr) continue;
-
-								// 去重
-								if (UNLIKELY(SeenHashes.Contains(Data.SubjectHash))) continue;
-
-								// Filter By Traits
-								if (UNLIKELY(!Data.SubjectHandle.Matches(SubjectFilter))) continue;
-
-								SeenHashes.Add(Data.SubjectHash);
-
-								// we limit the amount of subjects. we keep the nearest MaxNeighbors amount of neighbors
-								// 动态维护堆
-								if (LIKELY(SubjectNeighbors.Num() < MaxNeighbors))
-								{
-									SubjectNeighbors.HeapPush(Data, SubjectCompare);
-								}
-								else
-								{
-									const auto& HeapTop = SubjectNeighbors.HeapTop();
-									const float HeapTopDist = FVector::DistSquared(SelfLocation, FVector(HeapTop.Location));
-
-									if (UNLIKELY(DistSqr < HeapTopDist))
-									{
-										// 弹出时同步移除哈希记录
-										SeenHashes.Remove(HeapTop.SubjectHash);
-										SubjectNeighbors.HeapPopDiscard(SubjectCompare);
-										SubjectNeighbors.HeapPush(Data, SubjectCompare);
-									}
-								}
-							}
-						}
-
-						Avoidance.MaxSpeed = Moving.DesiredVelocity.Size2D();
-						Avoidance.DesiredVelocity = RVO::Vector2(Moving.DesiredVelocity.X, Moving.DesiredVelocity.Y);
-						Avoiding.CurrentVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);
-
-						// suggest the velocity to avoid collision
-						TArray<FGridData> EmptyArray;
-						ComputeAvoidingVelocity(Avoidance, Avoiding, SubjectNeighbors, EmptyArray, DeltaTime);
-
-						// apply velocity
-						if (LIKELY(!Moving.bFalling && !Moving.bLaunching))
-						{
-							FVector AvoidingVelocity(Avoidance.AvoidingVelocity.x(), Avoidance.AvoidingVelocity.y(), 0);
-							Moving.CurrentVelocity = FVector(AvoidingVelocity.X, AvoidingVelocity.Y, Moving.CurrentVelocity.Z);
-						}
-						else if (Moving.bLaunching)
-						{
-							FVector DeceleratingVelocity = FMath::VInterpConstantTo(Moving.CurrentVelocity * FVector(1, 1, 0), FVector::ZeroVector, DeltaTime, Move.MoveDeceleration);
-							Moving.CurrentVelocity = FVector(DeceleratingVelocity.X, DeceleratingVelocity.Y, Moving.CurrentVelocity.Z);
-						}
-					}
-
-					// Avoid Obstacle Neighbors
-					{
-						Avoidance.MaxSpeed = Moving.bPushedBack ? FMath::Max(Moving.CurrentVelocity.Size2D(), Moving.PushBackSpeedOverride) : Moving.CurrentVelocity.Size2D();
-						Avoidance.DesiredVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);
-						Avoiding.CurrentVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);
-
-						const float ObstacleRange = Avoidance.RVO_TimeHorizon_Obstacle * Avoidance.MaxSpeed + Avoiding.Radius;
-						const FVector ObstacleRange3D(ObstacleRange, ObstacleRange, Avoiding.Radius);
-						TArray<FIntVector> ObstacleCellCoords = NeighborGrid->GetNeighborCells(SelfLocation, ObstacleRange3D);
-
-						TSet<FGridData> ValidSphereObstacleNeighbors;
-						TSet<FGridData> ValidBoxObstacleNeighbors;
-
-						ValidSphereObstacleNeighbors.Reserve(MaxNeighbors);
-						ValidBoxObstacleNeighbors.Reserve(MaxNeighbors);
-
-						for (const FIntVector& Coord : ObstacleCellCoords)
-						{
-							const auto& Cell = NeighborGrid->At(Coord);
-
-							// 定义处理 SphereObstacles 的 Lambda 函数
-							auto ProcessSphereObstacles = [&](const TArray<FGridData, TInlineAllocator<8>>& Obstacles)
-							{
-								ValidSphereObstacleNeighbors.Append(Obstacles);
-							};
-
-							ProcessSphereObstacles(Cell.SphereObstacles);
-							ProcessSphereObstacles(Cell.SphereObstaclesStatic);
-
-							// 定义处理 BoxObstacles 的 Lambda 函数
-							auto ProcessBoxObstacles = [&](const TArray<FGridData, TInlineAllocator<8>>& Obstacles)
-							{
-								for (const FGridData& AvoData : Obstacles)
-								{
-									const FSubjectHandle ObstacleHandle = AvoData.SubjectHandle;
-									if (!ObstacleHandle.IsValid()) continue;
-									const auto ObstacleData = ObstacleHandle.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
-									if (!ObstacleData) continue;
-									const FSubjectHandle NextObstacleHandle = ObstacleData->nextObstacle_;
-									if (!NextObstacleHandle.IsValid()) continue;
-									const auto NextObstacleData = NextObstacleHandle.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
-									if (!NextObstacleData) continue;
-
-									const FVector ObstaclePoint = ObstacleData->point3d_;
-									const float ObstacleHalfHeight = ObstacleData->height_ * 0.5f;
-									const FVector NextPoint = NextObstacleData->point3d_;
-
-									// Z 轴范围检查
-									const float ObstacleZMin = ObstaclePoint.Z - ObstacleHalfHeight;
-									const float ObstacleZMax = ObstaclePoint.Z + ObstacleHalfHeight;
-									const float SubjectZMin = SelfLocation.Z - SelfRadius;
-									const float SubjectZMax = SelfLocation.Z + SelfRadius;
-
-									if (SubjectZMax < ObstacleZMin || SubjectZMin > ObstacleZMax) continue;
-
-									// 2D 碰撞检测（RVO）
-									RVO::Vector2 currentPos(Located.Location.X, Located.Location.Y);
-									RVO::Vector2 obstacleStart(ObstaclePoint.X, ObstaclePoint.Y);
-									RVO::Vector2 obstacleEnd(NextPoint.X, NextPoint.Y);
-
-									float leftOfValue = RVO::leftOf(obstacleStart, obstacleEnd, currentPos);
-
-									if (leftOfValue < 0.0f)
-									{
-										ValidBoxObstacleNeighbors.Add(AvoData);
-									}
-								}
-							};
-
-							ProcessBoxObstacles(Cell.BoxObstacles);
-							ProcessBoxObstacles(Cell.BoxObstaclesStatic);
-						}
-
-						TArray<FGridData> SphereObstacleNeighbors = ValidSphereObstacleNeighbors.Array();
-						TArray<FGridData> BoxObstacleNeighbors = ValidBoxObstacleNeighbors.Array();
-
-						ComputeAvoidingVelocity(Avoidance, Avoiding, SphereObstacleNeighbors, BoxObstacleNeighbors, DeltaTime);
-
-						Moving.CurrentVelocity = FVector(Avoidance.AvoidingVelocity.x(), Avoidance.AvoidingVelocity.y(), Moving.CurrentVelocity.Z);
-					}
-				}
-
-				// 更新速度历史记录
-				if (UNLIKELY(Moving.bShouldInit))
-				{
-					Moving.Initialize();
-				}
-
-				if (UNLIKELY(Moving.TimeLeft <= 0.f))
-				{
-					Moving.UpdateVelocityHistory(Moving.CurrentVelocity);
-				}
-
-				Moving.TimeLeft -= DeltaTime;
 
 				//--------------------------- 垂直速度 -----------------------------//
 
-				if (bIsValidFF)// 没有流场则跳过，因为不知道地面高度，所以不考虑垂直运动
+				if (LIKELY(bIsValidFF))// 没有流场则跳过，因为不知道地面高度，所以不考虑垂直运动
 				{
 					// 寻找最高地面
 					bool bIsSet = false;
@@ -2063,9 +1855,9 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					}
 
 					// 8 Directions
-					for (int32 i = 0; i < 8; ++i)
+					for (int32 i = 0; i < 4; ++i)
 					{
-						FVector BoundSamplePoint = Located.Location + FVector(Collider.Radius, 0, 0).RotateAngleAxis(i * 45.f, FVector::UpVector);
+						FVector BoundSamplePoint = Located.Location + FVector(Collider.Radius, 0, 0).RotateAngleAxis(i * 90.f, FVector::UpVector);
 
 						bool bInside;
 						FCellStruct& Cell = Navigation.FlowField->GetCellAtLocation(BoundSamplePoint, bInside);
@@ -2083,13 +1875,13 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 					//--------------------------- 运动状态 --------------------------//
 
-					if (bIsSet)
+					if (LIKELY(bIsSet))
 					{
 						// 计算投影高度
 						const float PlaneD = -FVector::DotProduct(HighestGroundNormal, HighestGroundLocation);
 						const float GroundHeight = (-PlaneD - HighestGroundNormal.X * AgentLocation.X - HighestGroundNormal.Y * AgentLocation.Y) / HighestGroundNormal.Z;
 
-						if (Move.bCanFly)
+						if (UNLIKELY(Move.bCanFly))
 						{
 							Moving.CurrentVelocity.Z += FMath::Clamp(Moving.FlyingHeight + GroundHeight - AgentLocation.Z, -100, 100);//fly at a certain height above ground
 							Moving.CurrentVelocity.Z *= 0.9f;
@@ -2099,7 +1891,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 							const float CollisionThreshold = GroundHeight + Collider.Radius;
 
 							// 高度状态判断
-							if (AgentLocation.Z - CollisionThreshold > Collider.Radius * 0.1f)// need a bit of tolerance or it will be hard to decide is it is on ground or in the air
+							if (UNLIKELY(AgentLocation.Z - CollisionThreshold > Collider.Radius * 0.1f))// need a bit of tolerance or it will be hard to decide is it is on ground or in the air
 							{
 								// 应用重力
 								Moving.CurrentVelocity.Z += Move.Gravity * SafeDeltaTime;
@@ -2130,7 +1922,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					}
 					else
 					{
-						if (Move.bCanFly)
+						if (UNLIKELY(Move.bCanFly))
 						{
 							Moving.CurrentVelocity.Z *= 0.9f;
 						}
@@ -2151,10 +1943,245 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					Moving.CurrentVelocity.Z = 0;
 				}
 
+			}, ThreadsCount, BatchSize);
+
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentAvoid");
+
+		Chain = Mechanism->EnchainSolid(AgentMoveFilter);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
+
+		Chain->OperateConcurrently(
+			[&](FSolidSubjectHandle Subject,
+				FLocated& Located,
+				FCollider& Collider,
+				FMove& Move,
+				FMoving& Moving,
+				FAvoidance& Avoidance,
+				FAvoiding& Avoiding,
+				FTrace& Trace,
+				FGridData& GridData)
+			{
+				//----------------------------- 避障 ----------------------------//
+				TRACE_CPUPROFILER_EVENT_SCOPE_STR("Avoid");
+
+				const auto NeighborGrid = Trace.NeighborGrid;
+
+				if (LIKELY(IsValid(NeighborGrid)) && LIKELY(Avoidance.bEnable))
+				{
+					const auto SelfLocation = Located.Location;
+					const auto SelfRadius = Collider.Radius;
+					const auto TraceDist = Avoidance.TraceDist;
+					const float TotalRangeSqr = FMath::Square(SelfRadius + TraceDist);
+					const int32 MaxNeighbors = Avoidance.MaxNeighbors;
+
+					// Avoid Subject Neighbors
+					{
+						TRACE_CPUPROFILER_EVENT_SCOPE_STR("AvoidAgents");
+						FFilter SubjectFilter = SubjectFilterBase;
+
+						// 碰撞组
+						if (!Avoidance.IgnoreGroups.IsEmpty())
+						{
+							const int32 ClampedGroups = FMath::Clamp(Avoidance.IgnoreGroups.Num(), 0, 9);
+
+							for (int32 i = 0; i < ClampedGroups; ++i)
+							{
+								UBattleFrameFunctionLibraryRT::ExcludeAvoGroupTraitByIndex(Avoidance.IgnoreGroups[i], SubjectFilter);
+							}
+						}
+
+						if (UNLIKELY(Subject.HasTrait<FDying>()))
+						{
+							SubjectFilter.Include<FDying>();// dying subject only collide with dying subjects
+						}
+
+						const FVector SubjectRange3D(TraceDist + SelfRadius, TraceDist + SelfRadius, SelfRadius);
+						TArray<FIntVector> NeighbourCellCoords = NeighborGrid->GetNeighborCells(SelfLocation, SubjectRange3D);
+
+						// 使用最大堆收集最近的SubjectNeighbors
+						auto SubjectCompare = [&](const FGridData& A, const FGridData& B)
+							{
+								return FVector::DistSquared(SelfLocation, FVector(A.Location)) > FVector::DistSquared(SelfLocation, FVector(B.Location));
+							};
+
+						TArray<FGridData> SubjectNeighbors;
+						SubjectNeighbors.Reserve(MaxNeighbors);
+
+						TSet<uint32> SeenHashes;
+						SeenHashes.Reserve(MaxNeighbors);
+
+						uint32 SelfHash = GridData.SubjectHash;
+
+						// this for loop is the most expensive code of all
+						for (const auto& Coord : NeighbourCellCoords)
+						{
+							//TRACE_CPUPROFILER_EVENT_SCOPE_STR("ForEachCell");
+							const auto& Subjects = NeighborGrid->At(Coord).Subjects;
+
+							for (const auto& Data : Subjects)
+							{
+								// we put faster checks before slower checks
+								// 距离检查
+								const float DistSqr = FVector::DistSquared(SelfLocation, FVector(Data.Location));
+								const float RadiusSqr = FMath::Square(Data.Radius) + TotalRangeSqr;
+
+								if (DistSqr > RadiusSqr) continue;
+
+								// 排除自身
+								if (UNLIKELY(Data.SubjectHash == SelfHash)) continue;
+
+								// 去重
+								if (UNLIKELY(SeenHashes.Contains(Data.SubjectHash))) continue;
+								SeenHashes.Add(Data.SubjectHash);
+
+								// Filter By Traits
+								if (UNLIKELY(!Data.SubjectHandle.Matches(SubjectFilter))) continue;
+
+								// we limit the amount of subjects. we keep the nearest MaxNeighbors amount of neighbors
+								// 动态维护堆
+								if (LIKELY(SubjectNeighbors.Num() < MaxNeighbors))
+								{
+									SubjectNeighbors.HeapPush(Data, SubjectCompare);
+								}
+								else
+								{
+									const auto& HeapTop = SubjectNeighbors.HeapTop();
+									const float HeapTopDist = FVector::DistSquared(SelfLocation, FVector(HeapTop.Location));
+
+									if (UNLIKELY(DistSqr < HeapTopDist))
+									{
+										// 弹出时同步移除哈希记录
+										SubjectNeighbors.HeapPopDiscard(SubjectCompare);
+										SubjectNeighbors.HeapPush(Data, SubjectCompare);
+									}
+								}								
+							}
+						}
+
+						TRACE_CPUPROFILER_EVENT_SCOPE_STR("CalVelAgents");
+						Avoidance.MaxSpeed = Moving.DesiredVelocity.Size2D();
+						Avoidance.DesiredVelocity = RVO::Vector2(Moving.DesiredVelocity.X, Moving.DesiredVelocity.Y);
+						Avoiding.CurrentVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);
+
+						// suggest the velocity to avoid collision
+						TArray<FGridData> EmptyArray;
+						ComputeAvoidingVelocity(Avoidance, Avoiding, SubjectNeighbors, EmptyArray, SafeDeltaTime);
+
+						// apply velocity
+						if (LIKELY(!Moving.bFalling && !Moving.bLaunching))
+						{
+							FVector AvoidingVelocity(Avoidance.AvoidingVelocity.x(), Avoidance.AvoidingVelocity.y(), 0);
+							Moving.CurrentVelocity = FVector(AvoidingVelocity.X, AvoidingVelocity.Y, Moving.CurrentVelocity.Z);
+						}
+						else if (Moving.bLaunching)
+						{
+							FVector DeceleratingVelocity = FMath::VInterpConstantTo(Moving.CurrentVelocity * FVector(1, 1, 0), FVector::ZeroVector, SafeDeltaTime, Move.MoveDeceleration);
+							Moving.CurrentVelocity = FVector(DeceleratingVelocity.X, DeceleratingVelocity.Y, Moving.CurrentVelocity.Z);
+						}
+					}
+
+					// Avoid Obstacle Neighbors
+					{
+						TRACE_CPUPROFILER_EVENT_SCOPE_STR("AvoidObstacles");
+						Avoidance.MaxSpeed = Moving.bPushedBack ? FMath::Max(Moving.CurrentVelocity.Size2D(), Moving.PushBackSpeedOverride) : Moving.CurrentVelocity.Size2D();
+						Avoidance.DesiredVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);
+						Avoiding.CurrentVelocity = RVO::Vector2(Moving.CurrentVelocity.X, Moving.CurrentVelocity.Y);
+
+						const float ObstacleRange = Avoidance.RVO_TimeHorizon_Obstacle * Avoidance.MaxSpeed + Avoiding.Radius;
+						const FVector ObstacleRange3D(ObstacleRange, ObstacleRange, Avoiding.Radius);
+						TArray<FIntVector> ObstacleCellCoords = NeighborGrid->GetNeighborCells(SelfLocation, ObstacleRange3D);
+
+						TSet<FGridData> ValidSphereObstacleNeighbors;
+						TSet<FGridData> ValidBoxObstacleNeighbors;
+
+						ValidSphereObstacleNeighbors.Reserve(MaxNeighbors);
+						ValidBoxObstacleNeighbors.Reserve(MaxNeighbors);
+
+						for (const FIntVector& Coord : ObstacleCellCoords)
+						{
+							TRACE_CPUPROFILER_EVENT_SCOPE_STR("GatherObstacles");
+							const auto& Cell = NeighborGrid->At(Coord);
+
+							// 定义处理 SphereObstacles 的 Lambda 函数
+							auto ProcessSphereObstacles = [&](const TArray<FGridData, TInlineAllocator<8>>& Obstacles)
+								{
+									ValidSphereObstacleNeighbors.Append(Obstacles);
+								};
+
+							ProcessSphereObstacles(Cell.SphereObstacles);
+							ProcessSphereObstacles(Cell.SphereObstaclesStatic);
+
+							// 定义处理 BoxObstacles 的 Lambda 函数
+							auto ProcessBoxObstacles = [&](const TArray<FGridData, TInlineAllocator<8>>& Obstacles)
+								{
+									for (const FGridData& AvoData : Obstacles)
+									{
+										const FSubjectHandle ObstacleHandle = AvoData.SubjectHandle;
+										if (!ObstacleHandle.IsValid()) continue;
+										const auto ObstacleData = ObstacleHandle.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
+										if (!ObstacleData) continue;
+										const FSubjectHandle NextObstacleHandle = ObstacleData->nextObstacle_;
+										if (!NextObstacleHandle.IsValid()) continue;
+										const auto NextObstacleData = NextObstacleHandle.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
+										if (!NextObstacleData) continue;
+
+										const FVector ObstaclePoint = ObstacleData->point3d_;
+										const float ObstacleHalfHeight = ObstacleData->height_ * 0.5f;
+										const FVector NextPoint = NextObstacleData->point3d_;
+
+										// Z 轴范围检查
+										const float ObstacleZMin = ObstaclePoint.Z - ObstacleHalfHeight;
+										const float ObstacleZMax = ObstaclePoint.Z + ObstacleHalfHeight;
+										const float SubjectZMin = SelfLocation.Z - SelfRadius;
+										const float SubjectZMax = SelfLocation.Z + SelfRadius;
+
+										if (SubjectZMax < ObstacleZMin || SubjectZMin > ObstacleZMax) continue;
+
+										// 2D 碰撞检测（RVO）
+										RVO::Vector2 currentPos(Located.Location.X, Located.Location.Y);
+										RVO::Vector2 obstacleStart(ObstaclePoint.X, ObstaclePoint.Y);
+										RVO::Vector2 obstacleEnd(NextPoint.X, NextPoint.Y);
+
+										float leftOfValue = RVO::leftOf(obstacleStart, obstacleEnd, currentPos);
+
+										if (leftOfValue < 0.0f)
+										{
+											ValidBoxObstacleNeighbors.Add(AvoData);
+										}
+									}
+								};
+
+							ProcessBoxObstacles(Cell.BoxObstacles);
+							ProcessBoxObstacles(Cell.BoxObstaclesStatic);
+						}
+
+						TArray<FGridData> SphereObstacleNeighbors = ValidSphereObstacleNeighbors.Array();
+						TArray<FGridData> BoxObstacleNeighbors = ValidBoxObstacleNeighbors.Array();
+
+						TRACE_CPUPROFILER_EVENT_SCOPE_STR("CalVelObstacle");
+						ComputeAvoidingVelocity(Avoidance, Avoiding, SphereObstacleNeighbors, BoxObstacleNeighbors, SafeDeltaTime);
+
+						Moving.CurrentVelocity = FVector(Avoidance.AvoidingVelocity.x(), Avoidance.AvoidingVelocity.y(), Moving.CurrentVelocity.Z);
+					}
+				}
+
+				// 更新速度历史记录
+				if (UNLIKELY(Moving.bShouldInit))
+				{
+					Moving.Initialize();
+				}
+
+				if (UNLIKELY(Moving.TimeLeft <= 0.f))
+				{
+					Moving.UpdateVelocityHistory(Moving.CurrentVelocity);
+				}
+
+				Moving.TimeLeft -= SafeDeltaTime;
+
 				//--------------------------- 执行位移 -----------------------------//
 
 				Located.PreLocation = Located.Location;
-				Located.Location += Moving.CurrentVelocity * DeltaTime;
+				Located.Location += Moving.CurrentVelocity * SafeDeltaTime;
 
 			}, ThreadsCount, BatchSize);
 	}
@@ -2708,6 +2735,41 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+void ABattleFrameBattleControl::DefineFilters()
+{
+	// this is a bit inconvenient but good for performance
+	bIsFilterReady = true;
+	AgentCountFilter = FFilter::Make<FAgent>();
+	AgentAgeFilter = FFilter::Make<FStatistics>();
+	AgentAppeaFilter = FFilter::Make<FAgent, FRendering, FLocated, FDirected, FAppear, FAppearing, FAnimation, FActivated>();
+	AgentAppearAnimFilter = FFilter::Make<FAgent, FRendering, FAnimation, FAppear, FAppearAnim, FActivated>();
+	AgentAppearDissolveFilter = FFilter::Make<FAgent, FRendering, FAppearDissolve, FAnimation, FCurves, FActivated>();
+	AgentTraceFilter = FFilter::Make<FAgent, FLocated, FDirected, FCollider, FSleep, FPatrol, FTrace, FActivated, FRendering>().Exclude<FAppearing, FAttacking, FDying>();
+	AgentAttackFilter = FFilter::Make<FAgent, FAttack, FRendering, FLocated, FDirected, FTrace, FCollider, FActivated>().Exclude<FAppearing, FSleeping, FPatrolling, FAttacking, FDying>();
+	AgentAttackingFilter = FFilter::Make<FAgent, FAttack, FRendering, FLocated, FAnimation, FAttacking, FMove, FMoving, FDirected, FTrace, FDebuff, FDamage, FDefence, FActivated>().Exclude<FAppearing, FSleeping, FPatrolling, FDying>();
+	AgentHitGlowFilter = FFilter::Make<FAgent, FRendering, FHitGlow, FAnimation, FCurves, FActivated>();
+	AgentJiggleFilter = FFilter::Make<FAgent, FRendering, FJiggle, FScaled, FHit, FCurves, FActivated>();
+	AgentBurningFilter = FFilter::Make<FTemporalDamaging>();
+	AgentFrozenFilter = FFilter::Make<FAgent, FRendering, FAnimation, FFreezing, FActivated>().Exclude<FDying>();
+	DecideHealthFilter = FFilter::Make<FHealth, FLocated>().Exclude<FDying>();
+	AgentHealthBarFilter = FFilter::Make<FAgent, FRendering, FHealth, FHealthBar, FActivated>();
+	AgentDeathFilter = FFilter::Make<FAgent, FRendering, FDeath, FLocated, FDying, FDirected, FTrace, FMove, FMoving, FActivated>();
+	AgentDeathDissolveFilter = FFilter::Make<FAgent, FRendering, FDeathDissolve, FAnimation, FDying, FDeath, FCurves, FActivated>();
+	AgentDeathAnimFilter = FFilter::Make<FAgent, FRendering, FDeathAnim, FAnimation, FDying, FActivated>();
+	SpeedLimitOverrideFilter = FFilter::Make<FCollider, FLocated, FSphereObstacle>();
+	AgentPatrolFilter = FFilter::Make<FAgent, FCollider, FLocated, FPatrol, FTrace, FMove, FMoving, FActivated, FRendering>().Exclude<FAppearing, FSleeping, FAttacking, FDying>();
+	AgentMoveFilter = FFilter::Make<FAgent, FRendering, FAnimation, FMove, FMoving, FDirected, FLocated, FScaled, FAttack, FTrace, FNavigation, FAvoidance, FAvoiding, FCollider, FDefence, FPatrol, FGridData, FActivated>();
+	IdleToMoveAnimFilter = FFilter::Make<FAgent, FAnimation, FMove, FMoving, FDeath, FActivated>().Exclude<FAppearing, FDying>();
+	AgentStateMachineFilter = FFilter::Make<FAgent, FAnimation, FRendering, FAppear, FAttack, FDeath, FMoving, FActivated>();
+	RenderBatchFilter = FFilter::Make<FRenderBatchData>();
+	AgentRenderFilter = FFilter::Make<FAgent, FRendering, FDirected, FScaled, FLocated, FAnimation, FHealth, FHealthBar, FPoppingText, FCollider, FActivated>();
+	TextRenderFilter = FFilter::Make<FAgent, FRendering, FTextPopUp, FPoppingText, FActivated>().IncludeFlag(HasPoppingTextFlag);
+	SpawnActorsFilter = FFilter::Make<FActorSpawnConfig>();
+	SpawnFxFilter = FFilter::Make<FFxConfig>();
+	PlaySoundFilter = FFilter::Make<FSoundConfig>();
+	SubjectFilterBase = FFilter::Make<FLocated, FCollider, FAvoidance, FAvoiding, FGridData, FActivated>().Exclude<FSphereObstacle, FBoxObstacle, FCorpse>();
+}
+
 void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subjects, const FSubjectArray& IgnoreSubjects, const FSubjectHandle DmgInstigator, const FVector& HitFromLocation, const FDmgSphere& DmgSphere, const FDebuff& Debuff, TArray<FDmgResult>& DamageResults)
 {
 	// Record for deferred spawning of TemporalDamager
@@ -3085,59 +3147,28 @@ FVector ABattleFrameBattleControl::FindNewPatrolGoalLocation(const FPatrol& Patr
 	return BestCandidate;
 }
 
-void ABattleFrameBattleControl::DefineFilters()
-{
-	// this is a bit inconvenient but good for performance
-	bIsFilterReady = true;
-	AgentCountFilter = FFilter::Make<FAgent>();
-	AgentAgeFilter = FFilter::Make<FStatistics>();
-	AgentAppeaFilter = FFilter::Make<FAgent, FRendering, FLocated, FDirected, FAppear, FAppearing, FAnimation, FActivated>();
-	AgentAppearAnimFilter = FFilter::Make<FAgent, FRendering, FAnimation, FAppear, FAppearAnim, FActivated>();
-	AgentAppearDissolveFilter = FFilter::Make<FAgent, FRendering, FAppearDissolve, FAnimation, FCurves, FActivated>();
-	AgentTraceFilter = FFilter::Make<FAgent, FLocated, FDirected, FCollider, FSleep, FPatrol, FTrace, FActivated, FRendering>().Exclude<FAppearing, FAttacking, FDying>();
-	AgentAttackFilter = FFilter::Make<FAgent, FAttack, FRendering, FLocated, FDirected, FTrace, FCollider, FActivated>().Exclude<FAppearing, FSleeping, FPatrolling, FAttacking, FDying>();
-	AgentAttackingFilter = FFilter::Make<FAgent, FAttack, FRendering, FLocated, FAnimation, FAttacking, FMove, FMoving, FDirected, FTrace, FDebuff, FDamage, FDefence, FActivated>().Exclude<FAppearing, FSleeping, FPatrolling, FDying>();
-	AgentHitGlowFilter = FFilter::Make<FAgent, FRendering, FHitGlow, FAnimation, FCurves, FActivated>();
-	AgentJiggleFilter = FFilter::Make<FAgent, FRendering, FJiggle, FScaled, FHit, FCurves, FActivated>();
-	AgentBurningFilter = FFilter::Make<FTemporalDamaging>();
-	AgentFrozenFilter = FFilter::Make<FAgent, FRendering, FAnimation, FFreezing, FActivated>().Exclude<FDying>();
-	DecideHealthFilter = FFilter::Make<FHealth, FLocated>().Exclude<FDying>();
-	AgentHealthBarFilter = FFilter::Make<FAgent, FRendering, FHealth, FHealthBar, FActivated>();
-	AgentDeathFilter = FFilter::Make<FAgent, FRendering, FDeath, FLocated, FDying, FDirected, FTrace, FMove, FMoving, FActivated>();
-	AgentDeathDissolveFilter = FFilter::Make<FAgent, FRendering, FDeathDissolve, FAnimation, FDying, FDeath, FCurves, FActivated>();
-	AgentDeathAnimFilter = FFilter::Make<FAgent, FRendering, FDeathAnim, FAnimation, FDying, FActivated>();
-	SpeedLimitOverrideFilter = FFilter::Make<FCollider, FLocated, FSphereObstacle>();
-	AgentPatrolFilter = FFilter::Make<FAgent, FCollider, FLocated, FPatrol, FTrace, FMove, FMoving, FActivated, FRendering>().Exclude<FAppearing, FSleeping, FAttacking, FDying>();
-	AgentMoveFilter = FFilter::Make<FAgent, FRendering, FAnimation, FMove, FMoving, FDirected, FLocated, FScaled, FAttack, FTrace, FNavigation, FAvoidance, FAvoiding, FCollider, FDefence, FPatrol, FGridData, FActivated>();
-	IdleToMoveAnimFilter = FFilter::Make<FAgent, FAnimation, FMove, FMoving, FDeath, FActivated>().Exclude<FAppearing, FDying>();
-	AgentStateMachineFilter = FFilter::Make<FAgent, FAnimation, FRendering, FAppear, FAttack, FDeath, FMoving, FActivated>();
-	RenderBatchFilter = FFilter::Make<FRenderBatchData>();
-	AgentRenderFilter = FFilter::Make<FAgent, FRendering, FDirected, FScaled, FLocated, FAnimation, FHealth, FHealthBar, FPoppingText, FCollider, FActivated>();
-	TextRenderFilter = FFilter::Make<FAgent, FRendering, FTextPopUp, FPoppingText, FActivated>().IncludeFlag(HasPoppingTextFlag);
-	SpawnActorsFilter = FFilter::Make<FActorSpawnConfig>();
-	SpawnFxFilter = FFilter::Make<FFxConfig>();
-	PlaySoundFilter = FFilter::Make<FSoundConfig>();
-	SubjectFilterBase = FFilter::Make<FLocated, FCollider, FAvoidance, FAvoiding, FGridData, FActivated>().Exclude<FSphereObstacle, FBoxObstacle, FCorpse>();
-}
 
 //-------------------------------RVO2D Copyright 2023, EastFoxStudio. All Rights Reserved-------------------------------
 
-void ABattleFrameBattleControl::ComputeAvoidingVelocity(FAvoidance& Avoidance, FAvoiding& Avoiding, const TArray<FGridData>& SubjectNeighbors, const TArray<FGridData>& ObstacleNeighbors, float TimeStep_)
+void ABattleFrameBattleControl::ComputeAvoidingVelocity(FAvoidance& Avoidance, FAvoiding& Avoiding, const TArray<FGridData>& SubjectNeighbors, const TArray<FGridData>& ObstacleNeighbors, float TimeStep)
 {
-	Avoidance.OrcaLines.clear();
+	FAvoiding SelfAvoiding = Avoiding;
+	FAvoidance SelfAvoidance = Avoidance;
+
+	SelfAvoidance.OrcaLines.reserve(SubjectNeighbors.Num() + ObstacleNeighbors.Num());
 
 	/* Create obstacle ORCA lines. */
 	if (!ObstacleNeighbors.IsEmpty())
 	{
-		const float invTimeHorizonObst = 1.0f / Avoidance.RVO_TimeHorizon_Obstacle;
+		const float invTimeHorizonObst = 1.0f / SelfAvoidance.RVO_TimeHorizon_Obstacle;
 
 		for (const auto& Data : ObstacleNeighbors)
 		{
 			FBoxObstacle* obstacle1 = Data.SubjectHandle.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
 			FBoxObstacle* obstacle2 = obstacle1->nextObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
 
-			const RVO::Vector2 relativePosition1 = obstacle1->point_ - Avoiding.Position;
-			const RVO::Vector2 relativePosition2 = obstacle2->point_ - Avoiding.Position;
+			const RVO::Vector2 relativePosition1 = obstacle1->point_ - SelfAvoiding.Position;
+			const RVO::Vector2 relativePosition2 = obstacle2->point_ - SelfAvoiding.Position;
 
 			/*
 			 * Check if velocity obstacle of obstacle is already taken care of by
@@ -3145,8 +3176,8 @@ void ABattleFrameBattleControl::ComputeAvoidingVelocity(FAvoidance& Avoidance, F
 			 */
 			bool alreadyCovered = false;
 
-			for (size_t j = 0; j < Avoidance.OrcaLines.size(); ++j) {
-				if (RVO::det(invTimeHorizonObst * relativePosition1 - Avoidance.OrcaLines[j].point, Avoidance.OrcaLines[j].direction) - invTimeHorizonObst * Avoiding.Radius >= -RVO_EPSILON && det(invTimeHorizonObst * relativePosition2 - Avoidance.OrcaLines[j].point, Avoidance.OrcaLines[j].direction) - invTimeHorizonObst * Avoiding.Radius >= -RVO_EPSILON) {
+			for (size_t j = 0; j < SelfAvoidance.OrcaLines.size(); ++j) {
+				if (RVO::det(invTimeHorizonObst * relativePosition1 - SelfAvoidance.OrcaLines[j].point, SelfAvoidance.OrcaLines[j].direction) - invTimeHorizonObst * SelfAvoiding.Radius >= -RVO_EPSILON && det(invTimeHorizonObst * relativePosition2 - SelfAvoidance.OrcaLines[j].point, SelfAvoidance.OrcaLines[j].direction) - invTimeHorizonObst * SelfAvoiding.Radius >= -RVO_EPSILON) {
 					alreadyCovered = true;
 					break;
 				}
@@ -3161,7 +3192,7 @@ void ABattleFrameBattleControl::ComputeAvoidingVelocity(FAvoidance& Avoidance, F
 			const float distSq1 = RVO::absSq(relativePosition1);
 			const float distSq2 = RVO::absSq(relativePosition2);
 
-			const float radiusSq = RVO::sqr(Avoiding.Radius);
+			const float radiusSq = RVO::sqr(SelfAvoiding.Radius);
 
 			const RVO::Vector2 obstacleVector = obstacle2->point_ - obstacle1->point_;
 			const float s = (-relativePosition1 * obstacleVector) / absSq(obstacleVector);
@@ -3174,7 +3205,7 @@ void ABattleFrameBattleControl::ComputeAvoidingVelocity(FAvoidance& Avoidance, F
 				if (obstacle1->isConvex_) {
 					line.point = RVO::Vector2(0.0f, 0.0f);
 					line.direction = normalize(RVO::Vector2(-relativePosition1.y(), relativePosition1.x()));
-					Avoidance.OrcaLines.push_back(line);
+					SelfAvoidance.OrcaLines.push_back(line);
 				}
 				continue;
 			}
@@ -3184,7 +3215,7 @@ void ABattleFrameBattleControl::ComputeAvoidingVelocity(FAvoidance& Avoidance, F
 				if (obstacle2->isConvex_ && det(relativePosition2, obstacle2->unitDir_) >= 0.0f) {
 					line.point = RVO::Vector2(0.0f, 0.0f);
 					line.direction = normalize(RVO::Vector2(-relativePosition2.y(), relativePosition2.x()));
-					Avoidance.OrcaLines.push_back(line);
+					SelfAvoidance.OrcaLines.push_back(line);
 				}
 				continue;
 			}
@@ -3192,7 +3223,7 @@ void ABattleFrameBattleControl::ComputeAvoidingVelocity(FAvoidance& Avoidance, F
 				/* Collision with obstacle segment. */
 				line.point = RVO::Vector2(0.0f, 0.0f);
 				line.direction = -obstacle1->unitDir_;
-				Avoidance.OrcaLines.push_back(line);
+				SelfAvoidance.OrcaLines.push_back(line);
 				continue;
 			}
 
@@ -3217,8 +3248,8 @@ void ABattleFrameBattleControl::ComputeAvoidingVelocity(FAvoidance& Avoidance, F
 				obstacle2 = obstacle1;
 
 				const float leg1 = std::sqrt(distSq1 - radiusSq);
-				leftLegDirection = RVO::Vector2(relativePosition1.x() * leg1 - relativePosition1.y() * Avoiding.Radius, relativePosition1.x() * Avoiding.Radius + relativePosition1.y() * leg1) / distSq1;
-				rightLegDirection = RVO::Vector2(relativePosition1.x() * leg1 + relativePosition1.y() * Avoiding.Radius, -relativePosition1.x() * Avoiding.Radius + relativePosition1.y() * leg1) / distSq1;
+				leftLegDirection = RVO::Vector2(relativePosition1.x() * leg1 - relativePosition1.y() * SelfAvoiding.Radius, relativePosition1.x() * SelfAvoiding.Radius + relativePosition1.y() * leg1) / distSq1;
+				rightLegDirection = RVO::Vector2(relativePosition1.x() * leg1 + relativePosition1.y() * SelfAvoiding.Radius, -relativePosition1.x() * SelfAvoiding.Radius + relativePosition1.y() * leg1) / distSq1;
 			}
 			else if (s > 1.0f && distSqLine <= radiusSq) {
 				/*
@@ -3233,14 +3264,14 @@ void ABattleFrameBattleControl::ComputeAvoidingVelocity(FAvoidance& Avoidance, F
 				obstacle1 = obstacle2;
 
 				const float leg2 = std::sqrt(distSq2 - radiusSq);
-				leftLegDirection = RVO::Vector2(relativePosition2.x() * leg2 - relativePosition2.y() * Avoiding.Radius, relativePosition2.x() * Avoiding.Radius + relativePosition2.y() * leg2) / distSq2;
-				rightLegDirection = RVO::Vector2(relativePosition2.x() * leg2 + relativePosition2.y() * Avoiding.Radius, -relativePosition2.x() * Avoiding.Radius + relativePosition2.y() * leg2) / distSq2;
+				leftLegDirection = RVO::Vector2(relativePosition2.x() * leg2 - relativePosition2.y() * SelfAvoiding.Radius, relativePosition2.x() * SelfAvoiding.Radius + relativePosition2.y() * leg2) / distSq2;
+				rightLegDirection = RVO::Vector2(relativePosition2.x() * leg2 + relativePosition2.y() * SelfAvoiding.Radius, -relativePosition2.x() * SelfAvoiding.Radius + relativePosition2.y() * leg2) / distSq2;
 			}
 			else {
 				/* Usual situation. */
 				if (obstacle1->isConvex_) {
 					const float leg1 = std::sqrt(distSq1 - radiusSq);
-					leftLegDirection = RVO::Vector2(relativePosition1.x() * leg1 - relativePosition1.y() * Avoiding.Radius, relativePosition1.x() * Avoiding.Radius + relativePosition1.y() * leg1) / distSq1;
+					leftLegDirection = RVO::Vector2(relativePosition1.x() * leg1 - relativePosition1.y() * SelfAvoiding.Radius, relativePosition1.x() * SelfAvoiding.Radius + relativePosition1.y() * leg1) / distSq1;
 				}
 				else {
 					/* Left vertex non-convex; left leg extends cut-off line. */
@@ -3249,7 +3280,7 @@ void ABattleFrameBattleControl::ComputeAvoidingVelocity(FAvoidance& Avoidance, F
 
 				if (obstacle2->isConvex_) {
 					const float leg2 = std::sqrt(distSq2 - radiusSq);
-					rightLegDirection = RVO::Vector2(relativePosition2.x() * leg2 + relativePosition2.y() * Avoiding.Radius, -relativePosition2.x() * Avoiding.Radius + relativePosition2.y() * leg2) / distSq2;
+					rightLegDirection = RVO::Vector2(relativePosition2.x() * leg2 + relativePosition2.y() * SelfAvoiding.Radius, -relativePosition2.x() * SelfAvoiding.Radius + relativePosition2.y() * leg2) / distSq2;
 				}
 				else {
 					/* Right vertex non-convex; right leg extends cut-off line. */
@@ -3281,33 +3312,33 @@ void ABattleFrameBattleControl::ComputeAvoidingVelocity(FAvoidance& Avoidance, F
 			}
 
 			/* Compute cut-off centers. */
-			const RVO::Vector2 leftCutoff = invTimeHorizonObst * (obstacle1->point_ - Avoiding.Position);
-			const RVO::Vector2 rightCutoff = invTimeHorizonObst * (obstacle2->point_ - Avoiding.Position);
+			const RVO::Vector2 leftCutoff = invTimeHorizonObst * (obstacle1->point_ - SelfAvoiding.Position);
+			const RVO::Vector2 rightCutoff = invTimeHorizonObst * (obstacle2->point_ - SelfAvoiding.Position);
 			const RVO::Vector2 cutoffVec = rightCutoff - leftCutoff;
 
 			/* Project current velocity on velocity obstacle. */
 
 			/* Check if current velocity is projected on cutoff circles. */
-			const float t = (obstacle1 == obstacle2 ? 0.5f : ((Avoiding.CurrentVelocity - leftCutoff) * cutoffVec) / absSq(cutoffVec));
-			const float tLeft = ((Avoiding.CurrentVelocity - leftCutoff) * leftLegDirection);
-			const float tRight = ((Avoiding.CurrentVelocity - rightCutoff) * rightLegDirection);
+			const float t = (obstacle1 == obstacle2 ? 0.5f : ((SelfAvoiding.CurrentVelocity - leftCutoff) * cutoffVec) / absSq(cutoffVec));
+			const float tLeft = ((SelfAvoiding.CurrentVelocity - leftCutoff) * leftLegDirection);
+			const float tRight = ((SelfAvoiding.CurrentVelocity - rightCutoff) * rightLegDirection);
 
 			if ((t < 0.0f && tLeft < 0.0f) || (obstacle1 == obstacle2 && tLeft < 0.0f && tRight < 0.0f)) {
 				/* Project on left cut-off circle. */
-				const RVO::Vector2 unitW = normalize(Avoiding.CurrentVelocity - leftCutoff);
+				const RVO::Vector2 unitW = normalize(SelfAvoiding.CurrentVelocity - leftCutoff);
 
 				line.direction = RVO::Vector2(unitW.y(), -unitW.x());
-				line.point = leftCutoff + Avoiding.Radius * invTimeHorizonObst * unitW;
-				Avoidance.OrcaLines.push_back(line);
+				line.point = leftCutoff + SelfAvoiding.Radius * invTimeHorizonObst * unitW;
+				SelfAvoidance.OrcaLines.push_back(line);
 				continue;
 			}
 			else if (t > 1.0f && tRight < 0.0f) {
 				/* Project on right cut-off circle. */
-				const RVO::Vector2 unitW = normalize(Avoiding.CurrentVelocity - rightCutoff);
+				const RVO::Vector2 unitW = normalize(SelfAvoiding.CurrentVelocity - rightCutoff);
 
 				line.direction = RVO::Vector2(unitW.y(), -unitW.x());
-				line.point = rightCutoff + Avoiding.Radius * invTimeHorizonObst * unitW;
-				Avoidance.OrcaLines.push_back(line);
+				line.point = rightCutoff + SelfAvoiding.Radius * invTimeHorizonObst * unitW;
+				SelfAvoidance.OrcaLines.push_back(line);
 				continue;
 			}
 
@@ -3315,15 +3346,15 @@ void ABattleFrameBattleControl::ComputeAvoidingVelocity(FAvoidance& Avoidance, F
 			 * Project on left leg, right leg, or cut-off line, whichever is closest
 			 * to velocity.
 			 */
-			const float distSqCutoff = ((t < 0.0f || t > 1.0f || obstacle1 == obstacle2) ? std::numeric_limits<float>::infinity() : absSq(Avoiding.CurrentVelocity - (leftCutoff + t * cutoffVec)));
-			const float distSqLeft = ((tLeft < 0.0f) ? std::numeric_limits<float>::infinity() : absSq(Avoiding.CurrentVelocity - (leftCutoff + tLeft * leftLegDirection)));
-			const float distSqRight = ((tRight < 0.0f) ? std::numeric_limits<float>::infinity() : absSq(Avoiding.CurrentVelocity - (rightCutoff + tRight * rightLegDirection)));
+			const float distSqCutoff = ((t < 0.0f || t > 1.0f || obstacle1 == obstacle2) ? std::numeric_limits<float>::infinity() : absSq(SelfAvoiding.CurrentVelocity - (leftCutoff + t * cutoffVec)));
+			const float distSqLeft = ((tLeft < 0.0f) ? std::numeric_limits<float>::infinity() : absSq(SelfAvoiding.CurrentVelocity - (leftCutoff + tLeft * leftLegDirection)));
+			const float distSqRight = ((tRight < 0.0f) ? std::numeric_limits<float>::infinity() : absSq(SelfAvoiding.CurrentVelocity - (rightCutoff + tRight * rightLegDirection)));
 
 			if (distSqCutoff <= distSqLeft && distSqCutoff <= distSqRight) {
 				/* Project on cut-off line. */
 				line.direction = -obstacle1->unitDir_;
-				line.point = leftCutoff + Avoiding.Radius * invTimeHorizonObst * RVO::Vector2(-line.direction.y(), line.direction.x());
-				Avoidance.OrcaLines.push_back(line);
+				line.point = leftCutoff + SelfAvoiding.Radius * invTimeHorizonObst * RVO::Vector2(-line.direction.y(), line.direction.x());
+				SelfAvoidance.OrcaLines.push_back(line);
 				continue;
 			}
 			else if (distSqLeft <= distSqRight) {
@@ -3333,8 +3364,8 @@ void ABattleFrameBattleControl::ComputeAvoidingVelocity(FAvoidance& Avoidance, F
 				}
 
 				line.direction = leftLegDirection;
-				line.point = leftCutoff + Avoiding.Radius * invTimeHorizonObst * RVO::Vector2(-line.direction.y(), line.direction.x());
-				Avoidance.OrcaLines.push_back(line);
+				line.point = leftCutoff + SelfAvoiding.Radius * invTimeHorizonObst * RVO::Vector2(-line.direction.y(), line.direction.x());
+				SelfAvoidance.OrcaLines.push_back(line);
 				continue;
 			}
 			else {
@@ -3344,27 +3375,27 @@ void ABattleFrameBattleControl::ComputeAvoidingVelocity(FAvoidance& Avoidance, F
 				}
 
 				line.direction = -rightLegDirection;
-				line.point = rightCutoff + Avoiding.Radius * invTimeHorizonObst * RVO::Vector2(-line.direction.y(), line.direction.x());
-				Avoidance.OrcaLines.push_back(line);
+				line.point = rightCutoff + SelfAvoiding.Radius * invTimeHorizonObst * RVO::Vector2(-line.direction.y(), line.direction.x());
+				SelfAvoidance.OrcaLines.push_back(line);
 				continue;
 			}
 		}
 	}
 
-	const size_t numObstLines = Avoidance.OrcaLines.size();
+	const size_t numObstLines = SelfAvoidance.OrcaLines.size();
 
 	/* Create agent ORCA lines. */
-	if (!SubjectNeighbors.IsEmpty())
+	if (LIKELY(!SubjectNeighbors.IsEmpty()))
 	{
-		const float invTimeHorizon = 1.0f / Avoidance.RVO_TimeHorizon_Agent;
+		const float invTimeHorizon = 1.0f / SelfAvoidance.RVO_TimeHorizon_Agent;
 
 		for (const auto& Data : SubjectNeighbors)
 		{
-			const auto& OtherAvoiding = Data.SubjectHandle.GetTraitRef<FAvoiding, EParadigm::Unsafe>();
-			const RVO::Vector2 relativePosition = OtherAvoiding.Position - Avoiding.Position;
-			const RVO::Vector2 relativeVelocity = Avoiding.CurrentVelocity - OtherAvoiding.CurrentVelocity;
+			const auto OtherAvoiding = Data.SubjectHandle.GetTrait<FAvoiding>();
+			const RVO::Vector2 relativePosition = OtherAvoiding.Position - SelfAvoiding.Position;
+			const RVO::Vector2 relativeVelocity = SelfAvoiding.CurrentVelocity - OtherAvoiding.CurrentVelocity;
 			const float distSq = absSq(relativePosition);
-			const float combinedRadius = Avoiding.Radius + OtherAvoiding.Radius;
+			const float combinedRadius = SelfAvoiding.Radius + OtherAvoiding.Radius;
 			const float combinedRadiusSq = RVO::sqr(combinedRadius);
 
 			RVO::Line line;
@@ -3406,7 +3437,7 @@ void ABattleFrameBattleControl::ComputeAvoidingVelocity(FAvoidance& Avoidance, F
 			}
 			else {
 				/* Collision. Project on cut-off circle of time timeStep. */
-				const float invTimeStep = 1.0f / TimeStep_;
+				const float invTimeStep = 1.0f / TimeStep;
 
 				/* Vector from cutoff center to relative velocity. */
 				const RVO::Vector2 w = relativeVelocity - invTimeStep * relativePosition;
@@ -3419,16 +3450,20 @@ void ABattleFrameBattleControl::ComputeAvoidingVelocity(FAvoidance& Avoidance, F
 			}
 
 			float Ratio = OtherAvoiding.bCanAvoid ? 0.5f : 1.f;
-			line.point = Avoiding.CurrentVelocity + Ratio * u;
-			Avoidance.OrcaLines.push_back(line);
+			line.point = SelfAvoiding.CurrentVelocity + Ratio * u;
+			SelfAvoidance.OrcaLines.push_back(line);
 		}
 	}
 
-	size_t lineFail = LinearProgram2(Avoidance.OrcaLines, Avoidance.MaxSpeed, Avoidance.DesiredVelocity, false, Avoidance.AvoidingVelocity);
+	size_t lineFail = LinearProgram2(SelfAvoidance.OrcaLines, SelfAvoidance.MaxSpeed, SelfAvoidance.DesiredVelocity, false, SelfAvoidance.AvoidingVelocity);
 
-	if (lineFail < Avoidance.OrcaLines.size()) {
-		LinearProgram3(Avoidance.OrcaLines, numObstLines, lineFail, Avoidance.MaxSpeed, Avoidance.AvoidingVelocity);
+	if (lineFail < SelfAvoidance.OrcaLines.size()) 
+	{
+		LinearProgram3(SelfAvoidance.OrcaLines, numObstLines, lineFail, SelfAvoidance.MaxSpeed, SelfAvoidance.AvoidingVelocity);
 	}
+
+	//SelfAvoidance.OrcaLines.clear();
+	Avoidance.AvoidingVelocity = SelfAvoidance.AvoidingVelocity;
 }
 
 bool ABattleFrameBattleControl::LinearProgram1(const std::vector<RVO::Line>& lines, size_t lineNo, float radius, const RVO::Vector2& optVelocity, bool directionOpt, RVO::Vector2& result)

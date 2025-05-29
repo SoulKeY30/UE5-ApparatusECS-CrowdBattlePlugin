@@ -296,7 +296,7 @@ void AAgentSpawner::ActivateAgent( FSubjectHandle Agent )// strange apparatus bu
         Agent.SetTrait(FRegisterMultiple());
     }
 
-    Agent.SetTrait(FGridData{ FVector3f(Located.Location), Collider.Radius, Agent, Agent.CalcHash() });
+    Agent.SetTrait(FGridData{ Agent.CalcHash(), FVector3f(Located.Location), Collider.Radius, Agent });
 
     UBattleFrameFunctionLibraryRT::SetSubjectSubTypeTraitByIndex(SubType.Index, Agent);
     UBattleFrameFunctionLibraryRT::SetSubjectTeamTraitByIndex(FMath::Clamp(Team.index, 0, 9), Agent);

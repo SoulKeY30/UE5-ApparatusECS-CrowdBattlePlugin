@@ -42,7 +42,7 @@ void UBFSubjectiveActorComponent::InitializeTraits(AActor* OwnerActor)
 
     const auto SubjectHandle = GetHandle();
     const auto Collider = ObtainTrait<FCollider>();
-    SetTrait(FGridData{ FVector3f(OwnerActor->GetActorLocation()), Collider.Radius, SubjectHandle, SubjectHandle.CalcHash() });
+    SetTrait(FGridData{ SubjectHandle.CalcHash(), FVector3f(OwnerActor->GetActorLocation()), Collider.Radius, SubjectHandle });
 
     SetTrait(FActivated{});
 }

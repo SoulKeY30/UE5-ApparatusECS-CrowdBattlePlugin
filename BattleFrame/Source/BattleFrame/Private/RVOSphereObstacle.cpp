@@ -43,7 +43,7 @@ void ARVOSphereObstacle::BeginPlay()
 	AMechanism* Mechanism = UMachine::ObtainMechanism(GetWorld());
 	SubjectHandle = Mechanism->SpawnSubject(Template);
 
-	SubjectHandle.SetTrait(FGridData{ FVector3f(Location), Radius, SubjectHandle, SubjectHandle.CalcHash()});
+	SubjectHandle.SetTrait(FGridData{ SubjectHandle.CalcHash(), FVector3f(Location), Radius, SubjectHandle});
 }
 
 // Called when the actor is being destroyed or the game is ending

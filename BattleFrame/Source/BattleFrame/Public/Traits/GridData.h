@@ -12,10 +12,10 @@ struct BATTLEFRAME_API FGridData
 
 public:
 
+    uint32 SubjectHash = 0;
     FVector3f Location{0,0,0};
     float Radius = 0;
     FSubjectHandle SubjectHandle = FSubjectHandle();
-    uint32 SubjectHash = 0;
 
     // 匹配Handle
     bool operator==(const FGridData& Other) const

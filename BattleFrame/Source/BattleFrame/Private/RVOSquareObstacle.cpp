@@ -141,10 +141,10 @@ void ARVOSquareObstacle::BeginPlay()
     Obstacle4.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>()->prevObstacle_ = Obstacle3;
     Obstacle4.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>()->nextObstacle_ = Obstacle1;
 
-    Obstacle1.SetTrait(FGridData{ FVector3f(Point1Location), 0, Obstacle1, Obstacle1.CalcHash() });
-    Obstacle2.SetTrait(FGridData{ FVector3f(Point2Location), 0, Obstacle2, Obstacle2.CalcHash() });
-    Obstacle3.SetTrait(FGridData{ FVector3f(Point3Location), 0, Obstacle3, Obstacle3.CalcHash() });
-    Obstacle4.SetTrait(FGridData{ FVector3f(Point4Location), 0, Obstacle4, Obstacle4.CalcHash() });
+    Obstacle1.SetTrait(FGridData{ Obstacle1.CalcHash(), FVector3f(Point1Location), 0, Obstacle1 });
+    Obstacle2.SetTrait(FGridData{ Obstacle2.CalcHash(), FVector3f(Point2Location), 0, Obstacle2 });
+    Obstacle3.SetTrait(FGridData{ Obstacle3.CalcHash(), FVector3f(Point3Location), 0, Obstacle3 });
+    Obstacle4.SetTrait(FGridData{ Obstacle4.CalcHash(), FVector3f(Point4Location), 0, Obstacle4 });
 }
 
 void ARVOSquareObstacle::EndPlay(const EEndPlayReason::Type EndPlayReason)
