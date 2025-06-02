@@ -12,24 +12,21 @@ struct BATTLEFRAME_API FBoxObstacle
 
 public:
 
-    bool isConvex_ = true;
-
     FSubjectHandle nextObstacle_ = FSubjectHandle();
-
-    RVO::Vector2 point_;
-
     FSubjectHandle prevObstacle_ = FSubjectHandle();
 
+    RVO::Vector2 point_;
+    RVO::Vector2 prePoint_;
+    RVO::Vector2 nextPoint_;
+    RVO::Vector2 nextNextPoint_;
     RVO::Vector2 unitDir_;
 
-    FVector point3d_;
-
+    float pointZ_;
     float height_;
 
+    bool isConvex_ = true;
     bool bStatic = false;
-
     bool bRegistered = false;
-
     bool bExcluded = false;
 
 };

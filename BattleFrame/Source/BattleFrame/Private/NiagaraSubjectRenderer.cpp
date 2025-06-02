@@ -137,12 +137,14 @@ void ANiagaraSubjectRenderer::Register()
 				Data->OrientationArray[NewInstanceId] = SubjectTransform.GetRotation();
 				Data->ScaleArray[NewInstanceId] = SubjectTransform.GetScale3D();
 
+				Data->Anim_Lerp_Array[NewInstanceId] = 0;
+
 				Data->Anim_Index0_Index1_PauseTime0_PauseTime1_Array[NewInstanceId] = FVector4(Anim.AnimIndex0, Anim.AnimIndex1, Anim.AnimPauseTime0, Anim.AnimPauseTime1);
 				Data->Anim_TimeStamp0_TimeStamp1_PlayRate0_Playrate1_Array[NewInstanceId] = FVector4(GetGameTimeSinceCreation(), GetGameTimeSinceCreation(), 1, 1);
 
-				Data->Anim_Lerp_Array[NewInstanceId] = 0;
+				Data->Mat_Dissolve_HitGlow_Team_Fire_Array[NewInstanceId] = FVector4(1, 0, 0, 0);
+				Data->Mat_Ice_Poison_Array[NewInstanceId] = FVector4(0, 0, 0, 0);
 
-				Data->Mat_HitGlow_Freeze_Burn_Dissolve_Array[NewInstanceId] = FVector4(0, 0, 0, 1);
 				Data->HealthBar_Opacity_CurrentRatio_TargetRatio_Array[NewInstanceId] = FVector(HealthBar.Opacity, HealthBar.CurrentRatio, HealthBar.TargetRatio);
 
 				Data->InsidePool_Array[NewInstanceId] = false;
@@ -158,12 +160,14 @@ void ANiagaraSubjectRenderer::Register()
 				Data->OrientationArray.Add(SubjectTransform.GetRotation());
 				Data->ScaleArray.Add(SubjectTransform.GetScale3D());
 
+				Data->Anim_Lerp_Array.Add(0);
+
 				Data->Anim_Index0_Index1_PauseTime0_PauseTime1_Array.Add(FVector4(Anim.AnimIndex0, Anim.AnimIndex1, Anim.AnimPauseTime0, Anim.AnimPauseTime1));
 				Data->Anim_TimeStamp0_TimeStamp1_PlayRate0_Playrate1_Array.Add(FVector4(GetGameTimeSinceCreation(), GetGameTimeSinceCreation(), 1, 1));
 
-				Data->Anim_Lerp_Array.Add(0);
+				Data->Mat_Dissolve_HitGlow_Team_Fire_Array.Add(FVector4(1, 0, 0, 0));
+				Data->Mat_Ice_Poison_Array.Add(FVector4(0, 0, 0, 0));
 
-				Data->Mat_HitGlow_Freeze_Burn_Dissolve_Array.Add(FVector4(0, 0, 0, 1));
 				Data->HealthBar_Opacity_CurrentRatio_TargetRatio_Array.Add(FVector(HealthBar.Opacity, HealthBar.CurrentRatio, HealthBar.TargetRatio));
 
 				Data->InsidePool_Array.Add(false);
@@ -198,7 +202,7 @@ void ANiagaraSubjectRenderer::IdleCheck()
 FSubjectHandle ANiagaraSubjectRenderer::AddRenderBatch()
 {
 	//TRACE_CPUPROFILER_EVENT_SCOPE_STR("AddRenderBatch");
-	FSubjectHandle RenderBatch = Mechanism->SpawnSubject(FRenderBatchData{});
+	FSubjectHandle RenderBatch = Mechanism->SpawnSubject(FRenderBatchData());
 	SpawnedRenderBatches.Add(RenderBatch);
 
 	FRenderBatchData* NewData = RenderBatch.GetTraitPtr<FRenderBatchData, EParadigm::Unsafe>();

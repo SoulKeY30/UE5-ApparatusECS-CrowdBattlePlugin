@@ -12,14 +12,15 @@ enum class EAttackMode : uint8
 {
 	None UMETA(DisplayName = "None", Tooltip = "无"),
 	ApplyDMG UMETA(DisplayName = "Apply Damage", Tooltip = "造成伤害"),
-	SuicideATK UMETA(DisplayName = "Apply Damage And Despawn", Tooltip = "造成伤害后自毁")
+	SuicideATK UMETA(DisplayName = "Apply Damage And Despawn", Tooltip = "造成伤害后自毁"),
+	Despawn UMETA(DisplayName = "Despawn", Tooltip = "自毁")
 };
 
 UENUM(BlueprintType)
 enum class ESpawnOrigin : uint8
 {
-	AtSelf UMETA(DisplayName = "AtSelf", Tooltip = ""),
-	AtTarget UMETA(DisplayName = "AtTarget", Tooltip = "")
+	AtSelf UMETA(DisplayName = "AtSelf", Tooltip = "在自身位置"),
+	AtTarget UMETA(DisplayName = "AtTarget", Tooltip = "在攻击目标位置")
 };
 
 USTRUCT(BlueprintType)
@@ -35,11 +36,14 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "距离小于该值可以攻击"))
 	float Range = 200.f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "夹角小于该值可以攻击"))
-	float AngleTolerance = 60.f;
-
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "每轮攻击的持续时长"))
 	float DurationPerRound = 1.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "夹角小于该值可以发起攻击"))
+	float AngleToleranceATK = 15.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "夹角小于该值可以造成伤害"))
+	float AngleToleranceHit = 180.f;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "施加伤害的时刻"))
 	float TimeOfHit = 0.35f;

@@ -11,15 +11,14 @@
 ARVOSquareObstacle::ARVOSquareObstacle()
 {
     PrimaryActorTick.bCanEverTick = false;
-    
+
     BoxComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("BoxComponent"));
     RootComponent = BoxComponent;
 }
 
 void ARVOSquareObstacle::OnConstruction(const FTransform& Transform)
 {
-    //BoxComponent->SetWorldScale3D(FVector(1,1,1));
-    BoxComponent->SetWorldRotation(FRotator(0,BoxComponent->GetComponentRotation().Yaw,0));
+    BoxComponent->SetWorldRotation(FRotator(0, BoxComponent->GetComponentRotation().Yaw, 0));
 }
 
 void ARVOSquareObstacle::BeginPlay()
@@ -50,60 +49,78 @@ void ARVOSquareObstacle::BeginPlay()
     FLocated Located3{ Point3Location };
     FLocated Located4{ Point4Location };
 
+    // 预计算所有点的2D位置
+    RVO::Vector2 Point1(Point1Location.X, Point1Location.Y);
+    RVO::Vector2 Point2(Point2Location.X, Point2Location.Y);
+    RVO::Vector2 Point3(Point3Location.X, Point3Location.Y);
+    RVO::Vector2 Point4(Point4Location.X, Point4Location.Y);
+
     FBoxObstacle BoxObstacle1
     {
-        true,
-        FSubjectHandle(),
-        RVO::Vector2(Point1Location.X, Point1Location.Y),
-        FSubjectHandle(),
-        RVO::Vector2((Point2Location - Point1Location).GetSafeNormal2D().X, (Point2Location - Point1Location).GetSafeNormal2D().Y),
-        Point1Location,
-        HeightValue,
-        !bIsDynamicObstacle,
-        false,
-        bExcludeFromVisibilityCheck
+        FSubjectHandle(),  // nextObstacle_ (将在后面设置)
+        FSubjectHandle(),  // prevObstacle_ (将在后面设置)
+        Point1,           // point_
+        Point4,           // prePoint_
+        Point2,           // nextPoint_
+        Point3,           // nextNextPoint_
+        RVO::Vector2((Point2Location - Point1Location).GetSafeNormal2D().X, (Point2Location - Point1Location).GetSafeNormal2D().Y), // unitDir_
+        Point1Location.Z, // pointZ_
+        HeightValue,      // height_
+        true,            // isConvex_
+        !bIsDynamicObstacle, // bStatic
+        false,           // bRegistered
+        bExcludeFromVisibilityCheck // bExcluded
     };
 
     FBoxObstacle BoxObstacle2
     {
-        true,
-        FSubjectHandle(),
-        RVO::Vector2(Point2Location.X, Point2Location.Y),
-        FSubjectHandle(),
-        RVO::Vector2((Point3Location - Point2Location).GetSafeNormal2D().X, (Point3Location - Point2Location).GetSafeNormal2D().Y),
-        Point2Location,
-        HeightValue,
-        !bIsDynamicObstacle,
-        false,
-        bExcludeFromVisibilityCheck
+        FSubjectHandle(),  // nextObstacle_
+        FSubjectHandle(),  // prevObstacle_
+        Point2,           // point_
+        Point1,           // prePoint_
+        Point3,           // nextPoint_
+        Point4,           // nextNextPoint_
+        RVO::Vector2((Point3Location - Point2Location).GetSafeNormal2D().X, (Point3Location - Point2Location).GetSafeNormal2D().Y), // unitDir_
+        Point2Location.Z, // pointZ_
+        HeightValue,      // height_
+        true,            // isConvex_
+        !bIsDynamicObstacle, // bStatic
+        false,           // bRegistered
+        bExcludeFromVisibilityCheck // bExcluded
     };
 
     FBoxObstacle BoxObstacle3
     {
-        true,
-        FSubjectHandle(),
-        RVO::Vector2(Point3Location.X, Point3Location.Y),
-        FSubjectHandle(),
-        RVO::Vector2((Point4Location - Point3Location).GetSafeNormal2D().X, (Point4Location - Point3Location).GetSafeNormal2D().Y),
-        Point3Location,
-        HeightValue,
-        !bIsDynamicObstacle,
-        false,
-        bExcludeFromVisibilityCheck
+        FSubjectHandle(),  // nextObstacle_
+        FSubjectHandle(),  // prevObstacle_
+        Point3,           // point_
+        Point2,           // prePoint_
+        Point4,           // nextPoint_
+        Point1,           // nextNextPoint_
+        RVO::Vector2((Point4Location - Point3Location).GetSafeNormal2D().X, (Point4Location - Point3Location).GetSafeNormal2D().Y), // unitDir_
+        Point3Location.Z, // pointZ_
+        HeightValue,      // height_
+        true,            // isConvex_
+        !bIsDynamicObstacle, // bStatic
+        false,           // bRegistered
+        bExcludeFromVisibilityCheck // bExcluded
     };
 
     FBoxObstacle BoxObstacle4
     {
-        true,
-        FSubjectHandle(),
-        RVO::Vector2(Point4Location.X, Point4Location.Y),
-        FSubjectHandle(),
-        RVO::Vector2((Point1Location - Point4Location).GetSafeNormal2D().X, (Point1Location - Point4Location).GetSafeNormal2D().Y),
-        Point4Location,
-        HeightValue,
-        !bIsDynamicObstacle,
-        false,
-        bExcludeFromVisibilityCheck
+        FSubjectHandle(),  // nextObstacle_
+        FSubjectHandle(),  // prevObstacle_
+        Point4,           // point_
+        Point3,           // prePoint_
+        Point1,           // nextPoint_
+        Point2,           // nextNextPoint_
+        RVO::Vector2((Point1Location - Point4Location).GetSafeNormal2D().X, (Point1Location - Point4Location).GetSafeNormal2D().Y), // unitDir_
+        Point4Location.Z, // pointZ_
+        HeightValue,      // height_
+        true,            // isConvex_
+        !bIsDynamicObstacle, // bStatic
+        false,           // bRegistered
+        bExcludeFromVisibilityCheck // bExcluded
     };
 
     FSubjectRecord Record1;
@@ -129,6 +146,7 @@ void ARVOSquareObstacle::BeginPlay()
     Obstacle3 = Mechanism->SpawnSubject(Record3);
     Obstacle4 = Mechanism->SpawnSubject(Record4);
 
+    // 设置障碍物之间的连接关系
     Obstacle1.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>()->prevObstacle_ = Obstacle4;
     Obstacle1.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>()->nextObstacle_ = Obstacle2;
 
@@ -141,6 +159,7 @@ void ARVOSquareObstacle::BeginPlay()
     Obstacle4.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>()->prevObstacle_ = Obstacle3;
     Obstacle4.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>()->nextObstacle_ = Obstacle1;
 
+    // 设置网格数据
     Obstacle1.SetTrait(FGridData{ Obstacle1.CalcHash(), FVector3f(Point1Location), 0, Obstacle1 });
     Obstacle2.SetTrait(FGridData{ Obstacle2.CalcHash(), FVector3f(Point2Location), 0, Obstacle2 });
     Obstacle3.SetTrait(FGridData{ Obstacle3.CalcHash(), FVector3f(Point3Location), 0, Obstacle3 });
@@ -197,25 +216,38 @@ void ARVOSquareObstacle::Tick(float DeltaTime)
             Swap(Point2Location, Point4Location);
         }
 
+        // 更新位置数据
         Obstacle1.GetTraitPtr<FLocated, EParadigm::Unsafe>()->Location = Point1Location;
         Obstacle2.GetTraitPtr<FLocated, EParadigm::Unsafe>()->Location = Point2Location;
         Obstacle3.GetTraitPtr<FLocated, EParadigm::Unsafe>()->Location = Point3Location;
         Obstacle4.GetTraitPtr<FLocated, EParadigm::Unsafe>()->Location = Point4Location;
 
-        auto UpdateObstacle = [&](FSubjectHandle Obstacle, const FVector& Location, const FVector& NextLocation) 
-        {
-            FBoxObstacle* ObstacleData = Obstacle.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
+        // 预计算所有点的2D位置
+        RVO::Vector2 Point1(Point1Location.X, Point1Location.Y);
+        RVO::Vector2 Point2(Point2Location.X, Point2Location.Y);
+        RVO::Vector2 Point3(Point3Location.X, Point3Location.Y);
+        RVO::Vector2 Point4(Point4Location.X, Point4Location.Y);
 
-            ObstacleData->point3d_ = Location;
-            ObstacleData->point_ = RVO::Vector2(Location.X, Location.Y);
-            ObstacleData->unitDir_ = RVO::Vector2((NextLocation - Location).GetSafeNormal2D().X, (NextLocation - Location).GetSafeNormal2D().Y);
-            ObstacleData->height_ = CurrentHeight;
-            ObstacleData->bExcluded = bExcludeFromVisibilityCheck;
-        };
+        auto UpdateObstacle = [&](FSubjectHandle Obstacle, const FVector& Location, const RVO::Vector2& Point,
+            const RVO::Vector2& PrePoint, const RVO::Vector2& NextPoint,
+            const RVO::Vector2& NextNextPoint, const FVector& NextLocation)
+            {
+                FBoxObstacle* ObstacleData = Obstacle.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
 
-        UpdateObstacle(Obstacle1, Point1Location, Point2Location);
-        UpdateObstacle(Obstacle2, Point2Location, Point3Location);
-        UpdateObstacle(Obstacle3, Point3Location, Point4Location);
-        UpdateObstacle(Obstacle4, Point4Location, Point1Location);
+                ObstacleData->point_ = Point;
+                ObstacleData->prePoint_ = PrePoint;
+                ObstacleData->nextPoint_ = NextPoint;
+                ObstacleData->nextNextPoint_ = NextNextPoint;
+                ObstacleData->unitDir_ = RVO::Vector2((NextLocation - Location).GetSafeNormal2D().X,
+                    (NextLocation - Location).GetSafeNormal2D().Y);
+                ObstacleData->pointZ_ = Location.Z;
+                ObstacleData->height_ = CurrentHeight;
+                ObstacleData->bExcluded = bExcludeFromVisibilityCheck;
+            };
+
+        UpdateObstacle(Obstacle1, Point1Location, Point1, Point4, Point2, Point3, Point2Location);
+        UpdateObstacle(Obstacle2, Point2Location, Point2, Point1, Point3, Point4, Point3Location);
+        UpdateObstacle(Obstacle3, Point3Location, Point3, Point2, Point4, Point1, Point4Location);
+        UpdateObstacle(Obstacle4, Point4Location, Point4, Point3, Point1, Point2, Point1Location);
     }
 }

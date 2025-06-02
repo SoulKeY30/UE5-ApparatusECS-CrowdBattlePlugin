@@ -52,4 +52,6 @@ public:
     std::vector<RVO::Line> OrcaLines;
     RVO::Vector2 DesiredVelocity = RVO::Vector2(0.0f, 0.0f);
     RVO::Vector2 AvoidingVelocity = RVO::Vector2(0.0f, 0.0f);
+
+    FAvoidance(){}
 };

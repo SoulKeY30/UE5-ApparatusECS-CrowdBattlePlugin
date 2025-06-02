@@ -6,13 +6,14 @@
 #include "Traits/BindFlowField.h"
 #include "Traits/Activated.h"
 #include "Traits/IsSubjective.h"
+#include "Traits/TemporalDamaging.h"
 
 UBFSubjectiveActorComponent::UBFSubjectiveActorComponent()
 {
     // Set up basic traits in constructor
-    SetTrait(FHealth{});
-    SetTrait(FCollider{});
-    SetTrait(FBindFlowField{});
+    SetTrait(FHealth());
+    SetTrait(FCollider());
+    SetTrait(FBindFlowField());
 
     // Enable ticking
     PrimaryComponentTick.bCanEverTick = true;
@@ -44,7 +45,8 @@ void UBFSubjectiveActorComponent::InitializeTraits(AActor* OwnerActor)
     const auto Collider = ObtainTrait<FCollider>();
     SetTrait(FGridData{ SubjectHandle.CalcHash(), FVector3f(OwnerActor->GetActorLocation()), Collider.Radius, SubjectHandle });
 
-    SetTrait(FActivated{});
+    SetTrait(FTemporalDamaging());
+    SetTrait(FActivated());
 }
 
 void UBFSubjectiveActorComponent::UpdateTraits()

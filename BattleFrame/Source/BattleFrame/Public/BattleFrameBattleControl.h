@@ -44,7 +44,7 @@
 #include "Traits/RenderBatchData.h"
 #include "Traits/Attack.h"
 #include "Traits/Attacking.h"
-#include "Traits/TemporalDamaging.h"
+#include "Traits/TemporalDamager.h"
 #include "Traits/Hit.h"
 #include "Traits/HitGlow.h"
 #include "Traits/Jiggle.h"
@@ -52,7 +52,8 @@
 #include "Traits/HealthBar.h"
 #include "Traits/Damage.h"
 #include "Traits/TextPopUp.h"
-#include "Traits/Freezing.h"
+#include "Traits/Slowing.h"
+#include "Traits/Slower.h"
 #include "Traits/PoppingText.h"
 #include "Traits/SpawningFx.h"
 #include "Traits/Defence.h"
@@ -74,7 +75,7 @@
 #include "Traits/Patrol.h"
 #include "Traits/Sleeping.h"
 #include "Traits/Patrolling.h"
-#include "Traits/Burning.h"
+#include "Traits/TemporalDamaging.h"
 #include "Traits/ActorSpawnConfig.h"
 #include "Traits/SoundConfig.h"
 #include "Traits/FxConfig.h"
@@ -82,7 +83,6 @@
 #include "Traits/IsSubjective.h"
 #include "Traits/TextPopConfig.h"
 #include "DmgResultInterface.h"
-#include "BattleFrameStructs.h"
 #include "Math/UnrealMathUtility.h"
 #include "BattleFrameBattleControl.generated.h"
 
@@ -126,6 +126,7 @@ public:
 	TQueue<float> VolumesToPlay;
 	EFlagmarkBit ReloadFlowFieldFlag = EFlagmarkBit::F;
 	EFlagmarkBit HasPoppingTextFlag = EFlagmarkBit::T;
+	//EFlagmarkBit NeedSettleDmgFlag = EFlagmarkBit::D;
 	TQueue<FDmgResult, EQueueMode::Mpsc> DamageResultQueue;
 	TSet<int32> ExistingRenderers;
 
@@ -143,8 +144,8 @@ private:
 	FFilter AgentAttackingFilter;
 	FFilter AgentHitGlowFilter;
 	FFilter AgentJiggleFilter;
-	FFilter AgentBurningFilter;
-	FFilter AgentFrozenFilter;
+	FFilter TemporalDamagerFilter;
+	FFilter SlowerFilter;
 	FFilter DecideHealthFilter;
 	FFilter AgentHealthBarFilter;
 	FFilter AgentDeathFilter;
@@ -270,7 +271,7 @@ public:
 		Mechanism->SpawnSubjectDeferred(Config);
 	}
 
-	FORCEINLINE void QueueText(FTextPopConfig Config)
+	FORCEINLINE void QueueText(FTextPopConfig Config) const
 	{
 		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("QueueText");
 

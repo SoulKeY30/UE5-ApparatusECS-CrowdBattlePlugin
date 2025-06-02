@@ -10,6 +10,7 @@ struct BATTLEFRAME_API FCurves
     GENERATED_BODY()
 
 public:
+
     FCurves()
     {
         InitializeCurve(DissolveIn, { {0.0f, 0.0f}, {1.0f, 1.0f} });
@@ -23,6 +24,7 @@ private:
     void InitializeCurve(FRuntimeFloatCurve& Curve, const TArray<TPair<float, float>>& Keyframes)
     {
         Curve.GetRichCurve()->Reset();
+
         for (const auto& Keyframe : Keyframes)
         {
             FKeyHandle KeyHandle = Curve.GetRichCurve()->AddKey(Keyframe.Key, Keyframe.Value);

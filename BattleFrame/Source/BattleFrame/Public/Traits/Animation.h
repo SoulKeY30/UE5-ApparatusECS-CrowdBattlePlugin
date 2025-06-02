@@ -60,10 +60,10 @@ public:
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "动画间过度速度"))
     float LerpSpeed = 4;
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = ""))
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "待机动画播放速度"))
     float IdlePlayRate = 1;
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = ""))
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "移动动画播放速度"))
     float MovePlayRate = 1;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "出生动画的索引值"))
@@ -104,9 +104,12 @@ public:
     //-----------------------------------------------------------
 
     float HitGlow = 0;
-    float FreezeFx = 0;
-    float BurnFx = 0;
     float Dissolve = 0;
+    float Team = 0;
+
+    float IceFx = 0;
+    float FireFx = 0;
+    float PoisonFx = 0;
 
     //-----------------------------------------------------------
 
@@ -127,9 +130,12 @@ public:
         RendererClass = Anim.RendererClass;
 
         HitGlow = Anim.HitGlow;
-        FreezeFx = Anim.FreezeFx;
-        BurnFx = Anim.BurnFx;
         Dissolve = Anim.Dissolve;
+        Team = Anim.Team;
+
+        IceFx = Anim.IceFx;
+        FireFx = Anim.FireFx;
+        PoisonFx = Anim.PoisonFx;
 
         AnimIndex0 = Anim.AnimIndex0;
         AnimPlayRate0 = Anim.AnimPlayRate0;
@@ -171,9 +177,12 @@ public:
         RendererClass = Anim.RendererClass;
 
         HitGlow = Anim.HitGlow;
-        FreezeFx = Anim.FreezeFx;
-        BurnFx = Anim.BurnFx;
         Dissolve = Anim.Dissolve;
+        Team = Anim.Team;
+
+        IceFx = Anim.IceFx;
+        FireFx = Anim.FireFx;
+        PoisonFx = Anim.PoisonFx;
 
         AnimIndex0 = Anim.AnimIndex0;
         AnimPlayRate0 = Anim.AnimPlayRate0;

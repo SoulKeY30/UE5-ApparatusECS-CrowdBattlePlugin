@@ -5,7 +5,7 @@
 ABattleFrameActor::ABattleFrameActor()
 {
     Subjective = CreateDefaultSubobject<UBFSubjectiveActorComponent>("Subjective");
-    Subjective->SetTrait(FProp{});
+    Subjective->SetTrait(FProp());
 
     PrimaryActorTick.bCanEverTick = true;
 }

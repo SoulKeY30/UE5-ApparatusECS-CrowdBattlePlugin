@@ -78,6 +78,8 @@ public:
 	AMechanism* Mechanism = nullptr;
 	ABattleFrameBattleControl* BattleControl = nullptr;
 
+	EFlagmarkBit RegisterMultipleFlag = EFlagmarkBit::M;
+
 	UFUNCTION(BlueprintCallable, Category = "Spawning")
 	TArray<FSubjectHandle> SpawnAgentsRectangular
 	(

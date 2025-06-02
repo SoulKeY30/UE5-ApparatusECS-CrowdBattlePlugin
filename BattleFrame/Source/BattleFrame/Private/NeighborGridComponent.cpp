@@ -29,7 +29,6 @@ UNeighborGridComponent::UNeighborGridComponent()
 void UNeighborGridComponent::BeginPlay()
 {
 	Super::BeginPlay();
-
 	DefineFilters();
 }
 
@@ -43,9 +42,9 @@ void UNeighborGridComponent::DefineFilters()
 {
 	RegisterNeighborGrid_Trace_Filter = FFilter::Make<FLocated, FTrace, FActivated>();
 	RegisterNeighborGrid_SphereObstacle_Filter = FFilter::Make<FLocated, FSphereObstacle>();
-	RegisterSubjectFilter = FFilter::Make<FLocated, FCollider, FTrace, FGridData, FActivated>();
-	RegisterSubjectSingleFilter = FFilter::Make<FLocated, FCollider, FGridData, FActivated>().Exclude<FRegisterMultiple>();
-	RegisterSubjectMultipleFilter = FFilter::Make<FLocated, FCollider, FGridData, FRegisterMultiple, FActivated>().Exclude<FSphereObstacle>();
+	RegisterSubjectFilter = FFilter::Make<FLocated, FCollider, FGridData, FActivated>().Exclude<FSphereObstacle>();
+	//RegisterSubjectSingleFilter = FFilter::Make<FLocated, FCollider, FGridData, FActivated>().Exclude<FRegisterMultiple>();
+	//RegisterSubjectMultipleFilter = FFilter::Make<FLocated, FCollider, FGridData, FRegisterMultiple, FActivated>().Exclude<FSphereObstacle>();
 	RegisterSphereObstaclesFilter = FFilter::Make<FLocated, FCollider, FGridData, FSphereObstacle>();
 	RegisterBoxObstaclesFilter = FFilter::Make<FBoxObstacle, FLocated, FGridData>();
 	SubjectFilterBase = FFilter::Make<FLocated, FCollider, FAvoidance, FAvoiding, FGridData, FActivated>().Exclude<FSphereObstacle, FBoxObstacle, FCorpse>();
@@ -90,8 +89,8 @@ void UNeighborGridComponent::SphereTraceForSubjects
 	const float ExpandedRadius = Radius + MaxCellRadius * FMath::Sqrt(2.0f);
 	const FVector Range(ExpandedRadius);
 
-	const FIntVector CagePosMin = WorldToCage(Origin - Range);
-	const FIntVector CagePosMax = WorldToCage(Origin + Range);
+	const FIntVector CoordMin = LocationToCoord(Origin - Range);
+	const FIntVector CoordMax = LocationToCoord(Origin + Range);
 
 	// 跟踪最佳结果（用于KeepCount=1的情况）
 	FTraceResult BestResult;
@@ -103,21 +102,21 @@ void UNeighborGridComponent::SphereTraceForSubjects
 	// 预收集候选格子并按距离排序
 	TArray<FIntVector> CandidateCells;
 
-	for (int32 z = CagePosMin.Z; z <= CagePosMax.Z; ++z)
+	for (int32 z = CoordMin.Z; z <= CoordMax.Z; ++z)
 	{
-		for (int32 y = CagePosMin.Y; y <= CagePosMax.Y; ++y)
+		for (int32 y = CoordMin.Y; y <= CoordMax.Y; ++y)
 		{
-			for (int32 x = CagePosMin.X; x <= CagePosMax.X; ++x)
+			for (int32 x = CoordMin.X; x <= CoordMax.X; ++x)
 			{
-				const FIntVector CellPos(x, y, z);
-				if (!IsInside(CellPos)) continue;
+				const FIntVector Coord(x, y, z);
+				if (!IsInside(Coord)) continue;
 
-				const FVector CellCenter = CageToWorld(CellPos);
+				const FVector CellCenter = CoordToLocation(Coord);
 				const float DistSq = FVector::DistSquared(CellCenter, Origin);
 
 				if (DistSq > FMath::Square(ExpandedRadius)) continue;
 
-				CandidateCells.Add(CellPos);
+				CandidateCells.Add(Coord);
 			}
 		}
 	}
@@ -126,8 +125,8 @@ void UNeighborGridComponent::SphereTraceForSubjects
 	if (SortMode != ESortMode::None)
 	{
 		CandidateCells.Sort([this, SortOrigin, SortMode](const FIntVector& A, const FIntVector& B) {
-			const float DistSqA = FVector::DistSquared(CageToWorld(A), SortOrigin);
-			const float DistSqB = FVector::DistSquared(CageToWorld(B), SortOrigin);
+			const float DistSqA = FVector::DistSquared(CoordToLocation(A), SortOrigin);
+			const float DistSqB = FVector::DistSquared(CoordToLocation(B), SortOrigin);
 			return SortMode == ESortMode::NearToFar ? DistSqA < DistSqB : DistSqA > DistSqB;
 			});
 	}
@@ -143,20 +142,16 @@ void UNeighborGridComponent::SphereTraceForSubjects
 	}
 
 	// 遍历检测
-	for (const FIntVector& CellPos : CandidateCells)
+	for (const FIntVector& Coord : CandidateCells)
 	{
 		// 提前终止检查
 		if (!bNoCountLimit && KeepCount > 0 && SortMode != ESortMode::None)
 		{
-			const float CellDistSq = FVector::DistSquared(CageToWorld(CellPos), SortOrigin);
-			if ((SortMode == ESortMode::NearToFar && CellDistSq > ThresholdDistanceSq) ||
-				(SortMode == ESortMode::FarToNear && CellDistSq < ThresholdDistanceSq))
-			{
-				break;
-			}
+			const float CellDistSq = FVector::DistSquared(CoordToLocation(Coord), SortOrigin);
+			if ((SortMode == ESortMode::NearToFar && CellDistSq > ThresholdDistanceSq) || (SortMode == ESortMode::FarToNear && CellDistSq < ThresholdDistanceSq)) break;
 		}
 
-		const auto& CellData = At(CellPos);
+		const auto& CellData = GetCellAt(SubjectCells, Coord);
 
 		for (const FGridData& SubjectData : CellData.Subjects)
 		{
@@ -334,7 +329,7 @@ void UNeighborGridComponent::SphereSweepForSubjects
 	{
 		if (!IsInside(CellIndex)) continue;
 
-		const auto& CageCell = At(CellIndex.X, CellIndex.Y, CellIndex.Z);
+		const auto& CageCell = GetCellAt(SubjectCells, CellIndex);
 
 		for (const FGridData& Data : CageCell.Subjects)
 		{
@@ -471,8 +466,8 @@ void UNeighborGridComponent::SectorTraceForSubjects
 	const float ExpandedHeight = Height / 2.0f + CellRadius.Z;
 	const FVector Range(ExpandedRadiusXY, ExpandedRadiusXY, ExpandedHeight);
 
-	const FIntVector CagePosMin = WorldToCage(Origin - Range);
-	const FIntVector CagePosMax = WorldToCage(Origin + Range);
+	const FIntVector CoordMin = LocationToCoord(Origin - Range);
+	const FIntVector CoordMax = LocationToCoord(Origin + Range);
 
 	// 跟踪最佳结果（用于KeepCount=1的情况）
 	FTraceResult BestResult;
@@ -484,16 +479,16 @@ void UNeighborGridComponent::SectorTraceForSubjects
 	// 预收集候选格子并按距离排序
 	TArray<FIntVector> CandidateCells;
 
-	for (int32 z = CagePosMin.Z; z <= CagePosMax.Z; ++z)
+	for (int32 z = CoordMin.Z; z <= CoordMax.Z; ++z)
 	{
-		for (int32 x = CagePosMin.X; x <= CagePosMax.X; ++x)
+		for (int32 x = CoordMin.X; x <= CoordMax.X; ++x)
 		{
-			for (int32 y = CagePosMin.Y; y <= CagePosMax.Y; ++y)
+			for (int32 y = CoordMin.Y; y <= CoordMax.Y; ++y)
 			{
-				const FIntVector CellPos(x, y, z);
-				if (!IsInside(CellPos)) continue;
+				const FIntVector Coord(x, y, z);
+				if (!IsInside(Coord)) continue;
 
-				const FVector CellCenter = CageToWorld(CellPos);
+				const FVector CellCenter = CoordToLocation(Coord);
 				const FVector DeltaXY = (CellCenter - Origin) * FVector(1, 1, 0);
 				const float DistSqXY = DeltaXY.SizeSquared();
 
@@ -516,8 +511,8 @@ void UNeighborGridComponent::SectorTraceForSubjects
 							float DistToRightBound = FMath::PointDistToLine(CellCenter, Origin, RightBoundDir, ClosestPoint);
 							if (DistToRightBound >= FMath::Max(CellRadius.X, CellRadius.Y))
 							{
-								const FVector CellMin = CageToWorld(CellPos) - CellRadius;
-								const FVector CellMax = CageToWorld(CellPos) + CellRadius;
+								const FVector CellMin = CoordToLocation(Coord) - CellRadius;
+								const FVector CellMax = CoordToLocation(Coord) + CellRadius;
 								if (!(CellMin.X <= Origin.X && Origin.X <= CellMax.X &&
 									CellMin.Y <= Origin.Y && Origin.Y <= CellMax.Y))
 								{
@@ -527,7 +522,7 @@ void UNeighborGridComponent::SectorTraceForSubjects
 						}
 					}
 				}
-				CandidateCells.Add(CellPos);
+				CandidateCells.Add(Coord);
 			}
 		}
 	}
@@ -536,8 +531,8 @@ void UNeighborGridComponent::SectorTraceForSubjects
 	if (SortMode != ESortMode::None)
 	{
 		CandidateCells.Sort([this, SortOrigin, SortMode](const FIntVector& A, const FIntVector& B) {
-			const float DistSqA = FVector::DistSquared(CageToWorld(A), SortOrigin);
-			const float DistSqB = FVector::DistSquared(CageToWorld(B), SortOrigin);
+			const float DistSqA = FVector::DistSquared(CoordToLocation(A), SortOrigin);
+			const float DistSqB = FVector::DistSquared(CoordToLocation(B), SortOrigin);
 			return SortMode == ESortMode::NearToFar ? DistSqA < DistSqB : DistSqA > DistSqB;
 			});
 	}
@@ -553,12 +548,12 @@ void UNeighborGridComponent::SectorTraceForSubjects
 	}
 
 	// 遍历检测
-	for (const FIntVector& CellPos : CandidateCells)
+	for (const FIntVector& Coord : CandidateCells)
 	{
 		// 提前终止检查
 		if (!bNoCountLimit && KeepCount > 0 && SortMode != ESortMode::None)
 		{
-			const float CellDistSq = FVector::DistSquared(CageToWorld(CellPos), SortOrigin);
+			const float CellDistSq = FVector::DistSquared(CoordToLocation(Coord), SortOrigin);
 			if ((SortMode == ESortMode::NearToFar && CellDistSq > ThresholdDistanceSq) ||
 				(SortMode == ESortMode::FarToNear && CellDistSq < ThresholdDistanceSq))
 			{
@@ -566,7 +561,7 @@ void UNeighborGridComponent::SectorTraceForSubjects
 			}
 		}
 
-		const auto& CellData = At(CellPos);
+		const auto& CellData = GetCellAt(SubjectCells, Coord);
 
 		for (const FGridData& SubjectData : CellData.Subjects)
 		{
@@ -748,201 +743,188 @@ void UNeighborGridComponent::SphereSweepForObstacle
 			}
 		};
 
-	for (const FIntVector& CellPos : PathCells)
+	for (const FIntVector& Coord : PathCells)
 	{
-		const auto& Cell = At(CellPos);
+		const auto& ObstacleCell = GetCellAt(ObstacleCells, Coord);
+		const auto& StaticObstacleCell = GetCellAt(StaticObstacleCells, Coord);
 
 		// 检查球形障碍物
-		auto CheckSphereCollision = [&](const TArray<FGridData, TInlineAllocator<8>>& Obstacles)
+		auto CheckSphereCollision = [&](const FGridData& GridData)
 			{
-				for (const FGridData& GridData : Obstacles)
+				if (!GridData.SubjectHandle.IsValid()) return;
+
+				const FSphereObstacle* CurrentObstacle = GridData.SubjectHandle.GetTraitPtr<FSphereObstacle, EParadigm::Unsafe>();
+				if (!CurrentObstacle) return;
+				if (CurrentObstacle->bExcluded) return;
+
+				// 计算球体到线段的最短距离平方
+				const float DistSqr = FMath::PointDistToSegmentSquared(FVector(GridData.Location), Start, End);
+				const float CombinedRadius = Radius + GridData.Radius;
+
+				// 如果距离小于合并半径，则发生碰撞
+				if (DistSqr <= FMath::Square(CombinedRadius))
 				{
-					if (!GridData.SubjectHandle.IsValid()) continue;
-
-					const FSphereObstacle* CurrentObstacle = GridData.SubjectHandle.GetTraitPtr<FSphereObstacle, EParadigm::Unsafe>();
-					if (!CurrentObstacle) continue;
-					if (CurrentObstacle->bExcluded) continue;
-
-					// 计算球体到线段的最短距离平方
-					const float DistSqr = FMath::PointDistToSegmentSquared(FVector(GridData.Location), Start, End);
-					const float CombinedRadius = Radius + GridData.Radius;
-
-					// 如果距离小于合并半径，则发生碰撞
-					if (DistSqr <= FMath::Square(CombinedRadius))
-					{
-						ProcessObstacle(GridData, DistSqr);
-					}
+					ProcessObstacle(GridData, DistSqr);
 				}
 			};
-
-		// 检查静态/动态球形障碍物
-		CheckSphereCollision(Cell.SphereObstacles);
-		CheckSphereCollision(Cell.SphereObstaclesStatic);
 
 		// 检查长方体障碍物碰撞
-		auto CheckBoxCollision = [&](const TArray<FGridData, TInlineAllocator<8>>& Obstacles)
+		auto CheckBoxCollision = [&, Up = FVector::UpVector, SphereDir = (End - Start).GetSafeNormal()](const FGridData& GridData)
 			{
-				// 预计算常用向量
-				const FVector Up = FVector::UpVector;
-				const FVector SphereDir = (End - Start).GetSafeNormal();
-				const float SphereRadiusSq = Radius * Radius;
+				if (!GridData.SubjectHandle.IsValid()) return;
 
-				for (const FGridData& GridData : Obstacles)
+				const FBoxObstacle* CurrentObstacle = GridData.SubjectHandle.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
+				if (!CurrentObstacle || CurrentObstacle->bExcluded) return;
+
+				// 获取所有位置并计算高度相关向量
+				const float PosZ = CurrentObstacle->pointZ_;
+
+				const FVector& CurrentPos = FVector(CurrentObstacle->point_.x(), CurrentObstacle->point_.y(), PosZ);
+				const FVector& PrevPos = FVector(CurrentObstacle->prePoint_.x(), CurrentObstacle->prePoint_.y(), PosZ);
+				const FVector& NextPos = FVector(CurrentObstacle->nextPoint_.x(), CurrentObstacle->nextPoint_.y(), PosZ);
+				const FVector& NextNextPos = FVector(CurrentObstacle->nextNextPoint_.x(), CurrentObstacle->nextNextPoint_.y(), PosZ);
+
+				const float HalfHeight = CurrentObstacle->height_ * 0.5f;
+				const FVector HalfHeightVec = Up * HalfHeight;
+
+				// 预计算所有顶点
+				const FVector BottomVertices[4] =
 				{
-					if (!GridData.SubjectHandle.IsValid()) continue;
+					PrevPos - HalfHeightVec,
+					CurrentPos - HalfHeightVec,
+					NextPos - HalfHeightVec,
+					NextNextPos - HalfHeightVec
+				};
 
-					const FBoxObstacle* CurrentObstacle = GridData.SubjectHandle.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
-					if (!CurrentObstacle || CurrentObstacle->bExcluded) continue;
+				const FVector TopVertices[4] =
+				{
+					PrevPos + HalfHeightVec,
+					CurrentPos + HalfHeightVec,
+					NextPos + HalfHeightVec,
+					NextNextPos + HalfHeightVec
+				};
 
-					// 检查并获取前一个障碍物
-					const FBoxObstacle* PrevObstacle = CurrentObstacle->prevObstacle_.IsValid() ?
-						CurrentObstacle->prevObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>() : nullptr;
-					if (!PrevObstacle || PrevObstacle->bExcluded) continue;
-
-					// 检查并获取下一个障碍物
-					const FBoxObstacle* NextObstacle = CurrentObstacle->nextObstacle_.IsValid() ?
-						CurrentObstacle->nextObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>() : nullptr;
-					if (!NextObstacle || NextObstacle->bExcluded) continue;
-
-					// 检查并获取下下个障碍物
-					const FBoxObstacle* NextNextObstacle = NextObstacle->nextObstacle_.IsValid() ?
-						NextObstacle->nextObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>() : nullptr;
-					if (!NextNextObstacle || NextNextObstacle->bExcluded) continue;
-
-					// 获取所有位置并计算高度相关向量
-					const FVector& CurrentPos = CurrentObstacle->point3d_;
-					const FVector& PrevPos = PrevObstacle->point3d_;
-					const FVector& NextPos = NextObstacle->point3d_;
-					const FVector& NextNextPos = NextNextObstacle->point3d_;
-
-					const float HalfHeight = CurrentObstacle->height_ * 0.5f;
-					const FVector HalfHeightVec = Up * HalfHeight;
-
-					// 预计算所有顶点
-					const FVector BottomVertices[4] =
+				// 优化后的球体与长方体相交检测
+				auto SphereIntersectsBox = [&](const FVector& SphereStart, const FVector& SphereEnd, float SphereRadius, const FVector BottomVerts[4], const FVector TopVerts[4]) -> bool
 					{
-						PrevPos - HalfHeightVec,
-						CurrentPos - HalfHeightVec,
-						NextPos - HalfHeightVec,
-						NextNextPos - HalfHeightVec
-					};
-
-					const FVector TopVertices[4] =
-					{
-						PrevPos + HalfHeightVec,
-						CurrentPos + HalfHeightVec,
-						NextPos + HalfHeightVec,
-						NextNextPos + HalfHeightVec
-					};
-
-					// 优化后的球体与长方体相交检测
-					auto SphereIntersectsBox = [&](const FVector& SphereStart, const FVector& SphereEnd, float SphereRadius,
-						const FVector BottomVerts[4], const FVector TopVerts[4]) -> bool
+						// 1. 快速AABB测试
+						FVector BoxMin = BottomVerts[0];
+						FVector BoxMax = TopVerts[0];
+						for (int i = 1; i < 4; ++i)
 						{
-							// 1. 快速AABB测试
-							FVector BoxMin = BottomVerts[0];
-							FVector BoxMax = TopVerts[0];
-							for (int i = 1; i < 4; ++i)
-							{
-								BoxMin = BoxMin.ComponentMin(BottomVerts[i]);
-								BoxMin = BoxMin.ComponentMin(TopVerts[i]);
-								BoxMax = BoxMax.ComponentMax(BottomVerts[i]);
-								BoxMax = BoxMax.ComponentMax(TopVerts[i]);
-							}
+							BoxMin = BoxMin.ComponentMin(BottomVerts[i]);
+							BoxMin = BoxMin.ComponentMin(TopVerts[i]);
+							BoxMax = BoxMax.ComponentMax(BottomVerts[i]);
+							BoxMax = BoxMax.ComponentMax(TopVerts[i]);
+						}
 
-							// 扩展AABB以包含球体半径
-							BoxMin -= FVector(SphereRadius);
-							BoxMax += FVector(SphereRadius);
+						// 扩展AABB以包含球体半径
+						BoxMin -= FVector(SphereRadius);
+						BoxMax += FVector(SphereRadius);
 
-							// 快速拒绝测试
-							if (SphereStart.X > BoxMax.X && SphereEnd.X > BoxMax.X) return false;
-							if (SphereStart.X < BoxMin.X && SphereEnd.X < BoxMin.X) return false;
-							if (SphereStart.Y > BoxMax.Y && SphereEnd.Y > BoxMax.Y) return false;
-							if (SphereStart.Y < BoxMin.Y && SphereEnd.Y < BoxMin.Y) return false;
-							if (SphereStart.Z > BoxMax.Z && SphereEnd.Z > BoxMax.Z) return false;
-							if (SphereStart.Z < BoxMin.Z && SphereEnd.Z < BoxMin.Z) return false;
+						// 快速拒绝测试
+						if (SphereStart.X > BoxMax.X && SphereEnd.X > BoxMax.X) return false;
+						if (SphereStart.X < BoxMin.X && SphereEnd.X < BoxMin.X) return false;
+						if (SphereStart.Y > BoxMax.Y && SphereEnd.Y > BoxMax.Y) return false;
+						if (SphereStart.Y < BoxMin.Y && SphereEnd.Y < BoxMin.Y) return false;
+						if (SphereStart.Z > BoxMax.Z && SphereEnd.Z > BoxMax.Z) return false;
+						if (SphereStart.Z < BoxMin.Z && SphereEnd.Z < BoxMin.Z) return false;
 
-							// 2. 分离轴定理(SAT)测试
-							// 定义长方体的边
-							const FVector BottomEdges[4] =
-							{
-								BottomVerts[1] - BottomVerts[0],
-								BottomVerts[2] - BottomVerts[1],
-								BottomVerts[3] - BottomVerts[2],
-								BottomVerts[0] - BottomVerts[3]
-							};
-
-							const FVector SideEdges[4] =
-							{
-								TopVerts[0] - BottomVerts[0],
-								TopVerts[1] - BottomVerts[1],
-								TopVerts[2] - BottomVerts[2],
-								TopVerts[3] - BottomVerts[3]
-							};
-
-							// 测试方向包括: 3个坐标轴、4个底面边与胶囊方向的叉积、4个侧边与胶囊方向的叉积
-							const FVector TestDirs[11] =
-							{
-								FVector(1, 0, 0),  // X轴
-								FVector(0, 1, 0),  // Y轴
-								FVector(0, 0, 1),  // Z轴
-								FVector::CrossProduct(BottomEdges[0], SphereDir).GetSafeNormal(),
-								FVector::CrossProduct(BottomEdges[1], SphereDir).GetSafeNormal(),
-								FVector::CrossProduct(BottomEdges[2], SphereDir).GetSafeNormal(),
-								FVector::CrossProduct(BottomEdges[3], SphereDir).GetSafeNormal(),
-								FVector::CrossProduct(SideEdges[0], SphereDir).GetSafeNormal(),
-								FVector::CrossProduct(SideEdges[1], SphereDir).GetSafeNormal(),
-								FVector::CrossProduct(SideEdges[2], SphereDir).GetSafeNormal(),
-								FVector::CrossProduct(SideEdges[3], SphereDir).GetSafeNormal()
-							};
-
-							for (const FVector& Axis : TestDirs)
-							{
-								if (Axis.IsNearlyZero()) continue;
-
-								// 计算长方体在轴上的投影范围
-								float BoxMinProj = FLT_MAX, BoxMaxProj = -FLT_MAX;
-								for (int i = 0; i < 4; ++i)
-								{
-									float BottomProj = FVector::DotProduct(BottomVerts[i], Axis);
-									float TopProj = FVector::DotProduct(TopVerts[i], Axis);
-									BoxMinProj = FMath::Min(BoxMinProj, FMath::Min(BottomProj, TopProj));
-									BoxMaxProj = FMath::Max(BoxMaxProj, FMath::Max(BottomProj, TopProj));
-								}
-
-								// 计算胶囊在轴上的投影范围
-								float CapsuleProj1 = FVector::DotProduct(SphereStart, Axis);
-								float CapsuleProj2 = FVector::DotProduct(SphereEnd, Axis);
-								float CapsuleMin = FMath::Min(CapsuleProj1, CapsuleProj2) - SphereRadius;
-								float CapsuleMax = FMath::Max(CapsuleProj1, CapsuleProj2) + SphereRadius;
-
-								// 检查是否分离
-								if (CapsuleMax < BoxMinProj || CapsuleMin > BoxMaxProj)
-								{
-									return false;
-								}
-							}
-
-							return true;
+						// 2. 分离轴定理(SAT)测试
+						// 定义长方体的边
+						const FVector BottomEdges[4] =
+						{
+							BottomVerts[1] - BottomVerts[0],
+							BottomVerts[2] - BottomVerts[1],
+							BottomVerts[3] - BottomVerts[2],
+							BottomVerts[0] - BottomVerts[3]
 						};
 
-					if (SphereIntersectsBox(Start, End, Radius, BottomVertices, TopVertices))
+						const FVector SideEdges[4] =
+						{
+							TopVerts[0] - BottomVerts[0],
+							TopVerts[1] - BottomVerts[1],
+							TopVerts[2] - BottomVerts[2],
+							TopVerts[3] - BottomVerts[3]
+						};
+
+						// 测试方向包括: 3个坐标轴、4个底面边与胶囊方向的叉积、4个侧边与胶囊方向的叉积
+						const FVector TestDirs[11] =
+						{
+							FVector(1, 0, 0),  // X轴
+							FVector(0, 1, 0),  // Y轴
+							FVector(0, 0, 1),  // Z轴
+							FVector::CrossProduct(BottomEdges[0], SphereDir).GetSafeNormal(),
+							FVector::CrossProduct(BottomEdges[1], SphereDir).GetSafeNormal(),
+							FVector::CrossProduct(BottomEdges[2], SphereDir).GetSafeNormal(),
+							FVector::CrossProduct(BottomEdges[3], SphereDir).GetSafeNormal(),
+							FVector::CrossProduct(SideEdges[0], SphereDir).GetSafeNormal(),
+							FVector::CrossProduct(SideEdges[1], SphereDir).GetSafeNormal(),
+							FVector::CrossProduct(SideEdges[2], SphereDir).GetSafeNormal(),
+							FVector::CrossProduct(SideEdges[3], SphereDir).GetSafeNormal()
+						};
+
+						for (const FVector& Axis : TestDirs)
+						{
+							if (Axis.IsNearlyZero()) continue;
+
+							// 计算长方体在轴上的投影范围
+							float BoxMinProj = FLT_MAX, BoxMaxProj = -FLT_MAX;
+							for (int i = 0; i < 4; ++i)
+							{
+								float BottomProj = FVector::DotProduct(BottomVerts[i], Axis);
+								float TopProj = FVector::DotProduct(TopVerts[i], Axis);
+								BoxMinProj = FMath::Min(BoxMinProj, FMath::Min(BottomProj, TopProj));
+								BoxMaxProj = FMath::Max(BoxMaxProj, FMath::Max(BottomProj, TopProj));
+							}
+
+							// 计算胶囊在轴上的投影范围
+							float CapsuleProj1 = FVector::DotProduct(SphereStart, Axis);
+							float CapsuleProj2 = FVector::DotProduct(SphereEnd, Axis);
+							float CapsuleMin = FMath::Min(CapsuleProj1, CapsuleProj2) - SphereRadius;
+							float CapsuleMax = FMath::Max(CapsuleProj1, CapsuleProj2) + SphereRadius;
+
+							// 检查是否分离
+							if (CapsuleMax < BoxMinProj || CapsuleMin > BoxMaxProj)
+							{
+								return false;
+							}
+						}
+
+						return true;
+					};
+
+				if (SphereIntersectsBox(Start, End, Radius, BottomVertices, TopVertices))
+				{
+					// 使用距离平方避免开方计算
+					const float DistSqr = FVector::DistSquared(Start, FVector(GridData.Location));
+					ProcessObstacle(GridData, DistSqr);
+				}
+			};
+
+		// 检查障碍物
+		auto CheckObstacleCollision = [&](const TArray<FGridData, TInlineAllocator<8>>& Obstacles)
+			{
+				for (const auto& Obstacle : Obstacles)
+				{
+					if (Obstacle.SubjectHandle.HasTrait<FSphereObstacle>())
 					{
-						// 使用距离平方避免开方计算
-						const float DistSqr = FVector::DistSquared(Start, FVector(GridData.Location));
-						ProcessObstacle(GridData, DistSqr);
+						CheckSphereCollision(Obstacle);
+					}
+					else
+					{
+						CheckBoxCollision(Obstacle);
 					}
 				}
 			};
 
-		// 检查静态/动态盒体障碍物
-		CheckBoxCollision(Cell.BoxObstacles);
-		CheckBoxCollision(Cell.BoxObstaclesStatic);
+		CheckObstacleCollision(ObstacleCell.Subjects);
+		CheckObstacleCollision(StaticObstacleCell.Subjects);
 
-		// ============== 新增提前退出判断 ==============
+		// 提前终止循环
 		if (Hit) // 只有发现过障碍物才需要判断
 		{
-			const FVector CellCenter = CageToWorld(CellPos);
+			const FVector CellCenter = CoordToLocation(Coord);
 			const float DistToSegmentSq = FMath::PointDistToSegmentSquared(CellCenter, Start, End);
 			const float MinPossibleDist = FMath::Sqrt(DistToSegmentSq) - CellMaxRadius;
 
@@ -973,12 +955,13 @@ void UNeighborGridComponent::Update()
 		{
 			int32 CellIndex;
 
-			while (OccupiedCellsQueues[Index].Dequeue(CellIndex))
+			while (OccupiedCellsQueues[Index].Dequeue(CellIndex))                            
 			{
-				auto& Cell = Cells[CellIndex];
-				Cell.Lock();
-				Cell.Reset();
-				Cell.Unlock();
+				auto& SubjectCell = SubjectCells[CellIndex];
+				SubjectCell.Empty();
+
+				auto& ObstacleCell = ObstacleCells[CellIndex];
+				ObstacleCell.Empty();
 			}			
 		});
 	}
@@ -991,20 +974,26 @@ void UNeighborGridComponent::Update()
 		auto Chain = Mechanism->EnchainSolid(RegisterSubjectFilter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
-		Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FLocated& Located, FCollider& Collider, FTrace& Trace, FGridData& GridData)
+		Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FLocated& Located, FCollider& Collider, FGridData& GridData)
 			{
+				const bool bHasTrace = Subject.HasTrait<FTrace>();
+
+				if (bHasTrace)
+				{
+					auto& Trace = Subject.GetTraitRef<FTrace>();
+					Trace.Lock();
+					Trace.NeighborGrid = this;// when agent traces, it uses this neighbor grid instance.
+					Trace.Unlock();
+				}
+
 				const auto& Location = Located.Location;
-
-				if (UNLIKELY(!IsInside(Location))) return;
-
-				Trace.Lock();
-				Trace.NeighborGrid = this;// when agent traces, it uses this neighbor grid instance.
-				Trace.Unlock();
 
 				GridData.Location = FVector3f(Location);
 				GridData.Radius = Collider.Radius;
 
-				if (LIKELY(Subject.HasTrait<FAvoidance>()) && LIKELY(Subject.HasTrait<FAvoiding>()))
+				const bool bHasAvoidanceAndAvoiding = Subject.HasTrait<FAvoidance>() && Subject.HasTrait<FAvoiding>();
+
+				if (bHasAvoidanceAndAvoiding)
 				{
 					auto& Avoidance = Subject.GetTraitRef<FAvoidance>();
 					auto& Avoiding = Subject.GetTraitRef<FAvoiding>();
@@ -1012,27 +1001,33 @@ void UNeighborGridComponent::Update()
 					Avoiding.Position = RVO::Vector2(Location.X, Location.Y);
 					Avoiding.Radius = Collider.Radius * Avoidance.AvoidDistMult;
 
-					if (LIKELY(Subject.HasTrait<FMoving>()))
+					const bool bHasMoving = Subject.HasTrait<FMoving>();
+
+					if (bHasMoving)
 					{
 						auto& Moving = Subject.GetTraitRef<FMoving>();
 						Avoiding.bCanAvoid = !Moving.bLaunching && !Moving.bPushedBack;
 					}
 				}
 
-				bool bHasRegisterMultiple = Subject.HasTrait<FRegisterMultiple>();
+				//const bool bHasRegisterMultiple = Subject.HasTrait<FRegisterMultiple>();// i don't know why this trait lead to a crash, so i use flag instead
+				const bool bHasRegisterMultiple = Subject.HasFlag(RegisterMultipleFlag);
 
-				if (bHasRegisterMultiple)
+				if (!bHasRegisterMultiple)// register single cell
 				{
+					if (UNLIKELY(!IsInside(Location))) return;
+
 					bool bShouldRegister = false;
 
-					auto& Cell = At(Location);
+					int32 CellIndex = LocationToIndex(Location);
+					auto& Cell = SubjectCells[CellIndex];
 
 					Cell.Lock();
 
-					if (!Cell.Registered)
+					if (!Cell.bRegistered)
 					{
 						bShouldRegister = true;
-						Cell.Registered = true;
+						Cell.bRegistered = true;
 					}
 
 					Cell.Subjects.Add(GridData);
@@ -1041,7 +1036,6 @@ void UNeighborGridComponent::Update()
 
 					if (bShouldRegister)
 					{
-						int32 CellIndex = GetIndexAt(WorldToCage(Location));
 						OccupiedCellsQueues[CellIndex % MaxThreadsAllowed].Enqueue(CellIndex);
 					}
 				}
@@ -1050,29 +1044,30 @@ void UNeighborGridComponent::Update()
 					const FVector Range = FVector(Collider.Radius);
 
 					// Compute the range of involved grid cells
-					const FIntVector CagePosMin = WorldToCage(Location - Range);
-					const FIntVector CagePosMax = WorldToCage(Location + Range);
+					const FIntVector CoordMin = LocationToCoord(Location - Range);
+					const FIntVector CoordMax = LocationToCoord(Location + Range);
 
-					for (int32 i = CagePosMin.Z; i <= CagePosMax.Z; ++i)
+					for (int32 i = CoordMin.Z; i <= CoordMax.Z; ++i)
 					{
-						for (int32 j = CagePosMin.Y; j <= CagePosMax.Y; ++j)
+						for (int32 j = CoordMin.Y; j <= CoordMax.Y; ++j)
 						{
-							for (int32 k = CagePosMin.X; k <= CagePosMax.X; ++k)
+							for (int32 k = CoordMin.X; k <= CoordMax.X; ++k)
 							{
-								const auto CurrentCellPos = FIntVector(k, j, i);
+								const auto CurrentCoord = FIntVector(k, j, i);
 
-								if (!IsInside(CurrentCellPos)) continue;
+								if (UNLIKELY(!IsInside(CurrentCoord))) continue;
 
 								bool bShouldRegister = false;
 
-								auto& Cell = At(CurrentCellPos);
+								int32 CellIndex = CoordToIndex(CurrentCoord);
+								auto& Cell = SubjectCells[CellIndex];
 
 								Cell.Lock();
 
-								if (!Cell.Registered)
+								if (!Cell.bRegistered)
 								{
 									bShouldRegister = true;
-									Cell.Registered = true;
+									Cell.bRegistered = true;
 								}
 
 								Cell.Subjects.Add(GridData);
@@ -1081,7 +1076,6 @@ void UNeighborGridComponent::Update()
 
 								if (bShouldRegister)
 								{
-									int32 CellIndex = GetIndexAt(CurrentCellPos);
 									OccupiedCellsQueues[CellIndex % MaxThreadsAllowed].Enqueue(CellIndex);
 								}
 							}
@@ -1104,8 +1098,6 @@ void UNeighborGridComponent::Update()
 
 			const auto& Location = Located.Location;
 
-			if (UNLIKELY(!IsInside(Location))) return;
-
 			SphereObstacle.Lock();
 			SphereObstacle.NeighborGrid = this;// when sphere obstacle override speed limit, it uses this neighbor grid instance.
 			SphereObstacle.Unlock();
@@ -1119,45 +1111,52 @@ void UNeighborGridComponent::Update()
 			const FVector Range = FVector(Collider.Radius);
 
 			// Compute the range of involved grid cells
-			const FIntVector CagePosMin = WorldToCage(Location - Range);
-			const FIntVector CagePosMax = WorldToCage(Location + Range);
+			const FIntVector CoordMin = LocationToCoord(Location - Range);
+			const FIntVector CoordMax = LocationToCoord(Location + Range);
 
-			for (int32 i = CagePosMin.Z; i <= CagePosMax.Z; ++i)
+			for (int32 i = CoordMin.Z; i <= CoordMax.Z; ++i)
 			{
-				for (int32 j = CagePosMin.Y; j <= CagePosMax.Y; ++j)
+				for (int32 j = CoordMin.Y; j <= CoordMax.Y; ++j)
 				{
-					for (int32 k = CagePosMin.X; k <= CagePosMax.X; ++k)
+					for (int32 k = CoordMin.X; k <= CoordMax.X; ++k)
 					{
-						const auto CurrentCellPos = FIntVector(k, j, i);
+						const auto CurrentCoord = FIntVector(k, j, i);
 
-						if (!IsInside(CurrentCellPos)) continue;
+						if (UNLIKELY(!IsInside(CurrentCoord))) continue;
 
 						bool bShouldRegister = false;
 
-						auto& Cell = At(CurrentCellPos);
+						int32 CellIndex = CoordToIndex(CurrentCoord);
 
-						Cell.Lock();
-
-						if (!Cell.Registered)
+						if (!SphereObstacle.bStatic)
 						{
-							bShouldRegister = true;
-							Cell.Registered = true;
-						}
+							auto& ObstacleCell = ObstacleCells[CellIndex];
 
-						if (SphereObstacle.bStatic)
-						{
-							Cell.SphereObstaclesStatic.Add(GridData);
+							ObstacleCell.Lock();
+							ObstacleCell.Subjects.Add(GridData);
+							if (!ObstacleCell.bRegistered)
+							{
+								bShouldRegister = true;
+								ObstacleCell.bRegistered = true;
+							}
+							ObstacleCell.Unlock();
 						}
 						else
 						{
-							Cell.SphereObstacles.Add(GridData);
+							auto& StaticObstacleCell = StaticObstacleCells[CellIndex];
+
+							StaticObstacleCell.Lock();
+							StaticObstacleCell.Subjects.Add(GridData);
+							if (!StaticObstacleCell.bRegistered)
+							{
+								bShouldRegister = true;
+								StaticObstacleCell.bRegistered = true;
+							}
+							StaticObstacleCell.Unlock();
 						}
 
-						Cell.Unlock();
-
-						if (bShouldRegister)
+						if (bShouldRegister && !SphereObstacle.bStatic)
 						{
-							int32 CellIndex = GetIndexAt(CurrentCellPos);
 							OccupiedCellsQueues[CellIndex % MaxThreadsAllowed].Enqueue(CellIndex);
 						}
 					}
@@ -1179,19 +1178,15 @@ void UNeighborGridComponent::Update()
 		{
 			if (BoxObstacle.bStatic && BoxObstacle.bRegistered) return; // if static, we only register once
 
-			const auto& Location = BoxObstacle.point3d_;
+			const auto& Location = FVector(BoxObstacle.point_.x(), BoxObstacle.point_.y(), BoxObstacle.pointZ_);
 			GridData.Location = FVector3f(Location);
 
-			const FBoxObstacle* PreObstaclePtr = BoxObstacle.prevObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
-			const FBoxObstacle* NextObstaclePtr = BoxObstacle.nextObstacle_.GetTraitPtr<FBoxObstacle, EParadigm::Unsafe>();
-
-			if (NextObstaclePtr == nullptr || PreObstaclePtr == nullptr) return;
-
-			const FVector& NextLocation = NextObstaclePtr->point3d_;
+			const RVO::Vector2& NextLocation = BoxObstacle.nextPoint_;
 			const float ObstacleHeight = BoxObstacle.height_;
 
 			const float StartZ = Location.Z;
 			const float EndZ = StartZ + ObstacleHeight;
+
 			TSet<FIntVector> AllGridCells;
 			TArray<FIntVector> AllGridCellsArray;
 
@@ -1201,15 +1196,15 @@ void UNeighborGridComponent::Update()
 			while (CurrentLayerZ < EndZ)
 			{
 				const FVector LayerCurrentPoint = FVector(Location.X, Location.Y, CurrentLayerZ);
-				const FVector LayerNextPoint = FVector(NextLocation.X, NextLocation.Y, CurrentLayerZ);
+				const FVector LayerNextPoint = FVector(NextLocation.x(), NextLocation.y(), CurrentLayerZ);
 
 				// 使用最大轴尺寸的2倍作为扫描半径
 				const float SweepRadius = CellSize.GetMax() * 2.0f;
 				auto LayerCells = SphereSweepForCells(LayerCurrentPoint, LayerNextPoint, SweepRadius);
 
-				for (const auto& CellPos : LayerCells)
+				for (const auto& Coord : LayerCells)
 				{
-					AllGridCells.Add(CellPos);
+					AllGridCells.Add(Coord);
 				}
 
 				CurrentLayerZ += CellSize.Z; // 使用Z轴尺寸作为步长
@@ -1219,42 +1214,51 @@ void UNeighborGridComponent::Update()
 
 			ParallelFor(AllGridCellsArray.Num(), [&](int32 Index)
 				{
-					const FIntVector& CellPos = AllGridCellsArray[Index];
+					const FIntVector& CurrentCoord = AllGridCellsArray[Index];
+
+					if (UNLIKELY(!IsInside(CurrentCoord))) return;
 
 					bool bShouldRegister = false;
 
-					auto& Cell = At(CellPos);
+					int32 CellIndex = CoordToIndex(CurrentCoord);
 
-					Cell.Lock();
-
-					if (!Cell.Registered)
+					if (!BoxObstacle.bStatic)
 					{
-						bShouldRegister = true;
-						Cell.Registered = true;
-					}
+						auto& ObstacleCell = ObstacleCells[CellIndex];
 
-					if (BoxObstacle.bStatic)
-					{
-						Cell.BoxObstaclesStatic.Add(GridData);
+						ObstacleCell.Lock();
+						ObstacleCell.Subjects.Add(GridData);
+						if (!ObstacleCell.bRegistered)
+						{
+							bShouldRegister = true;
+							ObstacleCell.bRegistered = true;
+						}
+						ObstacleCell.Unlock();
 					}
 					else
 					{
-						Cell.BoxObstacles.Add(GridData);
+						auto& StaticObstacleCell = StaticObstacleCells[CellIndex];
+
+						StaticObstacleCell.Lock();
+						StaticObstacleCell.Subjects.Add(GridData);
+						if (!StaticObstacleCell.bRegistered)
+						{
+							bShouldRegister = true;
+							StaticObstacleCell.bRegistered = true;
+						}
+						StaticObstacleCell.Unlock();
 					}
 
-					Cell.Unlock();
-
-					if (bShouldRegister)
+					if (bShouldRegister && !BoxObstacle.bStatic)
 					{
-						int32 CellIndex = GetIndexAt(CellPos);
 						OccupiedCellsQueues[CellIndex % MaxThreadsAllowed].Enqueue(CellIndex);
 					}
+
 				});
 
 			BoxObstacle.bRegistered = true;
 
 		}, ThreadsCount, BatchSize);
 	}
-
 }
 

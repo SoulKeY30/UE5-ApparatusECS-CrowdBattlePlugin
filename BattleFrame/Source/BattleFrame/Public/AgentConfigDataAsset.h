@@ -118,6 +118,6 @@ public:
     //UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "数据统计"))
     //FStatistics Statistics;
 
-    UAgentConfigDataAsset() {}
+    UAgentConfigDataAsset() {};
 
 };

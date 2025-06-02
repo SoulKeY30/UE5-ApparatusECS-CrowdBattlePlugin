@@ -20,7 +20,7 @@
 ABattleFrameCharacter::ABattleFrameCharacter()
 {
 	Subjective = CreateDefaultSubobject<UBFSubjectiveActorComponent>("Subjective");
-	Subjective->SetTrait(FHero{});
+	Subjective->SetTrait(FHero());
 
 	PrimaryActorTick.bCanEverTick = true; 
 }

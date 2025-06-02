@@ -140,7 +140,9 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     AgentConfig.SetTrait(DataAsset->TextPop);
     AgentConfig.SetTrait(FPoppingText());
     AgentConfig.SetTrait(DataAsset->Curves);
-    AgentConfig.SetTrait(DataAsset->CustomData);
+    AgentConfig.SetTrait(FTemporalDamaging());
+    AgentConfig.SetTrait(FSlowing());
+    //AgentConfig.SetTrait(DataAsset->CustomData);
 
     // Apply Multipliers
     auto& HealthTrait = AgentConfig.GetTraitRef<FHealth>();
@@ -293,7 +295,8 @@ void AAgentSpawner::ActivateAgent( FSubjectHandle Agent )// strange apparatus bu
 
     if (Collider.bHightQuality)
     {
-        Agent.SetTrait(FRegisterMultiple());
+        //Agent.SetTrait(FRegisterMultiple());
+        Agent.SetFlag(RegisterMultipleFlag, true);
     }
 
     Agent.SetTrait(FGridData{ Agent.CalcHash(), FVector3f(Located.Location), Collider.Radius, Agent });

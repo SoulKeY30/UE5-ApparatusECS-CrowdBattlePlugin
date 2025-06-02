@@ -81,9 +81,14 @@ public:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Grid")
 	mutable FBox Bounds;
 
-	TArray<FNeighborGridCell> Cells;
+	TArray<FNeighborGridCell> SubjectCells;
+	TArray<FNeighborGridCell> ObstacleCells;
+	TArray<FNeighborGridCell> StaticObstacleCells;
+
 	FVector InvCellSizeCache = FVector(1 / 300.f, 1 / 300.f, 1 / 300.f);
 	TArray<TQueue<int32,EQueueMode::Mpsc>> OccupiedCellsQueues;
+
+	EFlagmarkBit RegisterMultipleFlag = EFlagmarkBit::M;
 
 	FFilter RegisterNeighborGrid_Trace_Filter;
 	FFilter RegisterNeighborGrid_SphereObstacle_Filter;
@@ -106,14 +111,22 @@ public:
 
 	void DoInitializeCells()
 	{
-		Cells.Reset(); // Make sure there are no cells.
-		Cells.AddDefaulted(GridSize.X * GridSize.Y * GridSize.Z);
+		SubjectCells.Empty();
+		ObstacleCells.Empty();
+		StaticObstacleCells.Empty();
+
+		OccupiedCellsQueues.Empty();
+
+		SubjectCells.AddDefaulted(GridSize.X * GridSize.Y * GridSize.Z);
+		ObstacleCells.AddDefaulted(GridSize.X * GridSize.Y * GridSize.Z);
+		StaticObstacleCells.AddDefaulted(GridSize.X * GridSize.Y * GridSize.Z);
+
 		OccupiedCellsQueues.SetNum(MaxThreadsAllowed);
+
 		InvCellSizeCache = FVector(1 / CellSize.X, 1 / CellSize.Y, 1 / CellSize.Z);
 	}
 
 	void BeginPlay() override;
-
 
 	//---------------------------------------------Tracing------------------------------------------------------------------
 
@@ -187,10 +200,8 @@ public:
 
 	FORCEINLINE TArray<FIntVector> GetNeighborCells(const FVector& Center, const FVector& Range3D) const
 	{
-		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("GetNeighborCells");
-
-		const FIntVector Min = WorldToCage(Center - Range3D);
-		const FIntVector Max = WorldToCage(Center + Range3D);
+		const FIntVector Min = LocationToCoord(Center - Range3D);
+		const FIntVector Max = LocationToCoord(Center + Range3D);
 
 		TArray<FIntVector> ValidCells;
 		const int32 ExpectedCells = (Max.X - Min.X + 1) * (Max.Y - Min.Y + 1) * (Max.Z - Min.Z + 1);
@@ -202,10 +213,10 @@ public:
 			{
 				for (int32 x = Min.X; x <= Max.X; ++x) 
 				{
-					const FIntVector CellPos(x, y, z);
-					if (LIKELY(IsInside(CellPos))) 
+					const FIntVector Coord(x, y, z);
+					if (LIKELY(IsInside(Coord))) 
 					{ // 分支预测优化
-						ValidCells.Emplace(CellPos);
+						ValidCells.Emplace(Coord);
 					}
 				}
 			}
@@ -215,8 +226,6 @@ public:
 
 	FORCEINLINE TArray<FIntVector> SphereSweepForCells(const FVector& Start, const FVector& End, float Radius) const
 	{
-		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("SphereSweepForCells");
-
 		// 预计算关键参数 - 现在每个轴有自己的半径值
 		const FVector RadiusInCellsValue(Radius / CellSize.X, Radius / CellSize.Y, Radius / CellSize.Z);
 		const FIntVector RadiusInCells(
@@ -232,8 +241,8 @@ public:
 		TArray<FIntVector> GridCells;
 		TSet<FIntVector> GridCellsSet; // 保持TSet或根据性能测试调整
 
-		FIntVector StartCell = WorldToCage(Start);
-		FIntVector EndCell = WorldToCage(End);
+		FIntVector StartCell = LocationToCoord(Start);
+		FIntVector EndCell = LocationToCoord(End);
 		FIntVector Delta = EndCell - StartCell;
 		FIntVector AbsDelta(FMath::Abs(Delta.X), FMath::Abs(Delta.Y), FMath::Abs(Delta.Z));
 
@@ -299,8 +308,8 @@ public:
 		// 按距离Start点的平方距离排序（避免开根号）
 		Algo::Sort(ResultArray, [this, Start](const FIntVector& A, const FIntVector& B)
 			{
-				const FVector WorldA = CageToWorld(A);
-				const FVector WorldB = CageToWorld(B);
+				const FVector WorldA = CoordToLocation(A);
+				const FVector WorldB = CoordToLocation(B);
 				return (WorldA - Start).SizeSquared() < (WorldB - Start).SizeSquared();
 			});
 
@@ -333,18 +342,6 @@ public:
 		}
 	}
 
-	/* Get the size of a single cell in global units.*/
-	FORCEINLINE const auto GetCellSize() const
-	{
-		return CellSize;
-	}
-
-	/* Get the size of the cage in cells among each axis.*/
-	FORCEINLINE const FIntVector& GetSize() const
-	{
-		return GridSize;
-	}
-
 	/* Get the global bounds of the cage in world units.*/
 	FORCEINLINE const FBox& GetBounds() const
 	{
@@ -356,129 +353,79 @@ public:
 		return Bounds;
 	}
 
+	/* Check if the cage point is inside the cage. */
+	FORCEINLINE bool IsInside(const FIntVector& Coord) const
+	{
+		return (Coord.X >= 0) && (Coord.X < GridSize.X) && (Coord.Y >= 0) && (Coord.Y < GridSize.Y) && (Coord.Z >= 0) && (Coord.Z < GridSize.Z);
+	}
+
+	/* Check if the world point is inside the cage. */
+	FORCEINLINE bool IsInside(const FVector& Location) const
+	{
+		return IsInside(LocationToCoord(Location));
+	}
+
 	/* Convert a cage-local 3D location to a global 3D location. No bounding checks are performed.*/
-	FORCEINLINE FVector CageToWorld(const FIntVector& CagePoint) const
+	FORCEINLINE FVector CoordToLocation(const FIntVector& Coord) const
 	{
 		// Convert the cage point to a local position within the cage
-		FVector LocalPoint = FVector(CagePoint.X, CagePoint.Y, CagePoint.Z) * CellSize;
+		FVector LocalPoint = FVector(Coord.X, Coord.Y, Coord.Z) * CellSize;
 
 		// Convert the local position to a global position by adding the cage's minimum bounds
 		return LocalPoint + Bounds.Min;
 	}
 
-	/* Convert a global 3D location to a position within the cage.mNo bounding checks are performed.*/
-	FORCEINLINE FIntVector WorldToCage(FVector Point) const
+	/* Convert a global 3D location to a position within the cage.No bounding checks are performed.*/
+	FORCEINLINE FIntVector LocationToCoord(const FVector& Location) const
 	{
-		Point -= Bounds.Min;
-		Point *= InvCellSizeCache;
-		return FIntVector(FMath::FloorToInt(Point.X), FMath::FloorToInt(Point.Y), FMath::FloorToInt(Point.Z));
-	}
-
-	/* Convert a global 3D location to a position within the bounds. No bounding checks are performed.*/
-	FORCEINLINE FVector WorldToBounded(const FVector& Point) const
-	{
-		return Point - Bounds.Min;
-	}
-
-	/* Convert a cage-local 3D location to a position within the cage. No bounding checks are performed.*/
-	FORCEINLINE FIntVector BoundedToCage(FVector Point) const
-	{
-		Point *= InvCellSizeCache;
-		return FIntVector(FMath::FloorToInt(Point.X), FMath::FloorToInt(Point.Y), FMath::FloorToInt(Point.Z));
+		FVector NewLocation = (Location - Bounds.Min) * InvCellSizeCache; 
+		return FIntVector(FMath::FloorToInt(NewLocation.X), FMath::FloorToInt(NewLocation.Y), FMath::FloorToInt(NewLocation.Z));
 	}
 
 	/* Get the index of the cage cell.*/
-	FORCEINLINE int32 GetIndexAt(int32 X, int32 Y, int32 Z) const
+	FORCEINLINE int32 CoordToIndex(const FIntVector& Coord) const
 	{
-		X = FMath::Clamp(X, 0, GridSize.X - 1);
-		Y = FMath::Clamp(Y, 0, GridSize.Y - 1);
-		Z = FMath::Clamp(Z, 0, GridSize.Z - 1);
+		int32 X = FMath::Clamp(Coord.X, 0, GridSize.X - 1);
+		int32 Y = FMath::Clamp(Coord.Y, 0, GridSize.Y - 1);
+		int32 Z = FMath::Clamp(Coord.Z, 0, GridSize.Z - 1);
 		return X + GridSize.X * (Y + GridSize.Y * Z);
 	}
 
 	/* Get a position within the cage by an index of the cell.*/
-	FORCEINLINE FIntVector GetCellPointByIndex(int32 Index) const
+	FORCEINLINE FIntVector IndexToCoord(const int32 Index) const
 	{
-		int32 z = Index / (GridSize.X * GridSize.Y);
-		int32 LayerPadding = Index - (z * GridSize.X * GridSize.Y);
+		int32 Z = Index / (GridSize.X * GridSize.Y);
+		int32 LayerPadding = Index - (Z * GridSize.X * GridSize.Y);
 
-		return FIntVector(LayerPadding / GridSize.X, LayerPadding % GridSize.X, z);
-	}
-
-	/* Get the index of the cage cell. */
-	FORCEINLINE int32 GetIndexAt(const FIntVector& CellPoint) const
-	{
-		return GetIndexAt(CellPoint.X, CellPoint.Y, CellPoint.Z);
+		return FIntVector(LayerPadding / GridSize.X, LayerPadding % GridSize.X, Z);
 	}
 
 	/* Get the index of the cell by the world position. */
-	FORCEINLINE int32 GetIndexAt(const FVector& Point) const
+	FORCEINLINE int32 LocationToIndex(const FVector& Location) const
 	{
-		return GetIndexAt(WorldToCage(Point));
-	}
-
-	/* Get subjects in a specific cage cell. Const version. */
-	FORCEINLINE const FNeighborGridCell& At(const int32 X, const int32 Y, const int32 Z) const
-	{
-		return Cells[GetIndexAt(X, Y, Z)];
-	}
-
-	/* Get subjects in a specific cage cell. */
-	FORCEINLINE FNeighborGridCell& At(const int32 X, const int32 Y, const int32 Z)
-	{
-		return Cells[GetIndexAt(X, Y, Z)];
-	}
-
-	/* Check if the cage point is inside the cage. */
-	FORCEINLINE bool IsInside(const FIntVector& CellPoint) const
-	{
-		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("IsInside");
-		return (CellPoint.X >= 0) && (CellPoint.X < GridSize.X) && (CellPoint.Y >= 0) && (CellPoint.Y < GridSize.Y) && (CellPoint.Z >= 0) && (CellPoint.Z < GridSize.Z);
-	}
-
-	/* Check if the world point is inside the cage. */
-	FORCEINLINE bool IsInside(const FVector& WorldPoint) const
-	{
-		return IsInside(WorldToCage(WorldPoint));
+		return CoordToIndex(LocationToCoord(Location));
 	}
 
 	/* Get subjects in a specific cage cell by position in the cage. */
-	FORCEINLINE FNeighborGridCell& At(const FIntVector& CellPoint)
+	FORCEINLINE FNeighborGridCell& GetCellAt(TArray<FNeighborGridCell>& Cells, const FIntVector& Coord) const
 	{
-		return At(CellPoint.X, CellPoint.Y, CellPoint.Z);
+		return Cells[CoordToIndex(Coord)];
 	}
 
-	/* Get subjects in a specific cage cell by position in the cage. */
-	FORCEINLINE const FNeighborGridCell& At(const FIntVector& CellPoint) const
+	FORCEINLINE const FNeighborGridCell& GetCellAt(const TArray<FNeighborGridCell>& Cells, const FIntVector& Coord) const
 	{
-		return At(CellPoint.X, CellPoint.Y, CellPoint.Z);
-	}
-
-	/* Get subjects in a specific cage cell by world 3d-location. */
-	FORCEINLINE FNeighborGridCell& At(FVector Point)
-	{
-		return At(WorldToCage(Point));
+		return Cells[CoordToIndex(Coord)];
 	}
 
 	/* Get subjects in a specific cage cell by world 3d-location. */
-	FORCEINLINE const FNeighborGridCell& At(FVector Point) const
+	FORCEINLINE FNeighborGridCell& GetCellAt(TArray<FNeighborGridCell>& Cells, const FVector& Location) const
 	{
-		return At(WorldToCage(Point));
+		return Cells[LocationToIndex(Location)];
 	}
 
-	/* Get a box shape representing a cell by position in the cage. */
-	FORCEINLINE FBox BoxAt(const FIntVector& CellPoint)
+	FORCEINLINE const FNeighborGridCell& GetCellAt(const TArray<FNeighborGridCell>& Cells, const FVector& Location) const
 	{
-		const FVector Min = Bounds.Min + FVector(CellPoint) * CellSize;
-		FBox Box(Min, Min + CellSize);
-		return MoveTemp(Box);
+		return Cells[LocationToIndex(Location)];
 	}
-
-	/* Get a box shape representing a cell by world 3d-location. */
-	FORCEINLINE FBox BoxAt(const FVector Point)
-	{
-		return BoxAt(WorldToCage(Point));
-	}
-
 };
 

@@ -62,7 +62,7 @@ public:
 
 	//----------------------------------------
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, meta = (Tooltip = ""))
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, meta = (Tooltip = "索敌结果"))
 	FSubjectHandle TraceResult = FSubjectHandle();
 
 	UNeighborGridComponent* NeighborGrid = nullptr;
@@ -87,6 +87,7 @@ public:
 		TraceRadius = Trace.TraceRadius;
 		TraceAngle = Trace.TraceAngle;
 		bCheckVisibility = Trace.bCheckVisibility;
+		TimeLeft = Trace.TimeLeft;
 	}
 
 	FTrace& operator=(const FTrace& Trace)
@@ -103,6 +104,7 @@ public:
 		TraceRadius = Trace.TraceRadius;
 		TraceAngle = Trace.TraceAngle;
 		bCheckVisibility = Trace.bCheckVisibility;
+		TimeLeft = Trace.TimeLeft;
 
 		return *this;
 	}

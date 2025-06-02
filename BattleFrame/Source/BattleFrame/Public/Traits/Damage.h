@@ -3,6 +3,15 @@
 #include "CoreMinimal.h"
 #include "Damage.generated.h"
 
+UENUM(BlueprintType)
+enum class EDmgType : uint8
+{
+	Normal UMETA(DisplayName = "Normal Damage", Tooltip = "普通伤"),
+	Fire UMETA(DisplayName = "Fire Damage", Tooltip = "火伤"),
+	Ice UMETA(DisplayName = "Ice Damage", Tooltip = "冰伤"),
+	Poison UMETA(DisplayName = "Poison Damage", Tooltip = "毒伤")
+};
+
 USTRUCT(BlueprintType)
 struct BATTLEFRAME_API FDamage
 {
@@ -10,25 +19,19 @@ struct BATTLEFRAME_API FDamage
 
 public:
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Meta = (ToolTip = "基础伤害值"))
-	float Damage = 1;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Meta = (ToolTip = "普通伤"))
+	float Damage = 1.f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Meta = (ToolTip = "动能伤害值"))
-	float KineticDmg = 0.f;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Meta = (ToolTip = "伤害类型"))
+	EDmgType DmgType = EDmgType::Normal;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Meta = (ToolTip = "火焰伤害值"))
-	float FireDmg = 0.f;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Meta = (ToolTip = "冰冻伤害值"))
-	float IceDmg = 0.f;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Meta = (ToolTip = "百分比伤害比例"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Meta = (ToolTip = "百分比伤"))
 	float PercentDmg = 0.f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Meta = (ToolTip = "暴击概率"))
-	float CritProbability = 0.1;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Meta = (ToolTip = "暴击倍数"))
+	float CritDmgMult = 2.f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Meta = (ToolTip = "暴击伤害倍数"))
-	float CritMult = 2.f;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Meta = (ToolTip = "暴击概率"))
+	float CritProbability = 0.1f;
 
 };

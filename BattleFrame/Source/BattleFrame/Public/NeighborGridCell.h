@@ -16,7 +16,6 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Machine.h"
 #include "Traits/GridData.h"
 #include "NeighborGridCell.generated.h"
     
@@ -34,58 +33,38 @@ private:
 
 public:
 
-	void Lock() const
+	FORCEINLINE void Lock() const
 	{
 		while (LockFlag.exchange(true, std::memory_order_acquire));
 	}
 
-	void Unlock() const
+	FORCEINLINE void Unlock() const
 	{
 		LockFlag.store(false, std::memory_order_release);
 	}
 
-
 	TArray<FGridData, TInlineAllocator<8>> Subjects;
-	TArray<FGridData, TInlineAllocator<8>> SphereObstacles;
-	TArray<FGridData, TInlineAllocator<8>> SphereObstaclesStatic;
-	TArray<FGridData, TInlineAllocator<8>> BoxObstacles;
-	TArray<FGridData, TInlineAllocator<8>> BoxObstaclesStatic;
+	bool bRegistered = false;
 
-	bool Registered = false;
+	FORCEINLINE FNeighborGridCell(){}
 
-	FNeighborGridCell(){}
-
-	FNeighborGridCell(const FNeighborGridCell& Cell)
+	FORCEINLINE FNeighborGridCell(const FNeighborGridCell& Cell)
 	{
 		LockFlag.store(Cell.LockFlag.load());
-
-		Registered = Cell.Registered;
 		Subjects = Cell.Subjects;
-		SphereObstacles = Cell.SphereObstacles;
-		BoxObstacles = Cell.BoxObstacles;
-		SphereObstaclesStatic = Cell.SphereObstaclesStatic;
-		BoxObstaclesStatic = Cell.BoxObstaclesStatic;
+		bRegistered = Cell.bRegistered;
 	}
 
 	FNeighborGridCell& operator=(const FNeighborGridCell& Cell)
 	{
-		Registered = Cell.Registered;
 		Subjects = Cell.Subjects;
-		SphereObstacles = Cell.SphereObstacles;
-		BoxObstacles = Cell.BoxObstacles;
-		SphereObstaclesStatic = Cell.SphereObstaclesStatic;
-		BoxObstaclesStatic = Cell.BoxObstaclesStatic;
-
+		bRegistered = Cell.bRegistered;
 		return *this;
 	}
 
-	void Reset()
+	FORCEINLINE void Empty()
 	{
-		Registered = false;
-
-		// 清空所有存储的障碍物数据
 		Subjects.Empty();
-		SphereObstacles.Empty();
-		BoxObstacles.Empty();
+		bRegistered = false;
 	}
 };

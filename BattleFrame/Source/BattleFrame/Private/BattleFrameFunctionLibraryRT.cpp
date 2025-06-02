@@ -301,7 +301,7 @@ void USphereSweepForSubjectsAsyncAction::Activate()
 
 			for (const FIntVector& CellCoord : CellCoords)
 			{
-				ValidCells.Add(NeighborGrid->At(CellCoord));
+				ValidCells.Add(NeighborGrid->GetCellAt(NeighborGrid->SubjectCells, CellCoord));
 			}
 
 			AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this]()

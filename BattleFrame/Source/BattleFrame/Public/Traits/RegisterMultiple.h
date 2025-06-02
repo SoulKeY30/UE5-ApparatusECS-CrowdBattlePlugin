@@ -4,8 +4,13 @@
 #include "RegisterMultiple.generated.h"
 
 
-USTRUCT(BlueprintType, Category = "Basic")
+USTRUCT(BlueprintType)
 struct BATTLEFRAME_API FRegisterMultiple
 {
 	GENERATED_BODY()
+
+public:
+
+	FRegisterMultiple() {};
+
 };
