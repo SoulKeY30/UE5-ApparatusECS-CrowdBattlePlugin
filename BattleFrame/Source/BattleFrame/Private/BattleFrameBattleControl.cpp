@@ -2868,6 +2868,21 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 			[&](FSubjectHandle Subject,
 				FActorSpawnConfig& Config)
 			{
+				if (!Config.bInitialized)
+				{
+					// 存储生成时的世界变换（用于后续相对位置计算）
+					const FTransform SpawnWorldTransform = Config.SpawnTransform;
+
+					// 如果启用附着且目标有效，计算初始相对变换
+					if (Config.bAttached && Config.AttachToSubject.IsValid())
+					{
+						const FTransform AttachWorldTransform(Config.AttachToSubject.GetTrait<FDirected>().Direction.Rotation(), Config.AttachToSubject.GetTrait<FLocated>().Location);
+						Config.InitialRelativeTransform = SpawnWorldTransform.GetRelativeTransform(AttachWorldTransform);
+					}
+
+					Config.bInitialized = true;
+				}
+
 				// delay to spawn actors
 				if (!Config.bSpawned && Config.Delay == 0)
 				{
@@ -2879,13 +2894,6 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 						// 存储生成时的世界变换（用于后续相对位置计算）
 						const FTransform SpawnWorldTransform = Config.SpawnTransform;
-
-						// 如果启用附着且目标有效，计算初始相对变换
-						if (Config.bAttached && Config.AttachToSubject.IsValid())
-						{
-							const FTransform AttachWorldTransform(Config.AttachToSubject.GetTrait<FDirected>().Direction.Rotation(),Config.AttachToSubject.GetTrait<FLocated>().Location);
-							Config.InitialRelativeTransform = SpawnWorldTransform.GetRelativeTransform(AttachWorldTransform);
-						}
 
 						for (int32 i = 0; i < Config.Quantity; ++i)
 						{
@@ -2984,8 +2992,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 			[&](FSubjectHandle Subject,
 				FFxConfig& Config)
 			{
-				// delay to spawn Fx
-				if (!Config.bSpawned && Config.Delay == 0)
+				if (!Config.bInitialized)
 				{
 					// 存储生成时的世界变换（用于后续相对位置计算）
 					const FTransform SpawnWorldTransform = Config.SpawnTransform;
@@ -2996,6 +3003,15 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						const FTransform AttachWorldTransform(Config.AttachToSubject.GetTrait<FDirected>().Direction.Rotation(), Config.AttachToSubject.GetTrait<FLocated>().Location);
 						Config.InitialRelativeTransform = SpawnWorldTransform.GetRelativeTransform(AttachWorldTransform);
 					}
+
+					Config.bInitialized = true;
+				}
+
+				// delay to spawn Fx
+				if (!Config.bSpawned && Config.Delay == 0)
+				{
+					// 存储生成时的世界变换（用于后续相对位置计算）
+					const FTransform SpawnWorldTransform = Config.SpawnTransform;
 
 					// 合批情况下的SubType
 					if (Config.SubType != EESubType::None)
@@ -3151,6 +3167,21 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 			[&](FSubjectHandle Subject,
 				FSoundConfig& Config)
 			{
+				if (!Config.bInitialized)
+				{
+					// 存储生成时的世界变换（用于后续相对位置计算）
+					const FTransform SpawnWorldTransform = Config.SpawnTransform;
+
+					// 如果启用附着且目标有效，计算初始相对变换
+					if (Config.bAttached && Config.AttachToSubject.IsValid())
+					{
+						const FTransform AttachWorldTransform(Config.AttachToSubject.GetTrait<FDirected>().Direction.Rotation(), Config.AttachToSubject.GetTrait<FLocated>().Location);
+						Config.InitialRelativeTransform = SpawnWorldTransform.GetRelativeTransform(AttachWorldTransform);
+					}
+
+					Config.bInitialized = true;
+				}
+
 				// delay to play sound
 				if (!Config.bSpawned && Config.Delay <= 0)
 				{
@@ -3158,13 +3189,6 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					{
 						// 存储生成时的世界变换（用于后续相对位置计算）
 						const FTransform SpawnWorldTransform = Config.SpawnTransform;
-
-						// 如果启用附着且目标有效，计算初始相对变换（仅对3D音效有效）
-						if (Config.SpawnOrigin == EPlaySoundOrigin::PlaySound3D && Config.bAttached && Config.AttachToSubject.IsValid())
-						{
-							const FTransform AttachWorldTransform(Config.AttachToSubject.GetTrait<FDirected>().Direction.Rotation(),Config.AttachToSubject.GetTrait<FLocated>().Location);
-							Config.InitialRelativeTransform = SpawnWorldTransform.GetRelativeTransform(AttachWorldTransform);
-						}
 
 						// 播放加载完成的音效
 						StreamableManager.RequestAsyncLoad(Config.Sound.ToSoftObjectPath(),FStreamableDelegate::CreateLambda([this, &Config, SpawnWorldTransform, Subject]()

@@ -118,6 +118,8 @@ public:
 	FTransform InitialRelativeTransform;
 
 	FTransform SpawnTransform;
+
+	bool bInitialized = false;
 	bool bSpawned = false;
 
 };

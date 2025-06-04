@@ -121,5 +121,6 @@ public:
 	TArray<UNiagaraComponent*> SpawnedNiagaraSystems;
 	TArray<UParticleSystemComponent*> SpawnedCascadeSystems;
 
+	bool bInitialized = false;
 	bool bSpawned = false;
 };

@@ -99,5 +99,6 @@ public:
 
     TArray<AActor*> SpawnedActors;
 
+    bool bInitialized = false;
     bool bSpawned = false;
 };
