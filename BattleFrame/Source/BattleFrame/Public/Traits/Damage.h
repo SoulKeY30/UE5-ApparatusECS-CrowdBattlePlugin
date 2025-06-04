@@ -20,7 +20,7 @@ struct BATTLEFRAME_API FDamage
 public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Meta = (ToolTip = "普通伤"))
-	float Damage = 1.f;
+	float Damage = 100.f;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Meta = (ToolTip = "伤害类型"))
 	EDmgType DmgType = EDmgType::Normal;

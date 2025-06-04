@@ -16,13 +16,6 @@ enum class EAttackMode : uint8
 	Despawn UMETA(DisplayName = "Despawn", Tooltip = "自毁")
 };
 
-UENUM(BlueprintType)
-enum class ESpawnOrigin : uint8
-{
-	AtSelf UMETA(DisplayName = "AtSelf", Tooltip = "在自身位置"),
-	AtTarget UMETA(DisplayName = "AtTarget", Tooltip = "在攻击目标位置")
-};
-
 USTRUCT(BlueprintType)
 struct BATTLEFRAME_API FAttack
 {
@@ -58,12 +51,12 @@ public:
 	bool bCanPlayAnim = true;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = ""))
-	TArray<FActorSpawnConfig> SpawnActor;
+	TArray<FActorSpawnConfig_Attack> SpawnActor;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = ""))
-	TArray<FFxConfig> SpawnFx;
+	TArray<FFxConfig_Attack> SpawnFx;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = ""))
-	TArray<FSoundConfig> PlaySound;
+	TArray<FSoundConfig_Attack> PlaySound;
 
 };

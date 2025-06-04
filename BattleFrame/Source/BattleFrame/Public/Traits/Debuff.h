@@ -28,14 +28,14 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "是否可以造成延时伤害"))
 	bool bDealTemporalDmg = false;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "延时伤害占直接伤害的百分比"))
-	float TemporalDmgRatio = 0.5f;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "总延时伤害"))
+	float TemporalDmg = 60.f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = ""))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "分段数量"))
+	int32 TemporalDmgSegment = 6;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "伤害间隔"))
 	float TemporalDmgInterval = 0.5f;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = ""))
-	int32 TemporalDmgSegment = 4;
 
 };
 

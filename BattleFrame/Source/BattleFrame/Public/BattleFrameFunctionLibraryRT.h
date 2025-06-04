@@ -28,7 +28,7 @@ class BATTLEFRAME_API UBattleFrameFunctionLibraryRT : public UBlueprintFunctionL
 	
 public:
 
-    UFUNCTION(BlueprintCallable, Category = "BattleFrame", meta = (AutoCreateRefTerm = "Origin, CheckOrigin, SortOrigin, IgnoreSubjects, Filter"))
+    UFUNCTION(BlueprintCallable, Category = "BattleFrame | Tracing", meta = (AutoCreateRefTerm = "Origin, CheckOrigin, SortOrigin, IgnoreSubjects, Filter"))
     static void SphereTraceForSubjects
     (
         bool& Hit,
@@ -46,7 +46,7 @@ public:
         UPARAM(ref) const FFilter& Filter = FFilter()
     );
 
-    UFUNCTION(BlueprintCallable, Category = "BattleFrame", meta = (AutoCreateRefTerm = "Start, End, CheckOrigin, SortOrigin, IgnoreSubjects, Filter"))
+    UFUNCTION(BlueprintCallable, Category = "BattleFrame | Tracing", meta = (AutoCreateRefTerm = "Start, End, CheckOrigin, SortOrigin, IgnoreSubjects, Filter"))
     static void SphereSweepForSubjects
     (
         bool& Hit,
@@ -65,7 +65,7 @@ public:
         UPARAM(ref) const FFilter& Filter = FFilter()
     );
 
-    UFUNCTION(BlueprintCallable, Category = "BattleFrame", meta = (AutoCreateRefTerm = "Origin, ForwardVector, CheckOrigin, SortOrigin, IgnoreSubjects, Filter"))
+    UFUNCTION(BlueprintCallable, Category = "BattleFrame | Tracing", meta = (AutoCreateRefTerm = "Origin, ForwardVector, CheckOrigin, SortOrigin, IgnoreSubjects, Filter"))
     static void SectorTraceForSubjects
     (
         bool& Hit,
@@ -86,7 +86,7 @@ public:
         UPARAM(ref) const FFilter& Filter = FFilter()
     );
 
-    UFUNCTION(BlueprintCallable, Category = "BattleFrame", meta = (AutoCreateRefTerm = "Start, End"))
+    UFUNCTION(BlueprintCallable, Category = "BattleFrame | Tracing", meta = (AutoCreateRefTerm = "Start, End"))
     static void SphereSweepForObstacle
     (
         bool& Hit,
@@ -118,23 +118,22 @@ public:
         const ESortMode SortMode = ESortMode::NearToFar
     );
 
-    UFUNCTION(BlueprintCallable, BlueprintPure, meta = (DisplayName = "Convert to SubjectHandles", CompactNodeTitle = "->", BlueprintAutocast), Category = "BattleFrame")
+    UFUNCTION(BlueprintCallable, BlueprintPure, meta = (DisplayName = "Convert to SubjectHandles", CompactNodeTitle = "->", BlueprintAutocast), Category = "BattleFrame | AutoConvert")
     static TArray<FSubjectHandle> ConvertDmgResultsToSubjectHandles(const TArray<FDmgResult>& DmgResults);
 
-    UFUNCTION(BlueprintCallable, BlueprintPure,meta = (DisplayName = "Convert to SubjectHandles",CompactNodeTitle = "->",BlueprintAutocast),Category = "BattleFrame")
+    UFUNCTION(BlueprintCallable, BlueprintPure,meta = (DisplayName = "Convert to SubjectHandles",CompactNodeTitle = "->",BlueprintAutocast),Category = "BattleFrame | AutoConvert")
     static TArray<FSubjectHandle> ConvertTraceResultsToSubjectHandles(const TArray<FTraceResult>& TraceResults);
 
-    UFUNCTION(BlueprintCallable, BlueprintPure, meta = (DisplayName = "Convert to SubjectArray", CompactNodeTitle = "->", BlueprintAutocast), Category = "BattleFrame")
+    UFUNCTION(BlueprintCallable, BlueprintPure, meta = (DisplayName = "Convert to SubjectArray", CompactNodeTitle = "->", BlueprintAutocast), Category = "BattleFrame | AutoConvert")
     static FSubjectArray ConvertDmgResultsToSubjectArray(const TArray<FDmgResult>& DmgResults);
 
-    UFUNCTION(BlueprintCallable, BlueprintPure, meta = (DisplayName = "Convert to SubjectArray", CompactNodeTitle = "->", BlueprintAutocast), Category = "BattleFrame")
+    UFUNCTION(BlueprintCallable, BlueprintPure, meta = (DisplayName = "Convert to SubjectArray", CompactNodeTitle = "->", BlueprintAutocast), Category = "BattleFrame | AutoConvert")
     static FSubjectArray ConvertTraceResultsToSubjectArray(const TArray<FTraceResult>& TraceResults);
 
-    UFUNCTION(BlueprintCallable, BlueprintPure, meta = (DisplayName = "Convert to SubjectArray", CompactNodeTitle = "->", BlueprintAutocast), Category = "BattleFrame")
+    UFUNCTION(BlueprintCallable, BlueprintPure, meta = (DisplayName = "Convert to SubjectArray", CompactNodeTitle = "->", BlueprintAutocast), Category = "BattleFrame | AutoConvert")
     static FSubjectArray ConvertSubjectHandlesToSubjectArray(const TArray<FSubjectHandle>& SubjectHandles);
 
     static void CalculateThreadsCountAndBatchSize(int32 IterableNum, int32 MaxThreadsAllowed, int32 MinBatchSizeAllowed, int32& ThreadsCount, int32& BatchSize);
-
     static void SetRecordSubTypeTraitByIndex(int32 Index, FSubjectRecord& SubjectRecord);
     static void SetRecordSubTypeTraitByEnum(EESubType SubType, FSubjectRecord& SubjectRecord);
     static void SetSubjectSubTypeTraitByIndex(int32 Index, FSubjectHandle SubjectHandle);

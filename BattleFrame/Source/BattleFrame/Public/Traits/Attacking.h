@@ -6,6 +6,7 @@
 UENUM(BlueprintType)
 enum class EAttackState : uint8
 {
+	Aim UMETA(DisplayName = "Aim"),
 	PreCast UMETA(DisplayName = "PreCast"),
 	PostCast UMETA(DisplayName = "PostCast"),
 	Cooling UMETA(DisplayName = "Cooling")
@@ -20,6 +21,6 @@ struct BATTLEFRAME_API FAttacking
 
 	float Time = 0.0f;
 
-	EAttackState State = EAttackState::PreCast;
+	EAttackState State = EAttackState::Aim;
 
 };

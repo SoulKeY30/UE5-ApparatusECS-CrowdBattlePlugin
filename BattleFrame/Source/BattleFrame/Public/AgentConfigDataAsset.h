@@ -34,7 +34,7 @@
 #include "Traits/Curves.h"
 #include "Traits/Statistics.h"
 #include "Traits/CustomData.h"
-
+#include "SubjectRecord.h"
 #include "AgentConfigDataAsset.generated.h"
 
 
@@ -113,10 +113,7 @@ public:
     FDeath Death;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "自定义数据"))
-    FCustomData CustomData;
-
-    //UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "数据统计"))
-    //FStatistics Statistics;
+    FSubjectRecord ExtraTraits;
 
     UAgentConfigDataAsset() {};
 

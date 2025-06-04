@@ -1,32 +1,16 @@
 #pragma once
- 
+
 #include "CoreMinimal.h"
-#include <atomic>
+#include "SubjectHandle.h"
+#include <Containers/Queue.h>
 #include "Health.generated.h"
- 
-/**
- * The health level of the character.
- */
+
 USTRUCT(BlueprintType)
 struct BATTLEFRAME_API FHealth
 {
 	GENERATED_BODY()
 
-private:
-
-	mutable std::atomic<bool> LockFlag{ false };
-
 public:
-
-	void Lock() const
-	{
-		while (LockFlag.exchange(true, std::memory_order_acquire));
-	}
-
-	void Unlock() const
-	{
-		LockFlag.store(false, std::memory_order_release);
-	}
 
 	/**
 	 * The current health value.
@@ -40,23 +24,27 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Meta = (ToolTip = "最大生命值"))
 	float Maximum = 100.f;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Meta = (ToolTip = "锁定生命值"))
+	bool bLockHealth = false;
+
 	TQueue<float, EQueueMode::Mpsc> DamageToTake;
 	TQueue<FSubjectHandle, EQueueMode::Mpsc> DamageInstigator;
 
-	FHealth() {};
+	// 默认构造函数
+	FHealth() = default;
 
 	FHealth(const FHealth& Health)
 	{
-		LockFlag.store(Health.LockFlag.load());
 		Current = Health.Current;
 		Maximum = Health.Maximum;
+		bLockHealth = Health.bLockHealth;
 	}
 
 	FHealth& operator=(const FHealth& Health)
 	{
-		LockFlag.store(Health.LockFlag.load());
 		Current = Health.Current;
 		Maximum = Health.Maximum;
+		bLockHealth = Health.bLockHealth;
 		return *this;
 	}
 };

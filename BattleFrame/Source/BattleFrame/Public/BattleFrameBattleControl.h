@@ -82,6 +82,7 @@
 #include "Traits/Activated.h"
 #include "Traits/IsSubjective.h"
 #include "Traits/TextPopConfig.h"
+#include "Traits/OwnerSubject.h"
 #include "DmgResultInterface.h"
 #include "Math/UnrealMathUtility.h"
 #include "BattleFrameBattleControl.generated.h"
@@ -106,12 +107,6 @@ public:
 	int32 BatchSize = 1;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = BattleFrame)
-	int32 NumSoundsPerFrame = 10;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = BattleFrame)
-	float SoundVolume = 1.f;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = BattleFrame)
 	bool bGamePaused = false;
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = BattleFrame)
@@ -122,8 +117,6 @@ public:
 	UWorld* CurrentWorld = nullptr;
 	AMechanism* Mechanism = nullptr;
 	TArray<UNeighborGridComponent*> NeighborGrids;
-	TQueue<TSoftObjectPtr<USoundBase>, EQueueMode::Mpsc> SoundsToPlay;
-	TQueue<float> VolumesToPlay;
 	EFlagmarkBit ReloadFlowFieldFlag = EFlagmarkBit::F;
 	EFlagmarkBit HasPoppingTextFlag = EFlagmarkBit::T;
 	//EFlagmarkBit NeedSettleDmgFlag = EFlagmarkBit::D;
@@ -174,6 +167,8 @@ public:
 
 	void BeginPlay() override;
 
+	void Tick(float DeltaTime) override;
+
 	void EndPlay(const EEndPlayReason::Type EndPlayReason) override
 	{
 		if (Instance == this)
@@ -184,19 +179,20 @@ public:
 		Super::EndPlay(EndPlayReason);
 	}
 
-	void Tick(float DeltaTime) override;
-
 	UFUNCTION(BlueprintCallable, BlueprintPure)
 	static ABattleFrameBattleControl* GetInstance()
 	{
 		return Instance;
 	}
 
+	void DefineFilters();
+
 	void ApplyDamageToSubjects(const FSubjectArray& Subjects, const FSubjectArray& IgnoreSubjects, const FSubjectHandle DmgInstigator, const FVector& HitFromLocation, const FDmgSphere& DmgSphere, const FDebuff& Debuff, TArray<FDmgResult>& DamageResults);
+
+	void ApplyDamageToSubjectsDeferred(const FSubjectArray& Subjects, const FSubjectArray& IgnoreSubjects, const FSubjectHandle DmgInstigator, const FVector& HitFromLocation, const FDmgSphere& DmgSphere, const FDebuff& Debuff, TArray<FDmgResult>& DamageResults);
 
 	static FVector FindNewPatrolGoalLocation(const FPatrol& Patrol, const FCollider& Collider, const FTrace& Trace, const FLocated& Located, int32 MaxAttempts);
 
-	void DefineFilters();
 
 	//---------------------------------------------RVO2------------------------------------------------------------------
 
@@ -208,7 +204,9 @@ public:
 
 	static void LinearProgram3(const std::vector<RVO::Line>& lines, size_t numObstLines, size_t beginLine, float radius, RVO::Vector2& result);
 
-	// 计算实际伤害，并返回一个pair，第一个元素是是否暴击，第二个元素是实际伤害
+
+	//---------------------------------------------Helpers------------------------------------------------------------------
+
 	FORCEINLINE std::pair<bool, float> ProcessCritDamage(float BaseDamage, float damageMult, float Probability)
 	{
 		//TRACE_CPUPROFILER_EVENT_SCOPE_STR("ProcessCrit");
@@ -248,27 +246,6 @@ public:
 		FQuat FinalRotation = WorldRotation * LocalTransform.GetRotation();
 
 		return FTransform(FinalRotation, FinalLocation, LocalTransform.GetScale3D());
-	}
-
-	FORCEINLINE void QueueActor(FActorSpawnConfig Config)
-	{
-		if (!Config.bEnable) return;
-		Config.Transform = ABattleFrameBattleControl::LocalOffsetToWorld(Config.SubjectTrans.GetRotation(), Config.SubjectTrans.GetLocation(), Config.Transform);
-		Mechanism->SpawnSubjectDeferred(Config);
-	}
-
-	FORCEINLINE void QueueSound(FSoundConfig Config)
-	{
-		if (!Config.bEnable) return;
-		Config.Transform = ABattleFrameBattleControl::LocalOffsetToWorld(Config.SubjectTrans.GetRotation(), Config.SubjectTrans.GetLocation(), Config.Transform);
-		Mechanism->SpawnSubjectDeferred(Config);
-	}
-
-	FORCEINLINE void QueueFx(FFxConfig Config)
-	{
-		if (!Config.bEnable) return;
-		Config.Transform = ABattleFrameBattleControl::LocalOffsetToWorld(Config.SubjectTrans.GetRotation(), Config.SubjectTrans.GetLocation(), Config.Transform);
-		Mechanism->SpawnSubjectDeferred(Config);
 	}
 
 	FORCEINLINE void QueueText(FTextPopConfig Config) const

@@ -12,33 +12,10 @@
 #include "Math/UnrealMathUtility.h"
 #include "Math/Vector2D.h"
 #include "AgentConfigDataAsset.h"
+#include "BattleFrameStructs.h"
 #include "BattleFrameBattleControl.h"
 #include "AgentSpawner.generated.h"
 
-
-USTRUCT(BlueprintType)
-struct BATTLEFRAME_API FSpawnerMult
-{
-	GENERATED_BODY()
-
-public:
-
-	// 成员变量默认值
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "血量乘数"))
-	float HealthMult = 1.f;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "速度乘数"))
-	float MoveSpeedMult = 1.f;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "伤害乘数"))
-	float DamageMult = 1.f;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "尺寸乘数"))
-	float ScaleMult = 1.f;
-
-	// 默认构造函数（必须）
-	FSpawnerMult() = default;
-};
 
 UENUM(BlueprintType)
 enum class EInitialDirection : uint8
@@ -71,7 +48,7 @@ public:
 
 	AAgentSpawner();
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Spawning)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	TArray<TSoftObjectPtr<UAgentConfigDataAsset>> AgentConfigAssets;
 
 	UWorld* CurrentWorld = nullptr;
@@ -80,7 +57,7 @@ public:
 
 	EFlagmarkBit RegisterMultipleFlag = EFlagmarkBit::M;
 
-	UFUNCTION(BlueprintCallable, Category = "Spawning")
+	UFUNCTION(BlueprintCallable, Category = "BattleFrame | AgentSpawner")
 	TArray<FSubjectHandle> SpawnAgentsRectangular
 	(
 		bool bAutoActivate = true,
@@ -95,13 +72,13 @@ public:
 		FSpawnerMult Multipliers = FSpawnerMult()
 	);
 
-	UFUNCTION(BlueprintCallable, Category = "Spawning")
+	UFUNCTION(BlueprintCallable, Category = "BattleFrame | AgentSpawner")
 	void ActivateAgent(FSubjectHandle Agent);
 
-	UFUNCTION(BlueprintCallable, Category = "SpawningTD")
+	UFUNCTION(BlueprintCallable, Category = "BattleFrame | AgentSpawner")
 	void KillAllAgents();
 
-	UFUNCTION(BlueprintCallable, Category = "SpawningTD")
+	UFUNCTION(BlueprintCallable, Category = "BattleFrame | AgentSpawner")
 	void KillAgentsByIndex(int32 Index);
 
 };

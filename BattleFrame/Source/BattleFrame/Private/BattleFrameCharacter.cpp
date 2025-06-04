@@ -5,23 +5,11 @@
 */
 
 #include "BattleFrameCharacter.h"
-#include "Traits/Hero.h"
-#include "Traits/Health.h"
-#include "Traits/GridData.h"
-#include "Traits/Located.h"
-#include "Traits/Collider.h"
-#include "Traits/Statistics.h"
-#include "Traits/BindFlowField.h"
-#include "Traits/IsSubjective.h"
-#include "Traits/Activated.h"
-#include "BattleFrameBattleControl.h"
+
 
 // Sets default values
 ABattleFrameCharacter::ABattleFrameCharacter()
 {
-	Subjective = CreateDefaultSubobject<UBFSubjectiveActorComponent>("Subjective");
-	Subjective->SetTrait(FHero());
-
 	PrimaryActorTick.bCanEverTick = true; 
 }
 

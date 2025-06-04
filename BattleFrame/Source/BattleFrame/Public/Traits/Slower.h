@@ -2,6 +2,7 @@
  
 #include "CoreMinimal.h"
 #include "Traits/Damage.h"
+#include "SubjectHandle.h"
 #include "Slower.generated.h" 
 
 USTRUCT(BlueprintType)

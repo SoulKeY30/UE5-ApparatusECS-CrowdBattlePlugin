@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "SubjectiveActorComponent.h"
 #include "BattleFrameStructs.h"
+#include "AgentConfigDataAsset.h"
 #include "BFSubjectiveActorComponent.generated.h"
 
 UCLASS(Blueprintable, BlueprintType, meta = (BlueprintSpawnableComponent))
@@ -14,7 +15,6 @@ public:
     UBFSubjectiveActorComponent();
 
     // Initialize all required traits
-    UFUNCTION(BlueprintCallable, Category = "BattleFrame|Subjective")
     void InitializeTraits(AActor* OwnerActor);
 
 protected:
@@ -22,5 +22,5 @@ protected:
     virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 private:
-    void UpdateTraits();
+    void AsyncTransformActorToSubject(AActor* OwnerActor);
 };

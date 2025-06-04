@@ -109,7 +109,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
         return SpawnedAgents;
     }
 
-    FSubjectRecord AgentConfig;
+    FSubjectRecord AgentConfig = DataAsset->ExtraTraits;
 
     AgentConfig.SetTrait(DataAsset->Agent);
     AgentConfig.SetTrait(DataAsset->SubType);
@@ -142,7 +142,6 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     AgentConfig.SetTrait(DataAsset->Curves);
     AgentConfig.SetTrait(FTemporalDamaging());
     AgentConfig.SetTrait(FSlowing());
-    //AgentConfig.SetTrait(DataAsset->CustomData);
 
     // Apply Multipliers
     auto& HealthTrait = AgentConfig.GetTraitRef<FHealth>();
@@ -158,7 +157,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
 
     auto& ScaledTrait = AgentConfig.GetTraitRef<FScaled>();
     ScaledTrait.Factors *= Multipliers.ScaleMult;
-    ScaledTrait.renderFactors = ScaledTrait.Factors;
+    ScaledTrait.RenderFactors = ScaledTrait.Factors;
 
     auto& MoveTrait = AgentConfig.GetTraitRef<FMove>();
     MoveTrait.MoveSpeed *= Multipliers.MoveSpeedMult;
