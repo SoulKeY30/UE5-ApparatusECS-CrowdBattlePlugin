@@ -885,9 +885,9 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					}
 
 					// 8 Directions
-					for (int32 i = 0; i < 4; ++i)
+					for (int32 i = 0; i < 8; ++i)
 					{
-						FVector BoundSamplePoint = Located.Location + FVector(Collider.Radius, 0, 0).RotateAngleAxis(i * 90.f, FVector::UpVector);
+						FVector BoundSamplePoint = Located.Location + FVector(Collider.Radius, 0, 0).RotateAngleAxis(i * 45.f, FVector::UpVector);
 
 						bool bInside;
 						FCellStruct& Cell = Navigation.FlowField->GetCellAtLocation(BoundSamplePoint, bInside);
@@ -946,7 +946,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 								}
 
 								// 平滑移动到地面
-								AgentLocation.Z = FMath::FInterpTo(AgentLocation.Z, CollisionThreshold, SafeDeltaTime, 25.0f);
+								Located.Location.Z = FMath::FInterpTo(AgentLocation.Z, CollisionThreshold, SafeDeltaTime, 25.0f);
 							}
 						}
 					}
