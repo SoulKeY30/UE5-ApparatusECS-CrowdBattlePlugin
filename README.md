@@ -44,21 +44,22 @@ This plugin is open source, but has the following dependencies:
 Comprehensive crowd battle system including many commonly needed features. Demo maps are included in the plugin's content folder.
 
 - **AI Behaviors**: 
-  - Birth, Sleep, Patrol, Chase, Attack, Hit, Death, each with many params for fine tuning
-  - Debuffs, including kinetic launching, ice slowing and fire temporal dmg, with corresponding material Fx.
+  - Birth, Sleep, Patrol, Chase, Attack, Hit, Death, each with many params
+  - Debuffs, including launching, slowing and temporal dmg, comes with material Fx.
   - 2.5D movement supporting flying, falling and moving on uneven surfaces
   - Navigation and avoidance support sphere and box obstacles
 - **AI Perception**:
-  - Support vision. Agent can do sector trace for targets, and optionally those not blocked by obstacles
+  - Support vision. Agent can trace for targets, and optionally only visible ones
 - **BP WorkFlow**:
-  - Spawning agents by agent config data asset
+  - Spawning agents by data asset
+  - Bind agent with unreal's actor
   - Getting and setting trait values to change agents' behaviors runtime
   - Trace for agents and apply damage and debuff
-  - Easy set up actors or characters that can be detected and attacked by agents
+  - Easy spawning actor fx and sound on bith atk hit and death
 - **NS GPU Particle VAT**:
   - Basic A to B animation blending
   - Very handy editor utility widget to set up VAT in 1 click
-- **NS GPU Particle UI**: 
+- **NS GPU Particle UI**:
   - Health Bar, Text Pop, Ground Ring
 - **NS CPU Batched Emitter**:
   - Batched particle burst, Batched trails
