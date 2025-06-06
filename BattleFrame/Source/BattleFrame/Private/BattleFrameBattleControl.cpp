@@ -1534,12 +1534,13 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 			{
 				if (Attacking.State == EAttackState::Aim)
 				{
-					// 获取双方位置信息
-if(!Trace.TraceResult.IsValid())
+    if(!Trace.TraceResult.IsValid()||!Trace.TraceResult.HasTrait<FLocated>())
     {
      Subject.RemoveTraitDeferred<FAttacking>();// 移除攻击状态
+     Moving.LaunchVelSum = FVector::ZeroVector; // 击退力清零
      return;
     }
+
 					FVector AttackerPos = Located.Location;
 					FVector TargetPos = Trace.TraceResult.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
 
