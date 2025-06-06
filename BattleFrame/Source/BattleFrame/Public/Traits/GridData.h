@@ -16,6 +16,7 @@ public:
     FVector3f Location{0,0,0};
     float Radius = 0;
     FSubjectHandle SubjectHandle = FSubjectHandle();
+    float DistSqr = 0;
 
     // 匹配Handle
     bool operator==(const FGridData& Other) const

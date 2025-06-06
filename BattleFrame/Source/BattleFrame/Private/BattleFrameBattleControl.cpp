@@ -1008,10 +1008,27 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					const auto TraceDist = Avoidance.TraceDist;
 					const float TotalRangeSqr = FMath::Square(SelfRadius + TraceDist);
 					const int32 MaxNeighbors = Avoidance.MaxNeighbors;
+					uint32 SelfHash = GridData.SubjectHash;
 
 					// Avoid Subject Neighbors
 					{
 						//TRACE_CPUPROFILER_EVENT_SCOPE_STR("AvoidAgents");
+
+						const FVector SubjectRange3D(TraceDist + SelfRadius, TraceDist + SelfRadius, SelfRadius);
+						TArray<FIntVector> NeighbourCellCoords = NeighborGrid->GetNeighborCells(SelfLocation, SubjectRange3D);
+
+						// 使用最大堆收集最近的SubjectNeighbors
+						auto SubjectCompare = [&](const FGridData& A, const FGridData& B)
+							{
+								return FVector::DistSquared(SelfLocation, FVector(A.Location)) > FVector::DistSquared(SelfLocation, FVector(B.Location));
+							};
+
+						TArray<FGridData> SubjectNeighbors;
+						SubjectNeighbors.Reserve(MaxNeighbors);
+
+						TArray<uint32> SeenHashes;
+						SeenHashes.Reserve(MaxNeighbors);
+
 						FFilter SubjectFilter = SubjectFilterBase;
 
 						// 碰撞组
@@ -1030,40 +1047,23 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 							SubjectFilter.Include<FDying>();// dying subject only collide with dying subjects
 						}
 
-						const FVector SubjectRange3D(TraceDist + SelfRadius, TraceDist + SelfRadius, SelfRadius);
-						TArray<FIntVector> NeighbourCellCoords = NeighborGrid->GetNeighborCells(SelfLocation, SubjectRange3D);
-
-						// 使用最大堆收集最近的SubjectNeighbors
-						auto SubjectCompare = [&](const FGridData& A, const FGridData& B)
-							{
-								return FVector::DistSquared(SelfLocation, FVector(A.Location)) > FVector::DistSquared(SelfLocation, FVector(B.Location));
-							};
-
-						TArray<FGridData> SubjectNeighbors;
-						SubjectNeighbors.Reserve(MaxNeighbors);
-
-						TSet<uint32> SeenHashes;
-						SeenHashes.Reserve(MaxNeighbors);
-
-						uint32 SelfHash = GridData.SubjectHash;
-
 						// this for loop is the most expensive code of all
 						for (const auto& Coord : NeighbourCellCoords)
 						{
 							//TRACE_CPUPROFILER_EVENT_SCOPE_STR("ForEachCell");
-							const auto& Subjects = NeighborGrid->GetCellAt(NeighborGrid->SubjectCells, Coord).Subjects;
+							auto& Subjects = NeighborGrid->GetCellAt(NeighborGrid->SubjectCells, Coord).Subjects;
 
-							for (const auto& Data : Subjects)
+							for (auto& Data : Subjects)
 							{
 								// we put faster cache friendly checks before slower checks
+								// 排除自身
+								if (UNLIKELY(Data.SubjectHash == SelfHash)) continue;
+
 								// 距离检查
 								const float DistSqr = FVector::DistSquared(SelfLocation, FVector(Data.Location));
 								const float RadiusSqr = FMath::Square(Data.Radius) + TotalRangeSqr;
 
 								if (DistSqr > RadiusSqr) continue;
-
-								// 排除自身
-								if (UNLIKELY(Data.SubjectHash == SelfHash)) continue;
 
 								// 去重
 								if (UNLIKELY(SeenHashes.Contains(Data.SubjectHash))) continue;
@@ -1074,6 +1074,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 								// we limit the amount of subjects. we keep the nearest MaxNeighbors amount of neighbors
 								// 动态维护堆
+								Data.DistSqr = DistSqr;
+
 								if (LIKELY(SubjectNeighbors.Num() < MaxNeighbors))
 								{
 									SubjectNeighbors.HeapPush(Data, SubjectCompare);
@@ -1081,9 +1083,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 								else
 								{
 									const auto& HeapTop = SubjectNeighbors.HeapTop();
-									const float HeapTopDist = FVector::DistSquared(SelfLocation, FVector(HeapTop.Location));
 
-									if (UNLIKELY(DistSqr < HeapTopDist))
+									if (UNLIKELY(DistSqr < HeapTop.DistSqr))
 									{
 										// 弹出时同步移除哈希记录
 										SubjectNeighbors.HeapPopDiscard(SubjectCompare);
