@@ -1532,6 +1532,12 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				FDefence& Defence,
 				FSlowing& Slowing)
 			{
+    if(!Trace.TraceResult.IsValid())
+    {
+     Subject.RemoveTraitDeferred<FAttacking>();// 移除攻击状态
+     return;
+    }
+
 				if (Attacking.State == EAttackState::Aim)
 				{
 					// 获取双方位置信息
