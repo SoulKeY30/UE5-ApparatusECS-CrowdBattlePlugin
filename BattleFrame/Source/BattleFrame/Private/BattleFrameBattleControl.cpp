@@ -1020,7 +1020,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						// 使用最大堆收集最近的SubjectNeighbors
 						auto SubjectCompare = [&](const FGridData& A, const FGridData& B)
 							{
-								return FVector::DistSquared(SelfLocation, FVector(A.Location)) > FVector::DistSquared(SelfLocation, FVector(B.Location));
+								return A.DistSqr > B.DistSqr;
 							};
 
 						TArray<FGridData> SubjectNeighbors;
@@ -1086,7 +1086,6 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 									if (UNLIKELY(DistSqr < HeapTop.DistSqr))
 									{
-										// 弹出时同步移除哈希记录
 										SubjectNeighbors.HeapPopDiscard(SubjectCompare);
 										SubjectNeighbors.HeapPush(Data, SubjectCompare);
 									}
