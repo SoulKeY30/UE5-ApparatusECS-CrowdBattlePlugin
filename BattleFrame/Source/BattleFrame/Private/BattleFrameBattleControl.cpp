@@ -2520,13 +2520,13 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 						if (State == EAttackState::Cooling)// if is attacking but cooling, we use idle-move anim
 						{
-							const bool IsMoving = Moving.CurrentVelocity.Size2D() > Move.MoveSpeed * 0.05f || Moving.CurrentAngularVelocity > Move.TurnSpeed * 0.1f;// take into account angular velocity
+							const bool IsMoving = Moving.CurrentVelocity.Size2D() > Move.MoveSpeed * 0.05f/* || Moving.CurrentAngularVelocity > Move.TurnSpeed * 0.1f*/;// take into account angular velocity
 							Anim.SubjectState = IsMoving ? ESubjectState::Moving : ESubjectState::Idle;
 						}
 					}
 					else
 					{
-						const bool IsMoving = Moving.CurrentVelocity.Size2D() > Move.MoveSpeed * 0.05f || Moving.CurrentAngularVelocity > Move.TurnSpeed * 0.1f;
+						const bool IsMoving = Moving.CurrentVelocity.Size2D() > Move.MoveSpeed * 0.05f/* || Moving.CurrentAngularVelocity > Move.TurnSpeed * 0.1f*/;
 						Anim.SubjectState = IsMoving ? ESubjectState::Moving : ESubjectState::Idle;
 					}
 				}
