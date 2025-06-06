@@ -13,6 +13,42 @@
 
 //-------------------------------Sync Traces-------------------------------
 
+TArray<FSubjectHandle> UBattleFrameFunctionLibraryRT::SpawnAgentsByConfigRectangular
+(
+	AAgentSpawner* AgentSpawner,
+	bool bAutoActivate,
+	TSoftObjectPtr<UAgentConfigDataAsset> DataAsset,
+	int32 Quantity,
+	int32 Team,
+	UPARAM(ref) const FVector& Origin,
+	UPARAM(ref) const FVector2D& Region,
+	UPARAM(ref) const FVector2D& LaunchVelocity,
+	EInitialDirection InitialDirection,
+	UPARAM(ref) const FVector2D& CustomDirection,
+	UPARAM(ref) const FSpawnerMult& Multipliers
+)
+{
+	if (!IsValid(AgentSpawner))
+	{
+		if (UWorld* World = GEngine->GetCurrentPlayWorld())
+		{
+			for (TActorIterator<AAgentSpawner> It(World); It; ++It)
+			{
+				AgentSpawner = *It;
+				break;
+			}
+		}
+	}
+
+	if (!IsValid(AgentSpawner))
+	{
+		TArray<FSubjectHandle> EmptyResult;
+		return EmptyResult;
+	}
+
+	return AgentSpawner->SpawnAgentsByConfigRectangular(bAutoActivate, DataAsset, Quantity, Team, Origin, Region, LaunchVelocity, InitialDirection, CustomDirection, Multipliers);
+}
+
 void UBattleFrameFunctionLibraryRT::SphereTraceForSubjects
 (
 	bool& Hit,
@@ -194,6 +230,42 @@ void UBattleFrameFunctionLibraryRT::ApplyDamageToSubjects
 	BattleControl->ApplyDamageToSubjects(Subjects, IgnoreSubjects, DmgInstigator, HitFromLocation, DmgSphere, Debuff, DamageResults);
 }
 
+void UBattleFrameFunctionLibraryRT::ApplyDamageAndDebuff
+(
+	TArray<FDmgResult>& DamageResults,
+	ABattleFrameBattleControl* BattleControl,
+	UPARAM(ref) const FSubjectArray& Subjects,
+	UPARAM(ref) const FSubjectArray& IgnoreSubjects,
+	UPARAM(ref) const FSubjectHandle DmgInstigator,
+	UPARAM(ref) const FVector& HitFromLocation,
+	UPARAM(ref) const FDamage& Damage,
+	UPARAM(ref) const FDebuff& Debuff
+)
+{
+	DamageResults.Reset();
+
+	// 如果 BattleControl 无效，尝试从 World 查找
+	if (!IsValid(BattleControl))
+	{
+		UWorld* World = GEngine ? GEngine->GetCurrentPlayWorld() : nullptr;
+
+		if (World)
+		{
+			for (TActorIterator<ABattleFrameBattleControl> It(World); It; ++It)
+			{
+				BattleControl = *It;
+				break; // 只取第一个
+			}
+		}
+	}
+
+	// 仍然无效则返回空结果
+	if (!IsValid(BattleControl)) return;
+
+	// 直接填充 DamageResults
+	BattleControl->ApplyDamageToSubjects(Subjects, IgnoreSubjects, DmgInstigator, HitFromLocation, Damage, Debuff, DamageResults);
+}
+
 void UBattleFrameFunctionLibraryRT::SortSubjectsByDistance
 (
 	UPARAM(ref) TArray<FTraceResult>& TraceResults,
@@ -240,16 +312,16 @@ USphereSweepForSubjectsAsyncAction* USphereSweepForSubjectsAsyncAction::SphereSw
 (
 	const UObject* WorldContextObject,
 	ANeighborGridActor* NeighborGridActor,
-	const int32 KeepCount,
+	int32 KeepCount,
 	const FVector Start,
 	const FVector End,
-	const float Radius,
-	const bool bCheckVisibility,
+	float Radius,
+	bool bCheckVisibility,
 	const FVector CheckOrigin,
-	const float CheckRadius,
-	const ESortMode SortMode,
+	float CheckRadius,
+	ESortMode SortMode,
 	const FVector SortOrigin,
-	const TArray<FSubjectHandle>& IgnoreSubjects,
+	const FSubjectArray IgnoreSubjects,
 	const FFilter Filter
 )
 {
@@ -270,6 +342,7 @@ USphereSweepForSubjectsAsyncAction* USphereSweepForSubjectsAsyncAction::SphereSw
 
 	AsyncAction->NeighborGridActor = NeighborGridActor;
 	AsyncAction->NeighborGrid = NeighborGridActor->FindComponentByClass<UNeighborGridComponent>();
+	AsyncAction->KeepCount = KeepCount;
 	AsyncAction->Start = Start;
 	AsyncAction->End = End;
 	AsyncAction->Radius = Radius;
@@ -278,9 +351,8 @@ USphereSweepForSubjectsAsyncAction* USphereSweepForSubjectsAsyncAction::SphereSw
 	AsyncAction->CheckRadius = CheckRadius;
 	AsyncAction->SortMode = SortMode;
 	AsyncAction->SortOrigin = SortOrigin;
-	AsyncAction->KeepCount = KeepCount;
-	AsyncAction->Filter = Filter;
 	AsyncAction->IgnoreSubjects = IgnoreSubjects;
+	AsyncAction->Filter = Filter;
 
 	return AsyncAction;
 }
@@ -312,7 +384,7 @@ void USphereSweepForSubjectsAsyncAction::Activate()
 				// 创建忽略列表的哈希集合以便快速查找
 				TSet<FSubjectHandle> IgnoreSet;
 
-				for (const FSubjectHandle Subject : IgnoreSubjects)
+				for (const FSubjectHandle Subject : IgnoreSubjects.Subjects)
 				{
 					IgnoreSet.Add(Subject);
 				}

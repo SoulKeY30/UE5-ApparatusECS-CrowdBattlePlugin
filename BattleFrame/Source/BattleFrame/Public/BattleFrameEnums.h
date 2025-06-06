@@ -39,3 +39,20 @@ enum class EPlaySoundOrigin_Attack : uint8
     PlaySound3D_AtSelf UMETA(DisplayName = "AtSelf", Tooltip = "在自身位置"),
     PlaySound3D_AtTarget UMETA(DisplayName = "AtTarget", Tooltip = "在攻击目标位置")
 };
+
+UENUM(BlueprintType)
+enum class EInitialDirection : uint8
+{
+	FacePlayer UMETA(
+		DisplayName = "FacingPlayer0",
+		Tooltip = "生成时面朝玩家0的方向"
+	),
+		FaceForward UMETA(
+			DisplayName = "SpawnerForwardVector",
+			Tooltip = "使用生成器的前向向量作为朝向"
+		),
+		CustomDirection UMETA(
+			DisplayName = "CustomDirection",
+			Tooltip = "自定义朝向"
+		)
+};

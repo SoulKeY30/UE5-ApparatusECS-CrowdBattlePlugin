@@ -13,27 +13,9 @@
 #include "Math/Vector2D.h"
 #include "AgentConfigDataAsset.h"
 #include "BattleFrameStructs.h"
-#include "BattleFrameBattleControl.h"
 #include "AgentSpawner.generated.h"
 
-
-UENUM(BlueprintType)
-enum class EInitialDirection : uint8
-{
-	FacePlayer UMETA(
-		DisplayName = "FacingPlayer0",
-		Tooltip = "生成时面朝玩家0的方向"
-	),
-	FaceForward UMETA(
-		DisplayName = "SpawnerForwardVector",
-		Tooltip = "使用生成器的前向向量作为朝向"
-	),
-	CustomDirection UMETA(
-		DisplayName = "CustomDirection",
-		Tooltip = "自定义朝向"
-	)
-};
-
+class ABattleFrameBattleControl;
 
 UCLASS()
 class BATTLEFRAME_API AAgentSpawner : public AActor
@@ -57,7 +39,7 @@ public:
 
 	EFlagmarkBit RegisterMultipleFlag = EFlagmarkBit::M;
 
-	UFUNCTION(BlueprintCallable, Category = "BattleFrame | AgentSpawner")
+	UFUNCTION(BlueprintCallable, Category = "BattleFrame | AgentSpawner", meta = (DisplayName = "SpawnAgentsRectangular(Deprecated, pls use SpawnAgentsByConfigRectangular)"))
 	TArray<FSubjectHandle> SpawnAgentsRectangular
 	(
 		bool bAutoActivate = true,
@@ -68,8 +50,22 @@ public:
 		FVector2D Region = FVector2D::ZeroVector,
 		FVector2D LaunchVelocity = FVector2D::ZeroVector,
 		EInitialDirection InitialDirection = EInitialDirection::FacePlayer,
-		FVector2D CustomDirection = FVector2D(1,0),
+		FVector2D CustomDirection = FVector2D(1, 0),
 		FSpawnerMult Multipliers = FSpawnerMult()
+	);
+
+	TArray<FSubjectHandle> SpawnAgentsByConfigRectangular
+	(
+		const bool bAutoActivate = true,
+		const TSoftObjectPtr<UAgentConfigDataAsset> DataAsset = nullptr,
+		const int32 Quantity = 1,
+		const int32 Team = 0,
+		const FVector& Origin = FVector::ZeroVector,
+		const FVector2D& Region = FVector2D::ZeroVector,
+		const FVector2D& LaunchVelocity = FVector2D::ZeroVector,
+		const EInitialDirection InitialDirection = EInitialDirection::FacePlayer,
+		const FVector2D& CustomDirection = FVector2D(1, 0),
+		const FSpawnerMult& Multipliers = FSpawnerMult()
 	);
 
 	UFUNCTION(BlueprintCallable, Category = "BattleFrame | AgentSpawner")
@@ -79,6 +75,6 @@ public:
 	void KillAllAgents();
 
 	UFUNCTION(BlueprintCallable, Category = "BattleFrame | AgentSpawner")
-	void KillAgentsByIndex(int32 Index);
+	void KillAgentsBySubtype(int32 Index);
 
 };

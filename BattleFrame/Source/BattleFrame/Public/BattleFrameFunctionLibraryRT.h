@@ -15,6 +15,8 @@
 #include "BattleFrameEnums.h"
 #include "BattleFrameStructs.h"
 #include "NeighborGridCell.h"
+#include "AgentConfigDataAsset.h"
+#include "AgentSpawner.h"
 #include "BattleFrameFunctionLibraryRT.generated.h"
 
 class ABattleFrameBattleControl;
@@ -27,6 +29,23 @@ class BATTLEFRAME_API UBattleFrameFunctionLibraryRT : public UBlueprintFunctionL
 	GENERATED_BODY()
 	
 public:
+
+    UFUNCTION(BlueprintCallable, Category = "BattleFrame | Spawning", meta = (AutoCreateRefTerm = "Origin,Region,LaunchVelocity,CustomDirection,Multipliers", Keywords = "Spawn Agents"))
+    static TArray<FSubjectHandle> SpawnAgentsByConfigRectangular
+    (
+        AAgentSpawner* AgentSpawner = nullptr,
+        bool bAutoActivate = true, 
+        TSoftObjectPtr<UAgentConfigDataAsset> DataAsset = nullptr,
+        int32 Quantity = 1, 
+        int32 Team = 0, 
+        UPARAM(ref) const FVector& Origin = FVector(0, 0, 0),
+        UPARAM(ref) const FVector2D& Region = FVector2D(0, 0),
+        UPARAM(ref) const FVector2D& LaunchVelocity = FVector2D(0, 0),
+        EInitialDirection InitialDirection = EInitialDirection::FacePlayer,
+        UPARAM(ref) const FVector2D& CustomDirection = FVector2D(1, 0),
+        UPARAM(ref) const  FSpawnerMult& Multipliers = FSpawnerMult()
+    );
+
 
     UFUNCTION(BlueprintCallable, Category = "BattleFrame | Tracing", meta = (AutoCreateRefTerm = "Origin, CheckOrigin, SortOrigin, IgnoreSubjects, Filter"))
     static void SphereTraceForSubjects
@@ -97,7 +116,7 @@ public:
         float Radius = 0.f
     );
 
-    UFUNCTION(BlueprintCallable, Category = "BattleFrame", meta = (AutoCreateRefTerm = "Subjects, IgnoreSubjects, DmgInstigator, HitFromLocation, DmgSphere, Debuff"))
+    UFUNCTION(BlueprintCallable, Category = "BattleFrame | Misc", meta = (AutoCreateRefTerm = "Subjects, IgnoreSubjects, DmgInstigator, HitFromLocation, DmgSphere, Debuff", DisplayName = "ApplyDamageToSubjects(Deprecated, pls use ApplyDamageAndDebuff instead)"))
     static void ApplyDamageToSubjects
     (
         TArray<FDmgResult>& DamageResults,
@@ -110,7 +129,20 @@ public:
         UPARAM(ref) const FDebuff& Debuff = FDebuff()
     );
 
-    UFUNCTION(BlueprintCallable, Category = "BattleFrame", meta = (DisplayName = "Sort Subjects By Distance", Keywords = "Sort Distance Subject", AutoCreateRefTerm = "TraceResults"))
+    UFUNCTION(BlueprintCallable, Category = "BattleFrame | Misc", meta = (AutoCreateRefTerm = "Subjects, IgnoreSubjects, DmgInstigator, HitFromLocation, Damage, Debuff", Keywords = "Apply Damage"))
+    static void ApplyDamageAndDebuff
+    (
+        TArray<FDmgResult>& DamageResults,
+        ABattleFrameBattleControl* BattleControl = nullptr,
+        UPARAM(ref) const FSubjectArray& Subjects = FSubjectArray(),
+        UPARAM(ref) const FSubjectArray& IgnoreSubjects = FSubjectArray(),
+        UPARAM(ref) const FSubjectHandle DmgInstigator = FSubjectHandle(),
+        UPARAM(ref) const FVector& HitFromLocation = FVector(0, 0, 0),
+        UPARAM(ref) const FDamage& Damage = FDamage(),
+        UPARAM(ref) const FDebuff& Debuff = FDebuff()
+    );
+
+    UFUNCTION(BlueprintCallable, Category = "BattleFrame | Misc", meta = (DisplayName = "Sort Subjects By Distance", Keywords = "Sort Distance Subject", AutoCreateRefTerm = "TraceResults"))
     static void SortSubjectsByDistance
     (
         UPARAM(ref) TArray<FTraceResult>& TraceResults,
@@ -118,19 +150,19 @@ public:
         const ESortMode SortMode = ESortMode::NearToFar
     );
 
-    UFUNCTION(BlueprintCallable, BlueprintPure, meta = (DisplayName = "Convert to SubjectHandles", CompactNodeTitle = "->", BlueprintAutocast), Category = "BattleFrame | AutoConvert")
+    UFUNCTION(BlueprintCallable, BlueprintPure, meta = (DisplayName = "Convert to SubjectHandles", CompactNodeTitle = "->", BlueprintAutocast), Category = "BattleFrame | Adapters")
     static TArray<FSubjectHandle> ConvertDmgResultsToSubjectHandles(const TArray<FDmgResult>& DmgResults);
 
-    UFUNCTION(BlueprintCallable, BlueprintPure,meta = (DisplayName = "Convert to SubjectHandles",CompactNodeTitle = "->",BlueprintAutocast),Category = "BattleFrame | AutoConvert")
+    UFUNCTION(BlueprintCallable, BlueprintPure,meta = (DisplayName = "Convert to SubjectHandles",CompactNodeTitle = "->",BlueprintAutocast),Category = "BattleFrame | Adapters")
     static TArray<FSubjectHandle> ConvertTraceResultsToSubjectHandles(const TArray<FTraceResult>& TraceResults);
 
-    UFUNCTION(BlueprintCallable, BlueprintPure, meta = (DisplayName = "Convert to SubjectArray", CompactNodeTitle = "->", BlueprintAutocast), Category = "BattleFrame | AutoConvert")
+    UFUNCTION(BlueprintCallable, BlueprintPure, meta = (DisplayName = "Convert to SubjectArray", CompactNodeTitle = "->", BlueprintAutocast), Category = "BattleFrame | Adapters")
     static FSubjectArray ConvertDmgResultsToSubjectArray(const TArray<FDmgResult>& DmgResults);
 
-    UFUNCTION(BlueprintCallable, BlueprintPure, meta = (DisplayName = "Convert to SubjectArray", CompactNodeTitle = "->", BlueprintAutocast), Category = "BattleFrame | AutoConvert")
+    UFUNCTION(BlueprintCallable, BlueprintPure, meta = (DisplayName = "Convert to SubjectArray", CompactNodeTitle = "->", BlueprintAutocast), Category = "BattleFrame | Adapters")
     static FSubjectArray ConvertTraceResultsToSubjectArray(const TArray<FTraceResult>& TraceResults);
 
-    UFUNCTION(BlueprintCallable, BlueprintPure, meta = (DisplayName = "Convert to SubjectArray", CompactNodeTitle = "->", BlueprintAutocast), Category = "BattleFrame | AutoConvert")
+    UFUNCTION(BlueprintCallable, BlueprintPure, meta = (DisplayName = "Convert to SubjectArray", CompactNodeTitle = "->", BlueprintAutocast), Category = "BattleFrame | Adapters")
     static FSubjectArray ConvertSubjectHandlesToSubjectArray(const TArray<FSubjectHandle>& SubjectHandles);
 
     static void CalculateThreadsCountAndBatchSize(int32 IterableNum, int32 MaxThreadsAllowed, int32 MinBatchSizeAllowed, int32& ThreadsCount, int32& BatchSize);
@@ -420,27 +452,27 @@ public:
     ESortMode SortMode;
     FVector SortOrigin;
     FFilter Filter;
-    TArray<FSubjectHandle> IgnoreSubjects;
+    FSubjectArray IgnoreSubjects;
     bool Hit;
     TArray<FTraceResult> TempResults;
     TArray<FTraceResult> Results;
 
-    UFUNCTION(BlueprintCallable, meta = (BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject", AutoCreateRefTerm = "IgnoreSubjects"))
+    UFUNCTION(BlueprintCallable, meta = (BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject", AutoCreateRefTerm = "Start, End, CheckOrigin, SortOrigin, IgnoreSubjects, Filter"))
     static USphereSweepForSubjectsAsyncAction* SphereSweepForSubjectsAsync
     (
-        const UObject* WorldContextObject, 
-        ANeighborGridActor* NeighborGridActor, 
-        const int32 KeepCount,
-        const FVector Start, 
-        const FVector End, 
-        const float Radius,
-        const bool bCheckVisibility,
-        const FVector CheckOrigin,
-        const float CheckRadius,
-        const ESortMode SortMode,
-        const FVector SortOrigin, 
-        const TArray<FSubjectHandle>& IgnoreSubjects, 
-        const FFilter Filter
+        const UObject* WorldContextObject = nullptr, 
+        ANeighborGridActor* NeighborGridActor = nullptr,
+        int32 KeepCount = -1,
+        const FVector Start = FVector(0, 0, 0),
+        const FVector End = FVector(0, 0, 0),
+        float Radius = 0.f,
+        bool bCheckVisibility = false,
+        const FVector CheckOrigin = FVector(0, 0, 0),
+        float CheckRadius = 0.f,
+        ESortMode SortMode = ESortMode::None,
+        const FVector SortOrigin = FVector(0, 0, 0),
+        const FSubjectArray IgnoreSubjects = FSubjectArray(),
+        const FFilter Filter = FFilter()
     );
 
     virtual void Activate() override;

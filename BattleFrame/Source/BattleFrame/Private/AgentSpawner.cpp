@@ -26,6 +26,7 @@
 #include "Traits/Avoiding.h"
 #include "AnimToTextureDataAsset.h"
 #include "NiagaraSubjectRenderer.h"
+#include "BattleFrameBattleControl.h"
 #include "BattleFrameFunctionLibraryRT.h"
 #include "Traits/Activated.h"
 #include "SubjectHandle.h"
@@ -250,6 +251,202 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     return SpawnedAgents;
 }
 
+TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsByConfigRectangular
+(
+    const bool bAutoActivate,
+    const TSoftObjectPtr<UAgentConfigDataAsset> DataAsset,
+    const int32 Quantity,
+    const int32 Team,
+    const FVector& Origin,
+    const FVector2D& Region,
+    const FVector2D& LaunchVelocity,
+    const EInitialDirection InitialDirection,
+    const FVector2D& CustomDirection,
+    const FSpawnerMult& Multipliers
+)
+{
+    TRACE_CPUPROFILER_EVENT_SCOPE_STR("SpawnAgentsRectangular");
+
+    TArray<FSubjectHandle> SpawnedAgents;
+
+    if (!CurrentWorld)
+    {
+        CurrentWorld = GetWorld();
+
+        if (!CurrentWorld)
+        {
+            return SpawnedAgents;
+        }
+    }
+
+    if (!Mechanism)
+    {
+        Mechanism = UMachine::ObtainMechanism(CurrentWorld);
+
+        if (!Mechanism)
+        {
+            return SpawnedAgents;
+        }
+    }
+
+    if (!BattleControl)
+    {
+        BattleControl = Cast<ABattleFrameBattleControl>(UGameplayStatics::GetActorOfClass(CurrentWorld, ABattleFrameBattleControl::StaticClass()));
+
+        if (!BattleControl)
+        {
+            return SpawnedAgents;
+        }
+    }
+
+    UAgentConfigDataAsset* AgentConfig = DataAsset.LoadSynchronous();
+
+    if (!IsValid(AgentConfig))
+    {
+        return SpawnedAgents;
+    }
+
+    FSubjectRecord AgentRecord = AgentConfig->ExtraTraits;
+
+    AgentRecord.SetTrait(AgentConfig->Agent);
+    AgentRecord.SetTrait(AgentConfig->SubType);
+    AgentRecord.SetTrait(FTeam(Team));
+    AgentRecord.SetTrait(AgentConfig->Collider);
+    AgentRecord.SetTrait(FLocated());
+    AgentRecord.SetTrait(FDirected());
+    AgentRecord.SetTrait(AgentConfig->Scale);
+    AgentRecord.SetTrait(AgentConfig->Health);
+    AgentRecord.SetTrait(AgentConfig->Damage);
+    AgentRecord.SetTrait(AgentConfig->Debuff);
+    AgentRecord.SetTrait(AgentConfig->Defence);
+    AgentRecord.SetTrait(AgentConfig->Sleep);
+    AgentRecord.SetTrait(AgentConfig->Move);
+    AgentRecord.SetTrait(FMoving());
+    AgentRecord.SetTrait(AgentConfig->Patrol);
+    AgentRecord.SetTrait(AgentConfig->Navigation);
+    AgentRecord.SetTrait(AgentConfig->Avoidance);
+    AgentRecord.SetTrait(FAvoiding());
+    AgentRecord.SetTrait(AgentConfig->Appear);
+    AgentRecord.SetTrait(AgentConfig->Trace);
+    AgentRecord.SetTrait(FTracing());
+    AgentRecord.SetTrait(AgentConfig->Attack);
+    AgentRecord.SetTrait(AgentConfig->Hit);
+    AgentRecord.SetTrait(AgentConfig->Death);
+    AgentRecord.SetTrait(AgentConfig->Animation);
+    AgentRecord.SetTrait(AgentConfig->HealthBar);
+    AgentRecord.SetTrait(AgentConfig->TextPop);
+    AgentRecord.SetTrait(FPoppingText());
+    AgentRecord.SetTrait(AgentConfig->Curves);
+    AgentRecord.SetTrait(FTemporalDamaging());
+    AgentRecord.SetTrait(FSlowing());
+
+    // Apply Multipliers
+    auto& HealthTrait = AgentRecord.GetTraitRef<FHealth>();
+    HealthTrait.Current *= Multipliers.HealthMult;
+    HealthTrait.Maximum *= Multipliers.HealthMult;
+
+    auto& TextPopUp = AgentRecord.GetTraitRef<FTextPopUp>();
+    TextPopUp.WhiteTextBelowPercent *= Multipliers.HealthMult;
+    TextPopUp.OrangeTextAbovePercent *= Multipliers.HealthMult;
+
+    auto& DamageTrait = AgentRecord.GetTraitRef<FDamage>();
+    DamageTrait.Damage *= Multipliers.DamageMult;
+
+    auto& ScaledTrait = AgentRecord.GetTraitRef<FScaled>();
+    ScaledTrait.Factors *= Multipliers.ScaleMult;
+    ScaledTrait.RenderFactors = ScaledTrait.Factors;
+
+    auto& MoveTrait = AgentRecord.GetTraitRef<FMove>();
+    MoveTrait.MoveSpeed *= Multipliers.MoveSpeedMult;
+
+    auto& ColliderTrait = AgentRecord.GetTraitRef<FCollider>();
+    ColliderTrait.Radius *= Multipliers.ScaleMult;
+
+    while (SpawnedAgents.Num() < Quantity)// the following traits varies from agent to agent
+    {
+        FSubjectRecord Config = AgentRecord;
+
+        auto& Located = Config.GetTraitRef<FLocated>();
+        auto& Directed = Config.GetTraitRef<FDirected>();
+        auto& Collider = Config.GetTraitRef<FCollider>();
+        auto& Move = Config.GetTraitRef<FMove>();
+        auto& Moving = Config.GetTraitRef<FMoving>();
+        auto& Patrol = Config.GetTraitRef<FPatrol>();
+
+        float RandomX = FMath::RandRange(-Region.X / 2, Region.X / 2);
+        float RandomY = FMath::RandRange(-Region.Y / 2, Region.Y / 2);
+
+        FVector SpawnPoint2D = Origin + FVector(RandomX, RandomY, 0);
+        FVector SpawnPoint3D;
+
+        if (Move.bCanFly)
+        {
+            Moving.FlyingHeight = FMath::RandRange(Move.FlyHeightRange.X, Move.FlyHeightRange.Y);
+            SpawnPoint3D = FVector(SpawnPoint2D.X, SpawnPoint2D.Y, Moving.FlyingHeight + GetActorLocation().Z);
+        }
+        else
+        {
+            SpawnPoint3D = FVector(SpawnPoint2D.X, SpawnPoint2D.Y, Collider.Radius + GetActorLocation().Z);
+        }
+
+        Patrol.Origin = SpawnPoint3D;
+        Moving.Goal = SpawnPoint3D;
+
+        Located.Location = SpawnPoint3D;
+        Located.PreLocation = SpawnPoint3D;
+        Located.InitialLocation = SpawnPoint3D;
+
+        switch (InitialDirection)
+        {
+        case EInitialDirection::FacePlayer:
+        {
+            APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+
+            if (IsValid(PlayerPawn))
+            {
+                FVector Delta = PlayerPawn->GetActorLocation() - SpawnPoint3D;
+                Directed.Direction = Delta.GetSafeNormal2D();
+            }
+            else
+            {
+                Directed.Direction = GetActorForwardVector().GetSafeNormal2D();
+            }
+            break;
+        }
+
+        case EInitialDirection::FaceForward:
+        {
+            Directed.Direction = GetActorForwardVector().GetSafeNormal2D();
+            break;
+        }
+
+        case EInitialDirection::CustomDirection:
+        {
+            Directed.Direction = FVector(CustomDirection, 0).GetSafeNormal2D();
+            break;
+        }
+        }
+
+        if (LaunchVelocity.Size() > 0)
+        {
+            Moving.LaunchVelSum = Directed.Direction * LaunchVelocity.X + Directed.Direction.UpVector * LaunchVelocity.Y;
+            Moving.bLaunching = true;
+        }
+
+        // Spawn using the modified record
+        const auto Agent = Mechanism->SpawnSubject(Config);
+
+        if (bAutoActivate)
+        {
+            ActivateAgent(Agent);
+        }
+
+        SpawnedAgents.Add(Agent);
+    }
+
+    return SpawnedAgents;
+}
+
 void AAgentSpawner::ActivateAgent( FSubjectHandle Agent )// strange apparatus bug : don't use get ref or the value may expire later when use
 {
     TRACE_CPUPROFILER_EVENT_SCOPE_STR("ActivateAgent");
@@ -349,7 +546,7 @@ void AAgentSpawner::KillAllAgents()
     }
 }
 
-void AAgentSpawner::KillAgentsByIndex(int32 Index)
+void AAgentSpawner::KillAgentsBySubtype(int32 Index)
 {
     CurrentWorld = GetWorld();
 
