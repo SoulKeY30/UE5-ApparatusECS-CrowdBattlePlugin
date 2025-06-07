@@ -157,8 +157,8 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     DamageTrait.Damage *= Multipliers.DamageMult;
 
     auto& ScaledTrait = AgentConfig.GetTraitRef<FScaled>();
-    ScaledTrait.Factors *= Multipliers.ScaleMult;
-    ScaledTrait.RenderFactors = ScaledTrait.Factors;
+    ScaledTrait.Scale *= Multipliers.ScaleMult;
+    ScaledTrait.RenderScale *= Multipliers.ScaleMult;
 
     auto& MoveTrait = AgentConfig.GetTraitRef<FMove>();
     MoveTrait.MoveSpeed *= Multipliers.MoveSpeedMult;
@@ -172,6 +172,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
 
         auto& Located = Config.GetTraitRef<FLocated>();
         auto& Directed = Config.GetTraitRef<FDirected>();
+        auto& Scaled = Config.GetTraitRef<FScaled>();
         auto& Collider = Config.GetTraitRef<FCollider>();
         auto& Move = Config.GetTraitRef<FMove>();
         auto& Moving = Config.GetTraitRef<FMoving>();
@@ -190,7 +191,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
         }
         else
         {
-            SpawnPoint3D = FVector(SpawnPoint2D.X, SpawnPoint2D.Y, Collider.Radius + GetActorLocation().Z);
+            SpawnPoint3D = FVector(SpawnPoint2D.X, SpawnPoint2D.Y, Collider.Radius * Scaled.Scale + GetActorLocation().Z);
         }
 
         Patrol.Origin = SpawnPoint3D;
@@ -353,8 +354,8 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsByConfigRectangular
     DamageTrait.Damage *= Multipliers.DamageMult;
 
     auto& ScaledTrait = AgentRecord.GetTraitRef<FScaled>();
-    ScaledTrait.Factors *= Multipliers.ScaleMult;
-    ScaledTrait.RenderFactors = ScaledTrait.Factors;
+    ScaledTrait.Scale *= Multipliers.ScaleMult;
+    ScaledTrait.RenderScale *= Multipliers.ScaleMult;
 
     auto& MoveTrait = AgentRecord.GetTraitRef<FMove>();
     MoveTrait.MoveSpeed *= Multipliers.MoveSpeedMult;
@@ -368,6 +369,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsByConfigRectangular
 
         auto& Located = Config.GetTraitRef<FLocated>();
         auto& Directed = Config.GetTraitRef<FDirected>();
+        auto& Scaled = Config.GetTraitRef<FScaled>();
         auto& Collider = Config.GetTraitRef<FCollider>();
         auto& Move = Config.GetTraitRef<FMove>();
         auto& Moving = Config.GetTraitRef<FMoving>();
@@ -386,7 +388,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsByConfigRectangular
         }
         else
         {
-            SpawnPoint3D = FVector(SpawnPoint2D.X, SpawnPoint2D.Y, Collider.Radius + GetActorLocation().Z);
+            SpawnPoint3D = FVector(SpawnPoint2D.X, SpawnPoint2D.Y, Collider.Radius * Scaled.Scale + GetActorLocation().Z);
         }
 
         Patrol.Origin = SpawnPoint3D;
@@ -398,33 +400,33 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsByConfigRectangular
 
         switch (InitialDirection)
         {
-        case EInitialDirection::FacePlayer:
-        {
-            APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
-
-            if (IsValid(PlayerPawn))
+            case EInitialDirection::FacePlayer:
             {
-                FVector Delta = PlayerPawn->GetActorLocation() - SpawnPoint3D;
-                Directed.Direction = Delta.GetSafeNormal2D();
+                APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+
+                if (IsValid(PlayerPawn))
+                {
+                    FVector Delta = PlayerPawn->GetActorLocation() - SpawnPoint3D;
+                    Directed.Direction = Delta.GetSafeNormal2D();
+                }
+                else
+                {
+                    Directed.Direction = GetActorForwardVector().GetSafeNormal2D();
+                }
+                break;
             }
-            else
+
+            case EInitialDirection::FaceForward:
             {
                 Directed.Direction = GetActorForwardVector().GetSafeNormal2D();
+                break;
             }
-            break;
-        }
 
-        case EInitialDirection::FaceForward:
-        {
-            Directed.Direction = GetActorForwardVector().GetSafeNormal2D();
-            break;
-        }
-
-        case EInitialDirection::CustomDirection:
-        {
-            Directed.Direction = FVector(CustomDirection, 0).GetSafeNormal2D();
-            break;
-        }
+            case EInitialDirection::CustomDirection:
+            {
+                Directed.Direction = FVector(CustomDirection, 0).GetSafeNormal2D();
+                break;
+            }
         }
 
         if (LaunchVelocity.Size() > 0)
@@ -452,6 +454,7 @@ void AAgentSpawner::ActivateAgent( FSubjectHandle Agent )// strange apparatus bu
     TRACE_CPUPROFILER_EVENT_SCOPE_STR("ActivateAgent");
 
     auto Located = Agent.GetTrait<FLocated>();
+    auto Scaled = Agent.GetTrait<FScaled>();
     auto Collider = Agent.GetTrait<FCollider>();
     auto Appear = Agent.GetTrait<FAppear>();
     auto Sleep = Agent.GetTrait<FSleep>();
@@ -495,7 +498,7 @@ void AAgentSpawner::ActivateAgent( FSubjectHandle Agent )// strange apparatus bu
         Agent.SetFlag(RegisterMultipleFlag, true);
     }
 
-    Agent.SetTrait(FGridData{ Agent.CalcHash(), FVector3f(Located.Location), Collider.Radius, Agent });
+    Agent.SetTrait(FGridData{ Agent.CalcHash(), FVector3f(Located.Location), Collider.Radius * Scaled.Scale, Agent });
 
     UBattleFrameFunctionLibraryRT::SetSubjectSubTypeTraitByIndex(SubType.Index, Agent);
     UBattleFrameFunctionLibraryRT::SetSubjectTeamTraitByIndex(FMath::Clamp(Team.index, 0, 9), Agent);

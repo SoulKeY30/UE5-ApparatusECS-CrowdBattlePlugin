@@ -97,11 +97,10 @@ void ANiagaraSubjectRenderer::Register()
 			Rotation = Directed.Direction.Rotation().Quaternion();
 
 			FVector FinalScale(Scale);
-			FinalScale *= Scaled.RenderFactors;
+			FinalScale *= Scaled.RenderScale;
+			float Radius = Collider.Radius * Scaled.Scale;
 
-			float Radius = Collider.Radius;
-
-			FTransform SubjectTransform(Rotation * OffsetRotation.Quaternion(),Located.Location + OffsetLocation - FVector(0, 0, Radius),FinalScale);
+			FTransform SubjectTransform(Rotation * OffsetRotation.Quaternion(),Located.Location + OffsetLocation - FVector(0, 0, Radius), FinalScale);
 
 			FSubjectHandle RenderBatch = FSubjectHandle();
 			FRenderBatchData* Data = nullptr;

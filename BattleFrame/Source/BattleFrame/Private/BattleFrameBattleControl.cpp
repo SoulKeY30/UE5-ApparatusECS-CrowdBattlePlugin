@@ -286,7 +286,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					ESortMode::None,
 					FVector::ZeroVector,
 					FSubjectArray(SphereObstacle.OverridingAgents.Array()),
-					FFilter::Make<FAgent, FLocated, FCollider, FMoving, FActivated>(),
+					FFilter::Make<FAgent, FLocated, FScaled, FCollider, FMoving, FActivated>(),
 					Hit,
 					Results
 				);
@@ -302,7 +302,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				{
 					if (!Agent.IsValid()) continue;
 
-					float AgentRadius = Agent.GetTrait<FCollider>().Radius;
+					float AgentRadius = Agent.GetTrait<FGridData>().Radius;
 					float SphereObstacleRadius = Collider.Radius;
 					float CombinedRadius = AgentRadius + SphereObstacleRadius;
 					FVector AgentLocation = Agent.GetTrait<FLocated>().Location;
@@ -431,6 +431,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
 				FLocated& Located,
+				FScaled& Scaled,
 				FTrace& Trace,
 				FPatrol& Patrol,
 				FCollider& Collider,
@@ -455,7 +456,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						if (Patrolling.WaitTimeLeft <= 0.f)
 						{
 							ResetPatrol(Patrol, Patrolling, Located);
-							Moving.Goal = FindNewPatrolGoalLocation(Patrol, Collider, Trace, Located, 3);
+							Moving.Goal = FindNewPatrolGoalLocation(Patrol, Collider, Trace, Located, Scaled, 3);
 						}
 						else
 						{
@@ -468,7 +469,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						if (Patrolling.MoveTimeLeft <= 0.f)
 						{
 							ResetPatrol(Patrol, Patrolling, Located);
-							Moving.Goal = FindNewPatrolGoalLocation(Patrol, Collider, Trace, Located, 3);
+							Moving.Goal = FindNewPatrolGoalLocation(Patrol, Collider, Trace, Located, Scaled, 3);
 						}
 						else
 						{
@@ -498,8 +499,9 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
-				FDirected& Directed,
 				FLocated& Located,
+				FDirected& Directed,
+				FScaled& Scaled,
 				FCollider& Collider,
 				FPatrol& Patrol,
 				FMove& Move,
@@ -522,7 +524,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				if (UNLIKELY(!bIsValidFF)) return;
 
 				FVector AgentLocation = Located.Location;
-				float SelfRadius = Collider.Radius;
+				float SelfRadius = Collider.Radius * Scaled.Scale;
 				Moving.MoveSpeedMult = 1;
 				Moving.TurnSpeedMult = 1;
 
@@ -661,8 +663,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				}
 				else if(UNLIKELY(bIsValidTraceResult))
 				{
-					float OtherRadius = Trace.TraceResult.HasTrait<FCollider>() ? Trace.TraceResult.GetTraitRef<FCollider, EParadigm::Unsafe>().Radius : 0;
-					DistanceToGoal = FMath::Clamp(FVector::Dist2D(AgentLocation, Moving.Goal) - SelfRadius - OtherRadius,0, FLT_MAX);
+					float OtherRadius = Trace.TraceResult.HasTrait<FGridData>() ? Trace.TraceResult.GetTraitRef<FGridData, EParadigm::Unsafe>().Radius : 0;
+					DistanceToGoal = FMath::Clamp(FVector::Dist2D(AgentLocation, Moving.Goal) - SelfRadius - OtherRadius, 0, FLT_MAX);
 					bIsInAcceptanceRadius = DistanceToGoal <= Move.AcceptanceRadius;
 				}
 				else
@@ -874,9 +876,11 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					}
 
 					// 8 Directions
+					FVector VectorToRotate = FVector(Collider.Radius * Scaled.Scale, 0, 0);
+
 					for (int32 i = 0; i < 8; ++i)
 					{
-						FVector BoundSamplePoint = Located.Location + FVector(Collider.Radius, 0, 0).RotateAngleAxis(i * 45.f, FVector::UpVector);
+						FVector BoundSamplePoint = Located.Location + VectorToRotate.RotateAngleAxis(i * 45.f, FVector::UpVector);
 
 						bool bInside;
 						FCellStruct& Cell = Navigation.FlowField->GetCellAtLocation(BoundSamplePoint, bInside);
@@ -907,10 +911,10 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						}
 						else
 						{
-							const float CollisionThreshold = GroundHeight + Collider.Radius;
+							const float CollisionThreshold = GroundHeight + Collider.Radius * Scaled.Scale;
 
 							// 高度状态判断
-							if (UNLIKELY(AgentLocation.Z - CollisionThreshold > Collider.Radius * 0.1f))// need a bit of tolerance or it will be hard to decide is it is on ground or in the air
+							if (UNLIKELY(AgentLocation.Z - CollisionThreshold > Collider.Radius * Scaled.Scale * 0.1f))// need a bit of tolerance or it will be hard to decide is it is on ground or in the air
 							{
 								// 应用重力
 								Moving.CurrentVelocity.Z += Move.Gravity * SafeDeltaTime;
@@ -924,7 +928,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 							else
 							{
 								// 地面接触处理
-								const float GroundContactThreshold = GroundHeight - Collider.Radius;
+								const float GroundContactThreshold = GroundHeight - Collider.Radius * Scaled.Scale;
 
 								// 着陆状态切换
 								if (Moving.bFalling)
@@ -977,6 +981,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
 				FLocated& Located,
+				FScaled& Scaled,
 				FCollider& Collider,
 				FMove& Move,
 				FMoving& Moving,
@@ -993,9 +998,9 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				if (LIKELY(IsValid(NeighborGrid)) && LIKELY(Avoidance.bEnable))
 				{
 					const auto SelfLocation = Located.Location;
-					const auto SelfRadius = Collider.Radius;
+					const auto SelfRadius = Avoiding.Radius;
 					const auto TraceDist = Avoidance.TraceDist;
-					const float TotalRangeSqr = FMath::Square(SelfRadius + TraceDist);
+					const float CombinedRadiusSqr = FMath::Square(SelfRadius + TraceDist);
 					const int32 MaxNeighbors = Avoidance.MaxNeighbors;
 					uint32 SelfHash = GridData.SubjectHash;
 
@@ -1008,9 +1013,9 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 						// 使用最大堆收集最近的SubjectNeighbors
 						auto SubjectCompare = [&](const FGridData& A, const FGridData& B)
-							{
-								return A.DistSqr > B.DistSqr;
-							};
+						{
+							return A.DistSqr > B.DistSqr;
+						};
 
 						TArray<FGridData> SubjectNeighbors;
 						SubjectNeighbors.Reserve(MaxNeighbors);
@@ -1050,9 +1055,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 								// 距离检查
 								const float DistSqr = FVector::DistSquared(SelfLocation, FVector(Data.Location));
-								const float RadiusSqr = FMath::Square(Data.Radius) + TotalRangeSqr;
-
-								if (DistSqr > RadiusSqr) continue;
+								if (DistSqr > CombinedRadiusSqr) continue;
 
 								// 去重
 								if (UNLIKELY(SeenHashes.Contains(Data.SubjectHash))) continue;
@@ -1063,10 +1066,9 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 								// we limit the amount of subjects. we keep the nearest MaxNeighbors amount of neighbors
 								// 动态维护堆
-								Data.DistSqr = DistSqr;
-
 								if (LIKELY(SubjectNeighbors.Num() < MaxNeighbors))
 								{
+									Data.DistSqr = DistSqr;
 									SubjectNeighbors.HeapPush(Data, SubjectCompare);
 								}
 								else
@@ -1075,6 +1077,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 									if (UNLIKELY(DistSqr < HeapTop.DistSqr))
 									{
+										Data.DistSqr = DistSqr;
 										SubjectNeighbors.HeapPopDiscard(SubjectCompare);
 										SubjectNeighbors.HeapPush(Data, SubjectCompare);
 									}
@@ -1329,6 +1332,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 				FLocated& Located = Subject.GetTraitRef<FLocated>();
 				FDirected& Directed = Subject.GetTraitRef<FDirected>();
+				FScaled& Scaled = Subject.GetTraitRef<FScaled>();
 				FCollider& Collider = Subject.GetTraitRef<FCollider>();
 
 				FTrace& Trace = Subject.GetTraitRef<FTrace>();
@@ -1337,6 +1341,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 				const bool bIsSleeping = Subject.HasTrait<FSleeping>();
 				const bool bIsPatrolling = Subject.HasTrait<FPatrolling>();
+				
+				const float SelfRadius = Collider.Radius * Scaled.Scale;
 
 				float FinalRange = 0;
 				float FinalAngle = 0;
@@ -1371,12 +1377,12 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					{
 						// 计算目标半径和实际距离平方
 						float PlayerRadius = PlayerHandle.HasTrait<FCollider>() ? PlayerHandle.GetTrait<FCollider>().Radius : 0;
-						float CombinedRange = FinalRange + PlayerRadius;
-						float DistanceSquared = (Located.Location - PlayerLocation).SizeSquared();
-						float CombinedRangeSquared = CombinedRange * CombinedRange;
+						float CombinedRadius = FinalRange + SelfRadius + PlayerRadius;
+						float CombinedRadiusSquared = FMath::Square(CombinedRadius);
+						float DistanceSquared = FVector::DistSquared(Located.Location, PlayerLocation);
 
 						// 距离检查 - 使用距离平方
-						if (DistanceSquared <= CombinedRangeSquared)
+						if (DistanceSquared <= CombinedRadiusSquared)
 						{
 							// 角度检查
 							const FVector ToPlayerDir = (PlayerLocation - Located.Location).GetSafeNormal();
@@ -1389,7 +1395,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 								{
 									bool Hit = false;
 									FTraceResult Result;
-									Trace.NeighborGrid->SphereSweepForObstacle(Located.Location, PlayerLocation, Collider.Radius, Hit, Result);
+									Trace.NeighborGrid->SphereSweepForObstacle(Located.Location, PlayerLocation, SelfRadius, Hit, Result);
 
 									if (!Hit)
 									{
@@ -1421,7 +1427,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 						// 使用扇形检测替换球体检测
 						const FVector TraceDirection = Directed.Direction.GetSafeNormal2D();
-						const float TraceHeight = Collider.Radius * 2.0f; // 根据实际需求调整高度
+						const float TraceHeight = SelfRadius * 2.0f; // 根据实际需求调整高度
 
 						// ignore self
 						FSubjectArray IgnoreList;
@@ -1437,7 +1443,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 							FinalAngle,         // 扇形角度
 							FinalCheckVisibility,
 							Located.Location,
-							Collider.Radius,
+							SelfRadius,
 							ESortMode::NearToFar,
 							Located.Location,
 							IgnoreList,
@@ -1487,32 +1493,33 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 			[&](FSolidSubjectHandle Subject,
 				FLocated& Located,
 				FDirected Directed,
+				FScaled& Scaled,
+				FCollider& Collider,
 				FAttack& Attack,
-				FTrace& Trace,
-				FCollider& Collider)
+				FTrace& Trace)
 			{
 				//TRACE_CPUPROFILER_EVENT_SCOPE_STR("Do AgentAttackMain");
 				if (!Attack.bEnable) return;
 
-				if (LIKELY(Trace.TraceResult.IsValid()))
+				const bool bHasValidTarget = Trace.TraceResult.IsValid() && Trace.TraceResult.HasTrait<FLocated>() && Trace.TraceResult.HasTrait<FHealth>();
+
+				if (bHasValidTarget)
 				{
-					if (LIKELY(Trace.TraceResult.HasTrait<FLocated>()) && LIKELY(Trace.TraceResult.HasTrait<FHealth>()))
+					const float SelfRadius = Collider.Radius * Scaled.Scale;
+					float TargetHealth = Trace.TraceResult.GetTraitRef<FHealth,EParadigm::Unsafe>().Current;
+
+					FVector TargetLocation = Trace.TraceResult.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
+					float OtherRadius = Trace.TraceResult.HasTrait<FGridData>() ? Trace.TraceResult.GetTraitRef<FGridData, EParadigm::Unsafe>().Radius : 0;
+
+					// 使用距离平方优化
+					float DistSquared = FVector::DistSquared(Located.Location, TargetLocation);
+					float CombinedRadius = Attack.Range + SelfRadius + OtherRadius;
+					float CombinedRadiusSquared = FMath::Square(CombinedRadius);
+
+					// 触发攻击 - 使用距离平方比较
+					if (DistSquared <= CombinedRadiusSquared && TargetHealth > 0)
 					{
-						float TargetHealth = Trace.TraceResult.GetTraitRef<FHealth,EParadigm::Unsafe>().Current;
-
-						FVector TargetLocation = Trace.TraceResult.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
-						float OtherRadius = Trace.TraceResult.HasTrait<FCollider>() ? Trace.TraceResult.GetTraitRef<FCollider, EParadigm::Unsafe>().Radius : 0;
-
-						// 使用距离平方优化
-						float DistSquared = (Located.Location - TargetLocation).SizeSquared();
-						float CombinedRadius = Attack.Range + OtherRadius;
-						float CombinedRadiusSquared = CombinedRadius * CombinedRadius;
-
-						// 触发攻击 - 使用距离平方比较
-						if (DistSquared <= CombinedRadiusSquared && TargetHealth > 0)
-						{
-							Subject.SetTraitDeferred(FAttacking());
-						}
+						Subject.SetTraitDeferred(FAttacking());
 					}
 				}
 
@@ -1531,12 +1538,14 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
 				FLocated& Located,
+				FDirected& Directed,
+				FScaled& Scaled,
+				FCollider& Collider,
 				FRendering& Rendering,
 				FAnimation& Animation,
 				FAttack& Attack,
 				FAttacking& Attacking,
 				FMoving& Moving,
-				FDirected& Directed,
 				FTrace& Trace,
 				FDebuff& Debuff,
 				FDamage& Damage,
@@ -1686,8 +1695,9 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 								FVector TargetPos = Trace.TraceResult.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
 
 								// 计算距离
-								float OtherRadius = Trace.TraceResult.HasTrait<FCollider>() ? Trace.TraceResult.GetTrait<FCollider>().Radius : 0;
-								float Distance = FMath::Clamp(FVector::Distance(AttackerPos, TargetPos) - OtherRadius, 0, FLT_MAX);
+								const float SelfRadius = Collider.Radius * Scaled.Scale;
+								float OtherRadius = Trace.TraceResult.HasTrait<FGridData>() ? Trace.TraceResult.GetTraitRef<FGridData, EParadigm::Unsafe>().Radius : 0;
+								float Distance = FMath::Clamp(FVector::Distance(AttackerPos, TargetPos) - SelfRadius - OtherRadius, 0, FLT_MAX);
 
 								// 计算夹角
 								FVector AttackerForward = Subject.GetTraitRef<FDirected, EParadigm::Unsafe>().Direction.GetSafeNormal();
@@ -1849,9 +1859,9 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				const auto EndTime = Curve->GetLastKey().Time;
 
 				// 受击变形
-				Scaled.RenderFactors.X = FMath::Lerp(Scaled.Factors.X, Scaled.Factors.X * Curve->Eval(Jiggle.JiggleTime), Hit.JiggleStr);
-				Scaled.RenderFactors.Y = FMath::Lerp(Scaled.Factors.Y, Scaled.Factors.Y * Curve->Eval(Jiggle.JiggleTime), Hit.JiggleStr);
-				Scaled.RenderFactors.Z = FMath::Lerp(Scaled.Factors.Z, Scaled.Factors.Z * (2.f - Curve->Eval(Jiggle.JiggleTime)), Hit.JiggleStr);
+				Scaled.RenderScale.X = FMath::Lerp(Scaled.Scale, Scaled.Scale * Curve->Eval(Jiggle.JiggleTime), Hit.JiggleStr);
+				Scaled.RenderScale.Y = FMath::Lerp(Scaled.Scale, Scaled.Scale * Curve->Eval(Jiggle.JiggleTime), Hit.JiggleStr);
+				Scaled.RenderScale.Z = FMath::Lerp(Scaled.Scale, Scaled.Scale * (2.f - Curve->Eval(Jiggle.JiggleTime)), Hit.JiggleStr);
 
 				// 更新形变时间
 				if (Jiggle.JiggleTime < EndTime)
@@ -1862,7 +1872,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				// 计时器完成后删除 Trait
 				if (Jiggle.JiggleTime >= EndTime)
 				{
-					Scaled.RenderFactors = Scaled.Factors; // 恢复原始比例
+					Scaled.RenderScale = FVector(Scaled.Scale); // 恢复原始比例
 					Subject->RemoveTraitDeferred<FJiggle>(); // 延迟删除 Trait
 				}
 
@@ -2181,21 +2191,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 										Style = 2;
 									}
 
-									float Radius = 0;
-
-									if (TemporalDamager.TemporalDamageTarget.HasTrait<FCollider>())
-									{
-										Radius = TemporalDamager.TemporalDamageTarget.GetTraitRef<FCollider, EParadigm::Unsafe>().Radius;
-									}
-
-									FVector Location = FVector::ZeroVector;
-
-									if (TemporalDamager.TemporalDamageTarget.HasTrait<FLocated>())
-									{
-										Location = TemporalDamager.TemporalDamageTarget.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
-									}
-
-									Location + FVector(0, 0, Radius);
+									float Radius = TemporalDamager.TemporalDamageTarget.HasTrait<FGridData>() ? TemporalDamager.TemporalDamageTarget.GetTraitRef<FGridData, EParadigm::Unsafe>().Radius : 0;
+									FVector Location = TemporalDamager.TemporalDamageTarget.HasTrait<FLocated>() ? TemporalDamager.TemporalDamageTarget.GetTraitRef<FLocated, EParadigm::Unsafe>().Location : FVector::ZeroVector;
 
 									QueueText(FTextPopConfig(TemporalDamager.TemporalDamageTarget, ClampedDamage, Style, TextPopUp.TextScale, Radius * 1.1, Location));
 								}
@@ -2698,14 +2695,14 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 		Chain->OperateConcurrently(
 			[&](FSolidSubjectHandle Subject,
 				FRendering& Rendering,
+				FLocated& Located,
 				FDirected& Directed,
 				FScaled& Scaled,
-				FLocated& Located,
+				FCollider& Collider,
 				FAnimation& Anim,
 				FHealth& Health,
 				FHealthBar& HealthBar,
-				FPoppingText& PoppingText,
-				FCollider& Collider)
+				FPoppingText& PoppingText)
 			{
 				FRenderBatchData& Data = Rendering.Renderer.GetTraitRef<FRenderBatchData, EParadigm::Unsafe>();
 
@@ -2713,9 +2710,9 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				Rotation = Directed.Direction.Rotation().Quaternion();
 
 				FVector FinalScale(Data.Scale);
-				FinalScale *= Scaled.RenderFactors;
+				FinalScale *= Scaled.RenderScale;
 
-				float Radius = Collider.Radius;
+				float Radius = Collider.Radius * Scaled.Scale;
 
 				// 在计算转换时减去Radius
 				FTransform SubjectTransform(Rotation * Data.OffsetRotation.Quaternion(), Located.Location + Data.OffsetLocation - FVector(0, 0, Radius), FinalScale); // 减去Z轴上的Radius					
@@ -2752,7 +2749,13 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 				// PopText
 				Data.Text_Location_Array.Append(PoppingText.TextLocationArray);
-				Data.Text_Value_Style_Scale_Offset_Array.Append(PoppingText.Text_Value_Style_Scale_Offset_Array);
+
+				float MaxFinalScale = FMath::Max3(FinalScale.X, FinalScale.Y, FinalScale.Z);
+
+				for (const auto& Text_Value_Style_Scale_Offset : PoppingText.Text_Value_Style_Scale_Offset_Array)
+				{
+					Data.Text_Value_Style_Scale_Offset_Array.Add(Text_Value_Style_Scale_Offset * FVector4(1,1,1, MaxFinalScale));
+				}
 
 				Data.Unlock();
 
@@ -3020,14 +3023,14 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				if (!Config.bSpawned && Config.Delay == 0)
 				{
 					// 存储生成时的世界变换（用于后续相对位置计算）
-					const FTransform SpawnWorldTransform = Config.SpawnTransform;
+					const FTransform SpawnWorldTransform = Config.SpawnTransform;	
 
 					// 合批情况下的SubType
 					if (Config.SubType != EESubType::None)
 					{
 						FLocated FxLocated = { SpawnWorldTransform.GetLocation() };
 						FDirected FxDirected = { SpawnWorldTransform.GetRotation().GetForwardVector() };
-						FScaled FxScaled = { SpawnWorldTransform.GetScale3D() };
+						FScaled FxScaled = { 1, SpawnWorldTransform.GetScale3D() };
 
 						FSubjectRecord FxRecord;
 						FxRecord.SetTrait(FSpawningFx());
@@ -3336,22 +3339,22 @@ void ABattleFrameBattleControl::DefineFilters()
 
 	AgentCountFilter = FFilter::Make<FAgent>();
 	AgentAgeFilter = FFilter::Make<FStatistics>();
-	AgentAppeaFilter = FFilter::Make<FAgent, FRendering, FLocated, FDirected, FAppear, FAppearing, FAnimation, FActivated>();
+	AgentAppeaFilter = FFilter::Make<FAgent, FRendering, FLocated, FDirected, FScaled, FAppear, FAppearing, FAnimation, FActivated>();
 	AgentAppearAnimFilter = FFilter::Make<FAgent, FRendering, FAnimation, FAppear, FAppearAnim, FActivated>();
 	AgentAppearDissolveFilter = FFilter::Make<FAgent, FRendering, FAppearDissolve, FAnimation, FCurves, FActivated>();
-	AgentTraceFilter = FFilter::Make<FAgent, FLocated, FDirected, FCollider, FSleep, FPatrol, FTrace, FRendering, FActivated>().Exclude<FAppearing, FAttacking, FDying>();
-	AgentAttackFilter = FFilter::Make<FAgent, FAttack, FRendering, FLocated, FDirected, FTrace, FCollider, FActivated>().Exclude<FAppearing, FSleeping, FPatrolling, FAttacking, FDying>();
-	AgentAttackingFilter = FFilter::Make<FAgent, FAttack, FRendering, FLocated, FAnimation, FAttacking, FMove, FMoving, FDirected, FTrace, FDebuff, FDamage, FDefence, FSlowing, FActivated>().Exclude<FAppearing, FSleeping, FPatrolling, FDying>();
+	AgentTraceFilter = FFilter::Make<FAgent, FLocated, FDirected, FScaled, FCollider, FSleep, FPatrol, FTrace, FRendering, FActivated>().Exclude<FAppearing, FAttacking, FDying>();
+	AgentAttackFilter = FFilter::Make<FAgent, FAttack, FRendering, FLocated, FDirected, FCollider, FScaled, FTrace, FActivated>().Exclude<FAppearing, FSleeping, FPatrolling, FAttacking, FDying>();
+	AgentAttackingFilter = FFilter::Make<FAgent, FAttack, FRendering, FLocated, FDirected, FScaled, FAnimation, FAttacking, FMove, FMoving, FTrace, FDebuff, FDamage, FDefence, FSlowing, FActivated>().Exclude<FAppearing, FSleeping, FPatrolling, FDying>();
 	AgentHitGlowFilter = FFilter::Make<FAgent, FRendering, FHitGlow, FAnimation, FCurves, FActivated>();
 	AgentJiggleFilter = FFilter::Make<FAgent, FRendering, FJiggle, FScaled, FHit, FCurves, FActivated>();
 	AgentHealthBarFilter = FFilter::Make<FAgent, FRendering, FHealth, FHealthBar, FActivated>();
-	AgentDeathFilter = FFilter::Make<FAgent, FRendering, FDeath, FLocated, FDying, FDirected, FTrace, FMove, FMoving, FActivated>();
+	AgentDeathFilter = FFilter::Make<FAgent, FRendering, FDeath, FLocated, FDirected, FScaled, FDying, FTrace, FMove, FMoving, FActivated>();
 	AgentDeathDissolveFilter = FFilter::Make<FAgent, FRendering, FDeathDissolve, FAnimation, FDying, FDeath, FCurves, FActivated>();
 	AgentDeathAnimFilter = FFilter::Make<FAgent, FRendering, FDeathAnim, FAnimation, FDying, FActivated>();
-	AgentPatrolFilter = FFilter::Make<FAgent, FCollider, FLocated, FPatrol, FTrace, FMove, FMoving, FRendering, FActivated>().Exclude<FAppearing, FSleeping, FAttacking, FDying>();
-	AgentMoveFilter = FFilter::Make<FAgent, FRendering, FAnimation, FMove, FMoving, FDirected, FLocated, FScaled, FAttack, FTrace, FNavigation, FAvoidance, FAvoiding, FCollider, FDefence, FPatrol, FGridData, FSlowing, FActivated>();
+	AgentPatrolFilter = FFilter::Make<FAgent, FLocated, FDirected, FScaled, FCollider, FPatrol, FTrace, FMove, FMoving, FRendering, FActivated>().Exclude<FAppearing, FSleeping, FAttacking, FDying>();
+	AgentMoveFilter = FFilter::Make<FAgent, FRendering, FAnimation, FMove, FMoving, FLocated, FDirected, FScaled, FCollider, FAttack, FTrace, FNavigation, FAvoidance, FAvoiding, FDefence, FPatrol, FGridData, FSlowing, FActivated>();
 	AgentStateMachineFilter = FFilter::Make<FAgent, FAnimation, FRendering, FAppear, FAttack, FDeath, FMoving, FSlowing, FActivated>();
-	AgentRenderFilter = FFilter::Make<FAgent, FRendering, FDirected, FScaled, FLocated, FAnimation, FHealth, FHealthBar, FPoppingText, FCollider, FActivated>();
+	AgentRenderFilter = FFilter::Make<FAgent, FRendering, FLocated, FDirected, FScaled, FCollider, FAnimation, FHealth, FHealthBar, FPoppingText, FActivated>();
 
 	TemporalDamagerFilter = FFilter::Make<FTemporalDamager>();
 	SlowerFilter = FFilter::Make<FSlower>();
@@ -3363,10 +3366,10 @@ void ABattleFrameBattleControl::DefineFilters()
 	RenderBatchFilter = FFilter::Make<FRenderBatchData>();
 	SpeedLimitOverrideFilter = FFilter::Make<FCollider, FLocated, FSphereObstacle>();
 	DecideHealthFilter = FFilter::Make<FHealth, FLocated, FActivated>().Exclude<FDying>()/*.IncludeFlag(NeedSettleDmgFlag)*/;//this flag will cause crash for reason unknown so i disabled it
-	SubjectFilterBase = FFilter::Make<FLocated, FCollider, FAvoidance, FAvoiding, FGridData, FActivated>().Exclude<FSphereObstacle, FBoxObstacle, FCorpse>();
+	SubjectFilterBase = FFilter::Make<FLocated, FDirected, FScaled, FCollider, FAvoidance, FAvoiding, FGridData, FActivated>().Exclude<FSphereObstacle, FBoxObstacle, FCorpse>();
 }
 
-FVector ABattleFrameBattleControl::FindNewPatrolGoalLocation(const FPatrol& Patrol, const FCollider& Collider, const FTrace& Trace, const FLocated& Located, int32 MaxAttempts)
+FVector ABattleFrameBattleControl::FindNewPatrolGoalLocation(const FPatrol& Patrol, const FCollider& Collider, const FTrace& Trace, const FLocated& Located, const FScaled& Scaled, int32 MaxAttempts)
 {
 	// Early out if no neighbor grid available
 	if (!IsValid(Trace.NeighborGrid))
@@ -3395,7 +3398,7 @@ FVector ABattleFrameBattleControl::FindNewPatrolGoalLocation(const FPatrol& Patr
 		// Check visibility through neighbor grid
 		bool bHit = false;
 		FTraceResult Result;
-		Trace.NeighborGrid->SphereSweepForObstacle(Located.Location, Candidate, Collider.Radius, bHit, Result);
+		Trace.NeighborGrid->SphereSweepForObstacle(Located.Location, Candidate, Collider.Radius * Scaled.Scale, bHit, Result);
 
 		// Return first valid candidate found
 		if (!bHit)
@@ -3442,7 +3445,9 @@ void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subje
 		const bool bHasHealth = Overlapper.HasTrait<FHealth>();
 		const bool bHasLocated = Overlapper.HasTrait<FLocated>();
 		const bool bHasDirected = Overlapper.HasTrait<FDirected>();
+		const bool bHasScaled = Overlapper.HasTrait<FScaled>();
 		const bool bHasCollider = Overlapper.HasTrait<FCollider>();
+		const bool bHasGridData = Overlapper.HasTrait<FGridData>();
 		const bool bHasDefence = Overlapper.HasTrait<FDefence>();
 		const bool bHasTextPopUp = Overlapper.HasTrait<FTextPopUp>();
 		const bool bHasMoving = Overlapper.HasTrait<FMoving>();
@@ -3492,18 +3497,18 @@ void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subje
 
 			switch (Damage.DmgType)
 			{
-			case EDmgType::Normal:
-				BaseDamage = Damage.Damage * NormalDmgMult;
-				break;
-			case EDmgType::Fire:
-				BaseDamage = Damage.Damage * FireDmgMult;
-				break;
-			case EDmgType::Ice:
-				BaseDamage = Damage.Damage * IceDmgMult;
-				break;
-			case EDmgType::Poison:
-				BaseDamage = Damage.Damage * PoisonDmgMult;
-				break;
+				case EDmgType::Normal:
+					BaseDamage = Damage.Damage * NormalDmgMult;
+					break;
+				case EDmgType::Fire:
+					BaseDamage = Damage.Damage * FireDmgMult;
+					break;
+				case EDmgType::Ice:
+					BaseDamage = Damage.Damage * IceDmgMult;
+					break;
+				case EDmgType::Poison:
+					BaseDamage = Damage.Damage * PoisonDmgMult;
+					break;
 			}
 
 			// 百分比伤害
@@ -3546,7 +3551,6 @@ void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subje
 				if (TextPopUp.Enable)
 				{
 					float Style = 0;
-					float Radius = 0.f;
 
 					if (!bIsCrit)
 					{
@@ -3568,13 +3572,7 @@ void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subje
 						Style = 3;
 					}
 
-					if (bHasCollider)
-					{
-						Radius = Overlapper.GetTraitRef<FCollider, EParadigm::Unsafe>().Radius;
-					}
-
-					Location += FVector(0, 0, Radius);
-
+					float Radius = bHasGridData ? Overlapper.GetTrait<FGridData>().Radius : 0;
 					QueueText(FTextPopConfig(Overlapper, PostCritDamage, Style, TextPopUp.TextScale, Radius * 1.1, Location));
 				}
 			}
@@ -3591,18 +3589,18 @@ void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subje
 
 				switch (Damage.DmgType)
 				{
-				case EDmgType::Normal:
-					TotalTemporalDmg *= NormalDmgMult;
-					break;
-				case EDmgType::Fire:
-					TotalTemporalDmg *= FireDmgMult;
-					break;
-				case EDmgType::Ice:
-					TotalTemporalDmg *= IceDmgMult;
-					break;
-				case EDmgType::Poison:
-					TotalTemporalDmg *= PoisonDmgMult;
-					break;
+					case EDmgType::Normal:
+						TotalTemporalDmg *= NormalDmgMult;
+						break;
+					case EDmgType::Fire:
+						TotalTemporalDmg *= FireDmgMult;
+						break;
+					case EDmgType::Ice:
+						TotalTemporalDmg *= IceDmgMult;
+						break;
+					case EDmgType::Poison:
+						TotalTemporalDmg *= PoisonDmgMult;
+						break;
 				}
 
 				TemporalDamager.TotalTemporalDamage = TotalTemporalDmg;
@@ -3776,7 +3774,9 @@ void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subje
 		const bool bHasHealth = Overlapper.HasTrait<FHealth>();
 		const bool bHasLocated = Overlapper.HasTrait<FLocated>();
 		const bool bHasDirected = Overlapper.HasTrait<FDirected>();
+		const bool bHasScaled = Overlapper.HasTrait<FScaled>();
 		const bool bHasCollider = Overlapper.HasTrait<FCollider>();
+		const bool bHasGridData = Overlapper.HasTrait<FGridData>();
 		const bool bHasDefence = Overlapper.HasTrait<FDefence>();
 		const bool bHasTextPopUp = Overlapper.HasTrait<FTextPopUp>();
 		const bool bHasMoving = Overlapper.HasTrait<FMoving>();
@@ -3880,7 +3880,6 @@ void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subje
 				if (TextPopUp.Enable)
 				{
 					float Style = 0;
-					float Radius = 0.f;
 
 					if (!bIsCrit)
 					{
@@ -3902,14 +3901,8 @@ void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subje
 						Style = 3;
 					}
 
-					if (bHasCollider)
-					{
-						Radius = Overlapper.GetTraitRef<FCollider,EParadigm::Unsafe>().Radius;
-					}
-
-					Location += FVector(0, 0, Radius);
-
-					QueueText(FTextPopConfig( Overlapper, PostCritDamage, Style, TextPopUp.TextScale, Radius * 1.1, Location ));
+					float Radius = bHasGridData ? Overlapper.GetTrait<FGridData>().Radius : 0;
+					QueueText(FTextPopConfig(Overlapper, PostCritDamage, Style, TextPopUp.TextScale, Radius * 1.1, Location));
 				}
 			}
 
@@ -4111,7 +4104,9 @@ void ABattleFrameBattleControl::ApplyDamageToSubjectsDeferred(const FSubjectArra
 		const bool bHasHealth = Overlapper.HasTrait<FHealth>();
 		const bool bHasLocated = Overlapper.HasTrait<FLocated>();
 		const bool bHasDirected = Overlapper.HasTrait<FDirected>();
+		const bool bHasScaled = Overlapper.HasTrait<FScaled>();
 		const bool bHasCollider = Overlapper.HasTrait<FCollider>();
+		const bool bHasGridData = Overlapper.HasTrait<FGridData>();
 		const bool bHasDefence = Overlapper.HasTrait<FDefence>();
 		const bool bHasTextPopUp = Overlapper.HasTrait<FTextPopUp>();
 		const bool bHasMoving = Overlapper.HasTrait<FMoving>();
@@ -4161,18 +4156,18 @@ void ABattleFrameBattleControl::ApplyDamageToSubjectsDeferred(const FSubjectArra
 
 			switch (Damage.DmgType)
 			{
-			case EDmgType::Normal:
-				BaseDamage = Damage.Damage * NormalDmgMult;
-				break;
-			case EDmgType::Fire:
-				BaseDamage = Damage.Damage * FireDmgMult;
-				break;
-			case EDmgType::Ice:
-				BaseDamage = Damage.Damage * IceDmgMult;
-				break;
-			case EDmgType::Poison:
-				BaseDamage = Damage.Damage * PoisonDmgMult;
-				break;
+				case EDmgType::Normal:
+					BaseDamage = Damage.Damage * NormalDmgMult;
+					break;
+				case EDmgType::Fire:
+					BaseDamage = Damage.Damage * FireDmgMult;
+					break;
+				case EDmgType::Ice:
+					BaseDamage = Damage.Damage * IceDmgMult;
+					break;
+				case EDmgType::Poison:
+					BaseDamage = Damage.Damage * PoisonDmgMult;
+					break;
 			}
 
 			// 百分比伤害
@@ -4215,7 +4210,6 @@ void ABattleFrameBattleControl::ApplyDamageToSubjectsDeferred(const FSubjectArra
 				if (TextPopUp.Enable)
 				{
 					float Style = 0;
-					float Radius = 0.f;
 
 					if (!bIsCrit)
 					{
@@ -4237,13 +4231,7 @@ void ABattleFrameBattleControl::ApplyDamageToSubjectsDeferred(const FSubjectArra
 						Style = 3;
 					}
 
-					if (bHasCollider)
-					{
-						Radius = Overlapper.GetTraitRef<FCollider, EParadigm::Unsafe>().Radius;
-					}
-
-					Location += FVector(0, 0, Radius);
-
+					float Radius = bHasGridData ? Overlapper.GetTrait<FGridData>().Radius : 0;
 					QueueText(FTextPopConfig(Overlapper, PostCritDamage, Style, TextPopUp.TextScale, Radius * 1.1, Location));
 				}
 			}
@@ -4445,7 +4433,9 @@ void ABattleFrameBattleControl::ApplyDamageToSubjectsDeferred(const FSubjectArra
 		const bool bHasHealth = Overlapper.HasTrait<FHealth>();
 		const bool bHasLocated = Overlapper.HasTrait<FLocated>();
 		const bool bHasDirected = Overlapper.HasTrait<FDirected>();
+		const bool bHasScaled = Overlapper.HasTrait<FScaled>();
 		const bool bHasCollider = Overlapper.HasTrait<FCollider>();
+		const bool bHasGridData = Overlapper.HasTrait<FGridData>();
 		const bool bHasDefence = Overlapper.HasTrait<FDefence>();
 		const bool bHasTextPopUp = Overlapper.HasTrait<FTextPopUp>();
 		const bool bHasMoving = Overlapper.HasTrait<FMoving>();
@@ -4549,7 +4539,6 @@ void ABattleFrameBattleControl::ApplyDamageToSubjectsDeferred(const FSubjectArra
 				if (TextPopUp.Enable)
 				{
 					float Style = 0;
-					float Radius = 0.f;
 
 					if (!bIsCrit)
 					{
@@ -4571,13 +4560,7 @@ void ABattleFrameBattleControl::ApplyDamageToSubjectsDeferred(const FSubjectArra
 						Style = 3;
 					}
 
-					if (bHasCollider)
-					{
-						Radius = Overlapper.GetTraitRef<FCollider, EParadigm::Unsafe>().Radius;
-					}
-
-					Location += FVector(0, 0, Radius);
-
+					float Radius = bHasGridData ? Overlapper.GetTrait<FGridData>().Radius : 0;
 					QueueText(FTextPopConfig(Overlapper, PostCritDamage, Style, TextPopUp.TextScale, Radius * 1.1, Location));
 				}
 			}

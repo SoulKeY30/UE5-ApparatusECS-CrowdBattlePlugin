@@ -30,19 +30,19 @@ public:
 
   public:
 
-	  UPROPERTY(BlueprintReadOnly, VisibleAnywhere, meta = (Tooltip = ""))
+	  UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "想要达成的速度和方向"))
 	  FVector DesiredVelocity = FVector::ZeroVector;
 
-	  UPROPERTY(BlueprintReadOnly, VisibleAnywhere, meta = (Tooltip = ""))
+	  UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "当前实际速度和方向"))
 	  FVector CurrentVelocity = FVector::ZeroVector;
 
-	  UPROPERTY(BlueprintReadOnly, VisibleAnywhere, meta = (Tooltip = ""))
+	  UPROPERTY(BlueprintReadOnly, VisibleAnywhere, meta = (Tooltip = "正在下落？"))
 	  bool bFalling = false;
 
-	  UPROPERTY(BlueprintReadOnly, VisibleAnywhere, meta = (Tooltip = ""))
+	  UPROPERTY(BlueprintReadOnly, VisibleAnywhere, meta = (Tooltip = "被击飞中？"))
 	  bool bLaunching = false;
 
-	  UPROPERTY(BlueprintReadOnly, VisibleAnywhere, meta = (Tooltip = ""))
+	  UPROPERTY(BlueprintReadOnly, VisibleAnywhere, meta = (Tooltip = "在被推着走？"))
 	  bool bPushedBack = false;
 
 	  FVector LaunchVelSum = FVector::ZeroVector;

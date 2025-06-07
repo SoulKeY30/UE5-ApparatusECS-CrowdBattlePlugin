@@ -54,7 +54,7 @@ void UBFSubjectiveAgentComponent::TickComponent(float DeltaTime, ELevelTick Tick
 {
     Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-    AsyncTransformSubjectToActor(GetOwner());
+    SyncTransformSubjectToActor(GetOwner());
 }
 
 void UBFSubjectiveAgentComponent::InitializeTraits(AActor* OwnerActor)
@@ -135,8 +135,8 @@ void UBFSubjectiveAgentComponent::InitializeTraits(AActor* OwnerActor)
     Damage.Damage *= Multipliers.DamageMult;
 
     auto& Scaled = AgentConfig.GetTraitRef<FScaled>();
-    Scaled.Factors *= Multipliers.ScaleMult;
-    Scaled.RenderFactors = Scaled.Factors;
+    Scaled.Scale *= Multipliers.ScaleMult;
+    Scaled.RenderScale *= Multipliers.ScaleMult;
 
     auto& Move = AgentConfig.GetTraitRef<FMove>();
     Move.MoveSpeed *= Multipliers.MoveSpeedMult;
@@ -218,7 +218,7 @@ void UBFSubjectiveAgentComponent::InitializeTraits(AActor* OwnerActor)
     UBattleFrameFunctionLibraryRT::SetRecordTeamTraitByIndex(FMath::Clamp(Team.index, 0, 9), AgentConfig);
     UBattleFrameFunctionLibraryRT::SetRecordAvoGroupTraitByIndex(FMath::Clamp(Avoidance.Group, 0, 9), AgentConfig);
 
-    AgentConfig.SetTrait(FGridData{ this->GetHandle().CalcHash(), FVector3f(Located.Location), Collider.Radius, this->GetHandle() });
+    AgentConfig.SetTrait(FGridData{ this->GetHandle().CalcHash(), FVector3f(Located.Location), Collider.Radius * Scaled.Scale, this->GetHandle() });
 
     this->GetHandle()->SetTraits(AgentConfig);
 
@@ -242,7 +242,7 @@ void UBFSubjectiveAgentComponent::InitializeTraits(AActor* OwnerActor)
     }
 }
 
-void UBFSubjectiveAgentComponent::AsyncTransformSubjectToActor(AActor* OwnerActor)
+void UBFSubjectiveAgentComponent::SyncTransformSubjectToActor(AActor* OwnerActor)
 {
     if (!OwnerActor) return;
 
@@ -266,7 +266,7 @@ void UBFSubjectiveAgentComponent::AsyncTransformSubjectToActor(AActor* OwnerActo
 
     if (Scaled)
     {
-        Transform.SetScale3D(Scaled->Factors);
+        Transform.SetScale3D(FVector(Scaled->Scale));
     }
 
     OwnerActor->SetActorTransform(Transform);

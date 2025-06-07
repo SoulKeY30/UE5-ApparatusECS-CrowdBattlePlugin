@@ -17,6 +17,7 @@ UBFSubjectiveActorComponent::UBFSubjectiveActorComponent()
     SetTrait(FHealth());
     SetTrait(FCollider());
     SetTrait(FBindFlowField());
+    SetTrait(FStatistics());
 
     // Enable ticking
     PrimaryComponentTick.bCanEverTick = true;
@@ -34,7 +35,7 @@ void UBFSubjectiveActorComponent::TickComponent(float DeltaTime, ELevelTick Tick
 {
     Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-    AsyncTransformActorToSubject(GetOwner());
+    SyncTransformActorToSubject(GetOwner());
 }
 
 void UBFSubjectiveActorComponent::InitializeTraits(AActor* OwnerActor)
@@ -54,19 +55,21 @@ void UBFSubjectiveActorComponent::InitializeTraits(AActor* OwnerActor)
 
     SetTrait(FLocated{ OwnerActor->GetActorLocation() });
     SetTrait(FDirected{ OwnerActor->GetActorForwardVector().GetSafeNormal2D() });
-    SetTrait(FScaled{ OwnerActor->GetActorScale3D() });
 
-    SetTrait(FTemporalDamaging());
-    SetTrait(FSlowing());
+    FVector ActorScale3D = OwnerActor->GetActorScale3D();
+    float Scale = FMath::Max3(ActorScale3D.X, ActorScale3D.Y, ActorScale3D.Z);
+    SetTrait(FScaled{ Scale, ActorScale3D });
 
     const auto SubjectHandle = GetHandle();
     SetTrait(FGridData{ SubjectHandle.CalcHash(), FVector3f(GetTrait<FLocated>().Location), GetTrait<FCollider>().Radius, SubjectHandle });
 
+    SetTrait(FTemporalDamaging());
+    SetTrait(FSlowing());
     SetTrait(FIsSubjective());
     SetTrait(FActivated());
 }
 
-void UBFSubjectiveActorComponent::AsyncTransformActorToSubject(AActor* OwnerActor)
+void UBFSubjectiveActorComponent::SyncTransformActorToSubject(AActor* OwnerActor)
 {
     if (!OwnerActor) return;
 
@@ -88,6 +91,7 @@ void UBFSubjectiveActorComponent::AsyncTransformActorToSubject(AActor* OwnerActo
 
     if (Scaled)
     {
-        Scaled->Factors = OwnerActor->GetActorScale3D();
+        FVector ActorScale3D = OwnerActor->GetActorScale3D();
+        Scaled->Scale = FMath::Max3(ActorScale3D.X, ActorScale3D.Y, ActorScale3D.Z);
     }
 }

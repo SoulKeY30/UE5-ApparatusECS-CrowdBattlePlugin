@@ -42,7 +42,7 @@ void UNeighborGridComponent::DefineFilters()
 {
 	RegisterNeighborGrid_Trace_Filter = FFilter::Make<FLocated, FTrace, FActivated>();
 	RegisterNeighborGrid_SphereObstacle_Filter = FFilter::Make<FLocated, FSphereObstacle>();
-	RegisterSubjectFilter = FFilter::Make<FLocated, FCollider, FGridData, FActivated>().Exclude<FSphereObstacle>();
+	RegisterSubjectFilter = FFilter::Make<FLocated, FScaled, FCollider, FGridData, FActivated>().Exclude<FSphereObstacle>();
 	//RegisterSubjectSingleFilter = FFilter::Make<FLocated, FCollider, FGridData, FActivated>().Exclude<FRegisterMultiple>();
 	//RegisterSubjectMultipleFilter = FFilter::Make<FLocated, FCollider, FGridData, FRegisterMultiple, FActivated>().Exclude<FSphereObstacle>();
 	RegisterSphereObstaclesFilter = FFilter::Make<FLocated, FCollider, FGridData, FSphereObstacle>();
@@ -974,117 +974,96 @@ void UNeighborGridComponent::Update()
 		auto Chain = Mechanism->EnchainSolid(RegisterSubjectFilter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
-		Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FLocated& Located, FCollider& Collider, FGridData& GridData)
+		// 定义注册单元格的lambda函数
+		auto RegisterCell = [&](int32 CellIndex, const FGridData& GridData) 
+		{
+			bool bShouldRegister = false;
+			auto& Cell = SubjectCells[CellIndex];
+
+			Cell.Lock();
+			if (!Cell.bRegistered) 
 			{
-				const bool bHasTrace = Subject.HasTrait<FTrace>();
+				bShouldRegister = true;
+				Cell.bRegistered = true;
+			}
+			Cell.Subjects.Add(GridData);
+			Cell.Unlock();
 
-				if (bHasTrace)
+			if (bShouldRegister) 
+			{
+				OccupiedCellsQueues[CellIndex % MaxThreadsAllowed].Enqueue(CellIndex);
+			}
+		};
+
+		Chain->OperateConcurrently([&](
+			FSolidSubjectHandle Subject,
+			FLocated& Located,
+			FScaled& Scaled,
+			FCollider& Collider,
+			FGridData& GridData)
+		{
+			if (Subject.HasTrait<FTrace>()) 
+			{
+				auto& Trace = Subject.GetTraitRef<FTrace>();
+				Trace.Lock();
+				Trace.NeighborGrid = this;
+				Trace.Unlock();
+			}
+
+			const FVector& Location = Located.Location;
+			GridData.Location = FVector3f(Location);
+			GridData.Radius = Collider.Radius * Scaled.Scale;
+
+			// 处理Avoidance逻辑
+			if (Subject.HasTrait<FAvoidance>() && Subject.HasTrait<FAvoiding>()) 
+			{
+				auto& Avoidance = Subject.GetTraitRef<FAvoidance>();
+				auto& Avoiding = Subject.GetTraitRef<FAvoiding>();
+
+				Avoiding.Position = RVO::Vector2(Location.X, Location.Y);
+				Avoiding.Radius = GridData.Radius * Avoidance.AvoidDistMult;
+
+				if (Subject.HasTrait<FMoving>()) 
 				{
-					auto& Trace = Subject.GetTraitRef<FTrace>();
-					Trace.Lock();
-					Trace.NeighborGrid = this;// when agent traces, it uses this neighbor grid instance.
-					Trace.Unlock();
+					auto& Moving = Subject.GetTraitRef<FMoving>();
+					Avoiding.bCanAvoid = !Moving.bLaunching && !Moving.bPushedBack;
 				}
+			}
 
-				const auto& Location = Located.Location;
-
-				GridData.Location = FVector3f(Location);
-				GridData.Radius = Collider.Radius;
-
-				const bool bHasAvoidanceAndAvoiding = Subject.HasTrait<FAvoidance>() && Subject.HasTrait<FAvoiding>();
-
-				if (bHasAvoidanceAndAvoiding)
+			// 使用统一的单元格注册逻辑
+			if (!Subject.HasFlag(RegisterMultipleFlag)) 
+			{
+				if (IsInside(Location)) 
 				{
-					auto& Avoidance = Subject.GetTraitRef<FAvoidance>();
-					auto& Avoiding = Subject.GetTraitRef<FAvoiding>();
-
-					Avoiding.Position = RVO::Vector2(Location.X, Location.Y);
-					Avoiding.Radius = Collider.Radius * Avoidance.AvoidDistMult;
-
-					const bool bHasMoving = Subject.HasTrait<FMoving>();
-
-					if (bHasMoving)
-					{
-						auto& Moving = Subject.GetTraitRef<FMoving>();
-						Avoiding.bCanAvoid = !Moving.bLaunching && !Moving.bPushedBack;
-					}
+					RegisterCell(LocationToIndex(Location), GridData);
 				}
+			}
+			else 
+			{
+				const FVector Range = FVector(GridData.Radius);
+				const FIntVector CoordMin = LocationToCoord(Location - Range);
+				const FIntVector CoordMax = LocationToCoord(Location + Range);
 
-				//const bool bHasRegisterMultiple = Subject.HasTrait<FRegisterMultiple>();// i don't know why this trait lead to a crash, so i use flag instead
-				const bool bHasRegisterMultiple = Subject.HasFlag(RegisterMultipleFlag);
-
-				if (!bHasRegisterMultiple)// register single cell
+				for (int32 z = CoordMin.Z; z <= CoordMax.Z; ++z) 
 				{
-					if (UNLIKELY(!IsInside(Location))) return;
-
-					bool bShouldRegister = false;
-
-					int32 CellIndex = LocationToIndex(Location);
-					auto& Cell = SubjectCells[CellIndex];
-
-					Cell.Lock();
-
-					if (!Cell.bRegistered)
+					for (int32 y = CoordMin.Y; y <= CoordMax.Y; ++y) 
 					{
-						bShouldRegister = true;
-						Cell.bRegistered = true;
-					}
-
-					Cell.Subjects.Add(GridData);
-
-					Cell.Unlock();
-
-					if (bShouldRegister)
-					{
-						OccupiedCellsQueues[CellIndex % MaxThreadsAllowed].Enqueue(CellIndex);
-					}
-				}
-				else
-				{
-					const FVector Range = FVector(Collider.Radius);
-
-					// Compute the range of involved grid cells
-					const FIntVector CoordMin = LocationToCoord(Location - Range);
-					const FIntVector CoordMax = LocationToCoord(Location + Range);
-
-					for (int32 i = CoordMin.Z; i <= CoordMax.Z; ++i)
-					{
-						for (int32 j = CoordMin.Y; j <= CoordMax.Y; ++j)
+						for (int32 x = CoordMin.X; x <= CoordMax.X; ++x) 
 						{
-							for (int32 k = CoordMin.X; k <= CoordMax.X; ++k)
+							const FIntVector CurrentCoord(x, y, z);
+
+							if (IsInside(CurrentCoord)) 
 							{
-								const auto CurrentCoord = FIntVector(k, j, i);
-
-								if (UNLIKELY(!IsInside(CurrentCoord))) continue;
-
-								bool bShouldRegister = false;
-
-								int32 CellIndex = CoordToIndex(CurrentCoord);
-								auto& Cell = SubjectCells[CellIndex];
-
-								Cell.Lock();
-
-								if (!Cell.bRegistered)
-								{
-									bShouldRegister = true;
-									Cell.bRegistered = true;
-								}
-
-								Cell.Subjects.Add(GridData);
-
-								Cell.Unlock();
-
-								if (bShouldRegister)
-								{
-									OccupiedCellsQueues[CellIndex % MaxThreadsAllowed].Enqueue(CellIndex);
-								}
+								RegisterCell(CoordToIndex(CurrentCoord), GridData);
 							}
 						}
 					}
 				}
+			}
 
-			}, ThreadsCount, BatchSize);
+		}, ThreadsCount, BatchSize);
 	}
+
 
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("RegisterSphereObstacles");

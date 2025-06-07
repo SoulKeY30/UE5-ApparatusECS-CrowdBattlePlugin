@@ -30,19 +30,19 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ToolTip = "不与这些组产生碰撞", ClampMin = "0", ClampMax = "9"))
     TArray<int32> IgnoreGroups;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ToolTip = "碰撞半径外后检索邻居的距离", ClampMin = "0"))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayName = "Trace Radius", ToolTip = "避障视野 = Collider.Radius * Scaled.Scale + TraceRadius", ClampMin = "0"))
     float TraceDist = 150.f;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ToolTip = "碰撞半径乘以此乘数等于避障半径", ClampMin = "0"))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayName = "Avoid Radius Multiplier", ToolTip = "与其它Agent保持的距离 = Collider.Radius * Scaled.Scale * AvoidRadiusMultiplier", ClampMin = "0"))
     float AvoidDistMult = 1.f;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ToolTip = "列入考量的邻居数量，近距离优先", ClampMin = "1"))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ToolTip = "列入考量的邻居最大数量，近距优先", ClampMin = "1"))
     int32 MaxNeighbors = 10;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ToolTip = "提前躲避这个时间后会碰撞的单位", ClampMin = "0"))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayName = "TimeHorizon_Agent", ToolTip = "提前躲避这个时间后会碰撞的单位", ClampMin = "0"))
     float RVO_TimeHorizon_Agent = 1.0f;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ToolTip = "提前躲避这个时间后会碰撞的障碍物", ClampMin = "0"))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayName = "TimeHorizon_Obstacle", ToolTip = "提前躲避这个时间后会碰撞的障碍物", ClampMin = "0"))
     float RVO_TimeHorizon_Obstacle = 0.1f;
 
 

@@ -22,5 +22,5 @@ protected:
     virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 private:
-    void AsyncTransformActorToSubject(AActor* OwnerActor);
+    void SyncTransformActorToSubject(AActor* OwnerActor);
 };

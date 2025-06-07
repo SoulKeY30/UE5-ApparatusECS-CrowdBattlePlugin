@@ -26,7 +26,7 @@ public:
 	}
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "启用"))
-	bool bEnable = false;
+	bool bEnable = true;
 
 	//UPROPERTY(BlueprintReadWrite, EditAnywhere) 
 	//FString PlayerID = "null";  // Changed from int32 to FString

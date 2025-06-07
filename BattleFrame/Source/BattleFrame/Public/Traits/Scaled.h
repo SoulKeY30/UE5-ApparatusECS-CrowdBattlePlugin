@@ -12,9 +12,9 @@ struct BATTLEFRAME_API FScaled
   public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "实际尺寸"))
-	FVector Factors = FVector::OneVector;
+	float Scale = 1;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "模型渲染尺寸,Jiggle逻辑靠修改这个值来起作用"))
-	FVector RenderFactors = FVector::OneVector;
+	FVector RenderScale = FVector::OneVector;
 
 };
