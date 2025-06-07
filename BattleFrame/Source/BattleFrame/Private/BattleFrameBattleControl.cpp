@@ -522,6 +522,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				if (UNLIKELY(!bIsValidFF)) return;
 
 				FVector AgentLocation = Located.Location;
+				float SelfRadius = Collider.Radius;
 				Moving.MoveSpeedMult = 1;
 				Moving.TurnSpeedMult = 1;
 
@@ -661,7 +662,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				else if(UNLIKELY(bIsValidTraceResult))
 				{
 					float OtherRadius = Trace.TraceResult.HasTrait<FCollider>() ? Trace.TraceResult.GetTraitRef<FCollider, EParadigm::Unsafe>().Radius : 0;
-					DistanceToGoal = FMath::Clamp(FVector::Dist2D(AgentLocation, Moving.Goal) - OtherRadius,0,FLT_MAX);
+					DistanceToGoal = FMath::Clamp(FVector::Dist2D(AgentLocation, Moving.Goal) - SelfRadius - OtherRadius,0, FLT_MAX);
 					bIsInAcceptanceRadius = DistanceToGoal <= Move.AcceptanceRadius;
 				}
 				else
