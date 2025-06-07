@@ -13,6 +13,8 @@ enum class ETraceMode : uint8
 	SectorTraceByTraits UMETA(DisplayName = "ByTraits", Tooltip = "根据特征进行扇形索敌")
 };
 
+
+
 USTRUCT(BlueprintType)
 struct BATTLEFRAME_API FTrace
 {
@@ -59,9 +61,9 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "检测目标是不是在障碍物后面"))
 	bool bCheckVisibility = false;
 
-	//UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "NeighborGrid", Meta = (ToolTip = "绘制Debug图形"))
-	//bool bDrawDebugShape = false;
-	// 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "绘制Debug图形"))
+	bool bDrawDebugShape = false;
+	
 	//----------------------------------------
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, meta = (Tooltip = "索敌结果"))
@@ -89,6 +91,7 @@ public:
 		TraceRadius = Trace.TraceRadius;
 		TraceAngle = Trace.TraceAngle;
 		bCheckVisibility = Trace.bCheckVisibility;
+		bDrawDebugShape = Trace.bDrawDebugShape;
 		TimeLeft = Trace.TimeLeft;
 	}
 
@@ -106,6 +109,7 @@ public:
 		TraceRadius = Trace.TraceRadius;
 		TraceAngle = Trace.TraceAngle;
 		bCheckVisibility = Trace.bCheckVisibility;
+		bDrawDebugShape = Trace.bDrawDebugShape;
 		TimeLeft = Trace.TimeLeft;
 
 		return *this;

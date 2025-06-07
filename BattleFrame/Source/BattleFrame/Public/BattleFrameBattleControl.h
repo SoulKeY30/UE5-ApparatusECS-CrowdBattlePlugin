@@ -128,6 +128,7 @@ public:
 	TQueue<FDebugSphereConfig, EQueueMode::Mpsc> DebugSphereQueue;
 	TQueue<FDebugCapsuleConfig, EQueueMode::Mpsc> DebugCapsuleQueue;
 	TQueue<FDebugSectorConfig, EQueueMode::Mpsc> DebugSectorQueue;
+	TQueue<FDebugCircleConfig, EQueueMode::Mpsc> DebugCircleQueue;
 
 private:
 
@@ -203,6 +204,7 @@ public:
 
 	static FVector FindNewPatrolGoalLocation(const FPatrol& Patrol, const FCollider& Collider, const FTrace& Trace, const FLocated& Located, const FScaled& Scaled, int32 MaxAttempts);
 
+	void DrawDebugSector(UWorld* World, const FVector& Center, const FVector& Direction, float Radius, float AngleDegrees, float Height, const FColor& Color, bool bPersistentLines, float LifeTime, uint8 DepthPriority, float Thickness);
 
 	//---------------------------------------------RVO2------------------------------------------------------------------
 

@@ -1348,7 +1348,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 				const bool bIsSleeping = Subject.HasTrait<FSleeping>();
 				const bool bIsPatrolling = Subject.HasTrait<FPatrolling>();
-				
+
 				const float SelfRadius = Collider.Radius * Scaled.Scale;
 
 				float FinalRange = 0;
@@ -1372,6 +1372,22 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					FinalRange = Trace.TraceRadius;
 					FinalAngle = Trace.TraceAngle;
 					FinalCheckVisibility = Trace.bCheckVisibility;
+				}
+
+				// ========== 调试绘制入队逻辑 ==========
+				if (Trace.bDrawDebugShape)
+				{
+					FDebugSectorConfig SectorConfig;
+					SectorConfig.Location = Located.Location;
+					SectorConfig.Radius = FinalRange;
+					SectorConfig.Height = SelfRadius * 2.0f; // 与检测高度一致
+					SectorConfig.Direction = Directed.Direction.GetSafeNormal2D();
+					SectorConfig.Angle = FinalAngle; // 添加角度成员到FDebugSectorConfig
+					SectorConfig.Duration = Trace.CoolDown;
+
+					DebugSectorQueue.Enqueue(SectorConfig);
+
+					//UE_LOG(LogTemp, Log, TEXT("Enqueue"));
 				}
 
 				switch (Trace.Mode)
@@ -3357,6 +3373,49 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				0.0f
 			);
 		}
+
+		// 绘制圆形队列
+		while (!DebugCircleQueue.IsEmpty())
+		{
+			FDebugCircleConfig Config;
+			DebugCircleQueue.Dequeue(Config);
+
+			DrawDebugCircle(
+				CurrentWorld,
+				Config.Location,
+				Config.Radius,
+				32, // 分段数
+				FColor::Green, // 绿色圆形
+				false, // 非持久
+				2, // 显示0.1秒（每帧更新）
+				0, // 深度优先级
+				2.0f // 线宽
+			);
+		}
+
+		// 绘制扇形队列
+		while (!DebugSectorQueue.IsEmpty())
+		{
+			FDebugSectorConfig Config;
+			DebugSectorQueue.Dequeue(Config);
+
+			DrawDebugSector(
+				CurrentWorld,
+				Config.Location,
+				Config.Direction,
+				Config.Radius,
+				Config.Angle, // 扇形角度
+				Config.Height,
+				FColor::Orange, // 橙色扇形
+				false, // 非持久
+				Config.Duration, // 显示0.1秒
+				0, // 深度优先级
+				10.0f // 线宽
+			);
+
+			//UE_LOG(LogTemp, Log, TEXT("Dequeue"));
+
+		}
 	}
 	#pragma endregion
 }
@@ -3398,57 +3457,6 @@ void ABattleFrameBattleControl::DefineFilters()
 	SpeedLimitOverrideFilter = FFilter::Make<FCollider, FLocated, FSphereObstacle>();
 	DecideHealthFilter = FFilter::Make<FHealth, FLocated, FActivated>().Exclude<FDying>()/*.IncludeFlag(NeedSettleDmgFlag)*/;//this flag will cause crash for reason unknown so i disabled it
 	SubjectFilterBase = FFilter::Make<FLocated, FDirected, FScaled, FCollider, FAvoidance, FAvoiding, FGridData, FActivated>().Exclude<FSphereObstacle, FBoxObstacle, FCorpse>();
-}
-
-FVector ABattleFrameBattleControl::FindNewPatrolGoalLocation(const FPatrol& Patrol, const FCollider& Collider, const FTrace& Trace, const FLocated& Located, const FScaled& Scaled, int32 MaxAttempts)
-{
-	// Early out if no neighbor grid available
-	if (!IsValid(Trace.NeighborGrid))
-	{
-		const float Angle = FMath::FRandRange(0.f, 2.f * PI);
-		const float Distance = FMath::FRandRange(Patrol.PatrolRadiusMin, Patrol.PatrolRadiusMax);
-		return Patrol.Origin + FVector(FMath::Cos(Angle) * Distance, FMath::Sin(Angle) * Distance, 0.f);
-	}
-
-	FVector BestCandidate = Patrol.Origin;
-	float BestDistanceSq = 0.f;
-
-	for (int32 Attempt = 0; Attempt < MaxAttempts; ++Attempt)
-	{
-		// Generate random position in patrol ring
-		const float Angle = FMath::FRandRange(0.f, 2.f * PI);
-		const float Distance = FMath::FRandRange(Patrol.PatrolRadiusMin, Patrol.PatrolRadiusMax);
-		const FVector Candidate = Patrol.Origin + FVector(FMath::Cos(Angle) * Distance, FMath::Sin(Angle) * Distance, 0.f);
-
-		// Skip visibility check if not required
-		if (!Patrol.bCheckVisibility)
-		{
-			return Candidate;
-		}
-
-		// Check visibility through neighbor grid
-		bool bHit = false;
-		FTraceResult Result;
-		Trace.NeighborGrid->SphereSweepForObstacle(Located.Location, Candidate, Collider.Radius * Scaled.Scale, bHit, Result);
-
-		// Return first valid candidate found
-		if (!bHit)
-		{
-			return Candidate;
-		}
-
-		// Track farthest candidate as fallback
-		const float CurrentDistanceSq = (Candidate - Located.Location).SizeSquared();
-
-		if (CurrentDistanceSq > BestDistanceSq)
-		{
-			BestCandidate = Candidate;
-			BestDistanceSq = CurrentDistanceSq;
-		}
-	}
-
-	// Return best candidate if all attempts hit obstacles
-	return BestCandidate;
 }
 
 // Blueprint callable version that don't use get ref and defers
@@ -4776,6 +4784,239 @@ void ABattleFrameBattleControl::ApplyDamageToSubjectsDeferred(const FSubjectArra
 		DamageResults.Add(DmgResult);
 	}
 }
+
+FVector ABattleFrameBattleControl::FindNewPatrolGoalLocation(const FPatrol& Patrol, const FCollider& Collider, const FTrace& Trace, const FLocated& Located, const FScaled& Scaled, int32 MaxAttempts)
+{
+	// Early out if no neighbor grid available
+	if (!IsValid(Trace.NeighborGrid))
+	{
+		const float Angle = FMath::FRandRange(0.f, 2.f * PI);
+		const float Distance = FMath::FRandRange(Patrol.PatrolRadiusMin, Patrol.PatrolRadiusMax);
+		return Patrol.Origin + FVector(FMath::Cos(Angle) * Distance, FMath::Sin(Angle) * Distance, 0.f);
+	}
+
+	FVector BestCandidate = Patrol.Origin;
+	float BestDistanceSq = 0.f;
+
+	for (int32 Attempt = 0; Attempt < MaxAttempts; ++Attempt)
+	{
+		// Generate random position in patrol ring
+		const float Angle = FMath::FRandRange(0.f, 2.f * PI);
+		const float Distance = FMath::FRandRange(Patrol.PatrolRadiusMin, Patrol.PatrolRadiusMax);
+		const FVector Candidate = Patrol.Origin + FVector(FMath::Cos(Angle) * Distance, FMath::Sin(Angle) * Distance, 0.f);
+
+		// Skip visibility check if not required
+		if (!Patrol.bCheckVisibility)
+		{
+			return Candidate;
+		}
+
+		// Check visibility through neighbor grid
+		bool bHit = false;
+		FTraceResult Result;
+		Trace.NeighborGrid->SphereSweepForObstacle(Located.Location, Candidate, Collider.Radius * Scaled.Scale, bHit, Result);
+
+		// Return first valid candidate found
+		if (!bHit)
+		{
+			return Candidate;
+		}
+
+		// Track farthest candidate as fallback
+		const float CurrentDistanceSq = (Candidate - Located.Location).SizeSquared();
+
+		if (CurrentDistanceSq > BestDistanceSq)
+		{
+			BestCandidate = Candidate;
+			BestDistanceSq = CurrentDistanceSq;
+		}
+	}
+
+	// Return best candidate if all attempts hit obstacles
+	return BestCandidate;
+}
+
+void ABattleFrameBattleControl::DrawDebugSector(
+	UWorld* World,
+	const FVector& Center,
+	const FVector& Direction,
+	float Radius,
+	float AngleDegrees,
+	float Height, // 总高度
+	const FColor& Color,
+	bool bPersistentLines,
+	float LifeTime,
+	uint8 DepthPriority,
+	float Thickness)
+{
+	if (!World || AngleDegrees <= 0.f || Radius <= 0.f || Height <= 0.f)
+		return;
+
+	// 确保角度在合理范围
+	AngleDegrees = FMath::Clamp(AngleDegrees, 1.f, 360.f);
+	const float HalfAngle = FMath::DegreesToRadians(AngleDegrees) * 0.5f;
+
+	// 计算方向向量
+	FVector Forward = Direction.GetSafeNormal2D();
+	if (Forward.IsNearlyZero())
+		Forward = FVector::ForwardVector;
+
+	// 计算顶面和底面中心位置（以Center为中心对称）
+	const float HalfHeight = Height * 0.5f;
+	const FVector TopCenter = Center + FVector(0, 0, HalfHeight);
+	const FVector BottomCenter = Center - FVector(0, 0, HalfHeight);
+
+	// 计算起始和结束方向
+	const FQuat StartQuat = FQuat(FVector::UpVector, -HalfAngle);
+	const FQuat EndQuat = FQuat(FVector::UpVector, HalfAngle);
+
+	FVector StartDir = StartQuat.RotateVector(Forward);
+	FVector EndDir = EndQuat.RotateVector(Forward);
+
+	// 计算关键点
+	const FVector BottomStart = BottomCenter + StartDir * Radius;
+	const FVector BottomEnd = BottomCenter + EndDir * Radius;
+	const FVector TopStart = TopCenter + StartDir * Radius;
+	const FVector TopEnd = TopCenter + EndDir * Radius;
+
+	// ========== 绘制底面扇形 ==========
+	// 绘制底面弧线
+	const int32 NumSegments = FMath::CeilToInt(AngleDegrees / 5.f) + 1;
+	const float AngleStep = 2 * HalfAngle / (NumSegments - 1);
+
+	FVector LastBottomPoint = BottomStart;
+
+	for (int32 i = 1; i < NumSegments; ++i)
+	{
+		const float CurrentAngle = -HalfAngle + AngleStep * i;
+		const FQuat RotQuat = FQuat(FVector::UpVector, CurrentAngle);
+		FVector CurrentDir = RotQuat.RotateVector(Forward);
+		FVector CurrentPoint = BottomCenter + CurrentDir * Radius;
+
+		DrawDebugLine(
+			World,
+			LastBottomPoint,
+			CurrentPoint,
+			Color,
+			bPersistentLines,
+			LifeTime,
+			DepthPriority,
+			Thickness
+		);
+
+		LastBottomPoint = CurrentPoint;
+	}
+
+	// 绘制底面两条半径线
+	DrawDebugLine(
+		World,
+		BottomCenter,
+		BottomStart,
+		Color,
+		bPersistentLines,
+		LifeTime,
+		DepthPriority,
+		Thickness
+	);
+
+	DrawDebugLine(
+		World,
+		BottomCenter,
+		BottomEnd,
+		Color,
+		bPersistentLines,
+		LifeTime,
+		DepthPriority,
+		Thickness
+	);
+
+	// ========== 绘制顶面扇形 ==========
+	FVector LastTopPoint = TopStart;
+
+	// 绘制顶面弧线
+	for (int32 i = 1; i < NumSegments; ++i)
+	{
+		const float CurrentAngle = -HalfAngle + AngleStep * i;
+		const FQuat RotQuat = FQuat(FVector::UpVector, CurrentAngle);
+		FVector CurrentDir = RotQuat.RotateVector(Forward);
+		FVector CurrentPoint = TopCenter + CurrentDir * Radius;
+
+		DrawDebugLine(
+			World,
+			LastTopPoint,
+			CurrentPoint,
+			Color,
+			bPersistentLines,
+			LifeTime,
+			DepthPriority,
+			Thickness
+		);
+
+		LastTopPoint = CurrentPoint;
+	}
+
+	// 绘制顶面两条半径线
+	DrawDebugLine(
+		World,
+		TopCenter,
+		TopStart,
+		Color,
+		bPersistentLines,
+		LifeTime,
+		DepthPriority,
+		Thickness
+	);
+
+	DrawDebugLine(
+		World,
+		TopCenter,
+		TopEnd,
+		Color,
+		bPersistentLines,
+		LifeTime,
+		DepthPriority,
+		Thickness
+	);
+
+	// ========== 连接三个关键位置 ==========
+	// 1. 连接两个圆心（底面圆心 <-> 顶面圆心）
+	DrawDebugLine(
+		World,
+		BottomCenter,
+		TopCenter,
+		Color,
+		bPersistentLines,
+		LifeTime,
+		DepthPriority,
+		Thickness
+	);
+
+	// 2. 连接起点（底面起点 <-> 顶面起点）
+	DrawDebugLine(
+		World,
+		BottomStart,
+		TopStart,
+		Color,
+		bPersistentLines,
+		LifeTime,
+		DepthPriority,
+		Thickness
+	);
+
+	// 3. 连接终点（底面终点 <-> 顶面终点）
+	DrawDebugLine(
+		World,
+		BottomEnd,
+		TopEnd,
+		Color,
+		bPersistentLines,
+		LifeTime,
+		DepthPriority,
+		Thickness
+	);
+}
+
+
 
 
 //-------------------------------RVO2D Copyright 2023, EastFoxStudio. All Rights Reserved-------------------------------

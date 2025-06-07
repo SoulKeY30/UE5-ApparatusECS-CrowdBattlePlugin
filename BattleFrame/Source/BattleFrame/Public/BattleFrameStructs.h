@@ -150,10 +150,31 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "高度"))
 	float Height = 100.f;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "张开角度"))
+	float Angle = 100.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "张开角度"))
+	float Duration = 1.f;
+
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "位置"))
 	FVector Location = FVector::ZeroVector;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "朝向"))
 	FVector Direction = FVector::OneVector;
+};
+
+USTRUCT(BlueprintType)
+struct BATTLEFRAME_API FDebugCircleConfig
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "半径"))
+	float Radius = 100.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "位置"))
+	FVector Location = FVector::ZeroVector;
+
 };
 
