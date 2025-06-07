@@ -30,7 +30,7 @@ class BATTLEFRAME_API UBattleFrameFunctionLibraryRT : public UBlueprintFunctionL
 	
 public:
 
-    UFUNCTION(BlueprintCallable, Category = "BattleFrame | Spawning", meta = (AutoCreateRefTerm = "Origin,Region,LaunchVelocity,CustomDirection,Multipliers", Keywords = "Spawn Agents"))
+    UFUNCTION(BlueprintCallable, Category = "BattleFrame | Spawning", meta = (AutoCreateRefTerm = "Origin,Region,LaunchVelocity,CustomDirection,Multipliers", DisplayName = "SpawnAgentsByDataAsset", Keywords = "Spawn Agents By Data Asset"))
     static TArray<FSubjectHandle> SpawnAgentsByConfigRectangular
     (
         AAgentSpawner* AgentSpawner = nullptr,
@@ -116,7 +116,7 @@ public:
         float Radius = 0.f
     );
 
-    UFUNCTION(BlueprintCallable, Category = "BattleFrame | Misc", meta = (AutoCreateRefTerm = "Subjects, IgnoreSubjects, DmgInstigator, HitFromLocation, DmgSphere, Debuff", DisplayName = "ApplyDamageToSubjects(Deprecated, pls use ApplyDamageAndDebuff instead)"))
+    UFUNCTION(BlueprintCallable, Category = "BattleFrame | Misc", meta = (AutoCreateRefTerm = "Subjects, IgnoreSubjects, DmgInstigator, HitFromLocation, DmgSphere, Debuff", DisplayName = "ApplyDamageToSubjects(Deprecated)"))
     static void ApplyDamageToSubjects
     (
         TArray<FDmgResult>& DamageResults,

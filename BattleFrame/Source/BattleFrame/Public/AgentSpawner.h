@@ -39,7 +39,7 @@ public:
 
 	EFlagmarkBit RegisterMultipleFlag = EFlagmarkBit::M;
 
-	UFUNCTION(BlueprintCallable, Category = "BattleFrame | AgentSpawner", meta = (DisplayName = "SpawnAgentsRectangular(Deprecated, pls use SpawnAgentsByConfigRectangular)"))
+	UFUNCTION(BlueprintCallable, Category = "BattleFrame | AgentSpawner", meta = (DisplayName = "SpawnAgentsByConfigIndex"))
 	TArray<FSubjectHandle> SpawnAgentsRectangular
 	(
 		bool bAutoActivate = true,

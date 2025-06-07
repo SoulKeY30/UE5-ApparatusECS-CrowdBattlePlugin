@@ -124,6 +124,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						Config.OwnerSubject = FSubjectHandle(Subject);
 						Config.AttachToSubject = FSubjectHandle(Subject);
 						Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Directed.Direction.ToOrientationQuat(), Located.Location, Config.Transform);
+						Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(FTransform(Directed.Direction.ToOrientationQuat(), Located.Location));
 
 						Mechanism->SpawnSubjectDeferred(Config);
 					}
@@ -134,6 +135,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						Config.OwnerSubject = FSubjectHandle(Subject);
 						Config.AttachToSubject = FSubjectHandle(Subject);
 						Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Directed.Direction.ToOrientationQuat(), Located.Location, Config.Transform);
+						Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(FTransform(Directed.Direction.ToOrientationQuat(), Located.Location));
 
 						Mechanism->SpawnSubjectDeferred(Config);
 					}
@@ -144,6 +146,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						Config.OwnerSubject = FSubjectHandle(Subject);
 						Config.AttachToSubject = FSubjectHandle(Subject);
 						Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Directed.Direction.ToOrientationQuat(), Located.Location, Config.Transform);
+						Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(FTransform(Directed.Direction.ToOrientationQuat(), Located.Location));
 
 						Mechanism->SpawnSubjectDeferred(Config);
 					}
@@ -1571,18 +1574,23 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						Animation.SubjectState = ESubjectState::Attacking;
 						Animation.PreviousSubjectState = ESubjectState::Dirty;
 
+						FVector SpawnLocation = Located.Location;
+						FQuat SpawnRotation = Directed.Direction.ToOrientationQuat();
+
 						// Actor
 						for (FActorSpawnConfig_Attack Config : Attack.SpawnActor)
 						{
 							FActorSpawnConfig NewConfig(Config);
-							FVector SpawnLocation = Located.Location;
-							FQuat SpawnRotation = Directed.Direction.ToOrientationQuat();
+							NewConfig.OwnerSubject = FSubjectHandle(Subject);
 
 							switch (Config.SpawnOrigin)
 							{
 								case ESpawnOrigin::AtSelf:
 
 									NewConfig.AttachToSubject = FSubjectHandle(Subject);
+									NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(SpawnRotation, SpawnLocation, NewConfig.Transform);
+									NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(FTransform(SpawnRotation, SpawnLocation));
+									Mechanism->SpawnSubjectDeferred(NewConfig);
 									break;
 
 								case ESpawnOrigin::AtTarget:
@@ -1590,68 +1598,76 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 									if (Trace.TraceResult.IsValid())
 									{
 										NewConfig.AttachToSubject = Trace.TraceResult;
-										SpawnLocation = NewConfig.AttachToSubject.GetTraitRef<FLocated,EParadigm::Unsafe>().Location;
+										SpawnLocation = Trace.TraceResult.GetTraitRef<FLocated,EParadigm::Unsafe>().Location;
+										FQuat TargetRotation = Trace.TraceResult.GetTraitRef<FDirected, EParadigm::Unsafe>().Direction.ToOrientationQuat();
+										NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(SpawnRotation, SpawnLocation, NewConfig.Transform);
+										NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(FTransform(TargetRotation, SpawnLocation));
+										Mechanism->SpawnSubjectDeferred(NewConfig);
 									}
 									break;
 							}
-
-							NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(SpawnRotation, SpawnLocation, Config.Transform);
-							Mechanism->SpawnSubjectDeferred(NewConfig);
 						}
 
 						// Fx
 						for (FFxConfig_Attack Config : Attack.SpawnFx)
 						{
 							FFxConfig NewConfig(Config);
-							FVector SpawnLocation = Located.Location;
-							FQuat SpawnRotation = Directed.Direction.ToOrientationQuat();
+							NewConfig.OwnerSubject = FSubjectHandle(Subject);
 
 							switch (Config.SpawnOrigin)
 							{
-								case ESpawnOrigin::AtSelf:
+							case ESpawnOrigin::AtSelf:
 
-									NewConfig.AttachToSubject = FSubjectHandle(Subject);
-									break;
+								NewConfig.AttachToSubject = FSubjectHandle(Subject);
+								NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(SpawnRotation, SpawnLocation, NewConfig.Transform);
+								NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(FTransform(SpawnRotation, SpawnLocation));
+								Mechanism->SpawnSubjectDeferred(NewConfig);
+								break;
 
-								case ESpawnOrigin::AtTarget:
+							case ESpawnOrigin::AtTarget:
 
-									if (Trace.TraceResult.IsValid())
-									{
-										NewConfig.AttachToSubject = Trace.TraceResult;
-										SpawnLocation = NewConfig.AttachToSubject.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
-									}
-									break;
+								if (Trace.TraceResult.IsValid())
+								{
+									NewConfig.AttachToSubject = Trace.TraceResult;
+									SpawnLocation = Trace.TraceResult.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
+									FQuat TargetRotation = Trace.TraceResult.GetTraitRef<FDirected, EParadigm::Unsafe>().Direction.ToOrientationQuat();
+									NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(SpawnRotation, SpawnLocation, NewConfig.Transform);
+									NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(FTransform(TargetRotation, SpawnLocation));
+									Mechanism->SpawnSubjectDeferred(NewConfig);
+								}
+								break;
 							}
-
-							NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(SpawnRotation, SpawnLocation, Config.Transform);
-							Mechanism->SpawnSubjectDeferred(NewConfig);
 						}
 
 						// Sound
 						for (FSoundConfig_Attack Config : Attack.PlaySound)
 						{
 							FSoundConfig NewConfig(Config);
-							FVector SpawnLocation = Located.Location;
-							FQuat SpawnRotation = Directed.Direction.ToOrientationQuat();
+							NewConfig.OwnerSubject = FSubjectHandle(Subject);
 
 							switch (Config.SpawnOrigin)
 							{
 								case EPlaySoundOrigin_Attack::PlaySound3D_AtSelf:
 
 									NewConfig.AttachToSubject = FSubjectHandle(Subject);
+									NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(SpawnRotation, SpawnLocation, NewConfig.Transform);
+									NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(FTransform(SpawnRotation, SpawnLocation));
+									Mechanism->SpawnSubjectDeferred(NewConfig);
 									break;
 
 								case EPlaySoundOrigin_Attack::PlaySound3D_AtTarget:
 
 									if (Trace.TraceResult.IsValid())
 									{
-										NewConfig.AttachToSubject = Trace.TraceResult; 
+										NewConfig.AttachToSubject = Trace.TraceResult;
+										SpawnLocation = Trace.TraceResult.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
+										FQuat TargetRotation = Trace.TraceResult.GetTraitRef<FDirected, EParadigm::Unsafe>().Direction.ToOrientationQuat();
+										NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(SpawnRotation, SpawnLocation, NewConfig.Transform);
+										NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(FTransform(TargetRotation, SpawnLocation));
+										Mechanism->SpawnSubjectDeferred(NewConfig);
 									}
 									break;
 							}
-
-							NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(SpawnRotation, SpawnLocation, Config.Transform);
-							Mechanism->SpawnSubjectDeferred(NewConfig);
 						}
 					}
 
@@ -2359,6 +2375,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						Config.OwnerSubject = FSubjectHandle(Subject);
 						Config.AttachToSubject = FSubjectHandle(Subject);
 						Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Directed.Direction.ToOrientationQuat(), Located.Location, Config.Transform);
+						Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(FTransform(Directed.Direction.ToOrientationQuat(), Located.Location));
 
 						Mechanism->SpawnSubjectDeferred(Config);
 					}
@@ -2369,6 +2386,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						Config.OwnerSubject = FSubjectHandle(Subject);
 						Config.AttachToSubject = FSubjectHandle(Subject);
 						Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Directed.Direction.ToOrientationQuat(), Located.Location, Config.Transform);
+						Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(FTransform(Directed.Direction.ToOrientationQuat(), Located.Location));
 
 						Mechanism->SpawnSubjectDeferred(Config);
 					}
@@ -2379,6 +2397,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						Config.OwnerSubject = FSubjectHandle(Subject);
 						Config.AttachToSubject = FSubjectHandle(Subject);
 						Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Directed.Direction.ToOrientationQuat(), Located.Location, Config.Transform);
+						Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(FTransform(Directed.Direction.ToOrientationQuat(), Located.Location));
 
 						Mechanism->SpawnSubjectDeferred(Config);
 					}
@@ -2880,21 +2899,6 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 			[&](FSubjectHandle Subject,
 				FActorSpawnConfig& Config)
 			{
-				if (!Config.bInitialized)
-				{
-					// 存储生成时的世界变换（用于后续相对位置计算）
-					const FTransform SpawnWorldTransform = Config.SpawnTransform;
-
-					// 如果启用附着且目标有效，计算初始相对变换
-					if (Config.bAttached && Config.AttachToSubject.IsValid())
-					{
-						const FTransform AttachWorldTransform(Config.AttachToSubject.GetTrait<FDirected>().Direction.Rotation(), Config.AttachToSubject.GetTrait<FLocated>().Location);
-						Config.InitialRelativeTransform = SpawnWorldTransform.GetRelativeTransform(AttachWorldTransform);
-					}
-
-					Config.bInitialized = true;
-				}
-
 				// delay to spawn actors
 				if (!Config.bSpawned && Config.Delay == 0)
 				{
@@ -2934,24 +2938,29 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				}
 
 				// 更新附着对象位置
-				bool bShouldUpdateAttachment = (Config.bAttached && Config.AttachToSubject.IsValid()) || !Config.bSpawned;
+				bool bShouldUpdateAttachment = !Config.bSpawned || Config.bAttached;
 
 				if (bShouldUpdateAttachment)
 				{
-					// 获取宿主当前世界变换
-					const FTransform CurrentAttachTransform(Config.AttachToSubject.GetTrait<FDirected>().Direction.Rotation(),Config.AttachToSubject.GetTrait<FLocated>().Location);
+					bool bCanUpdateAttachment = Config.AttachToSubject.IsValid() && Config.AttachToSubject.HasTrait<FDirected>() && Config.AttachToSubject.HasTrait<FLocated>();
 
-					// 计算新的世界变换 = 初始相对变换 * 宿主当前变换
-					Config.SpawnTransform = Config.InitialRelativeTransform * CurrentAttachTransform;
-
-					// 更新所有生成的Actor
-					if (Config.bSpawned)
+					if (bCanUpdateAttachment)
 					{
-						for (AActor* Actor : Config.SpawnedActors)
+						// 获取宿主当前世界变换
+						const FTransform CurrentAttachTransform(Config.AttachToSubject.GetTrait<FDirected>().Direction.ToOrientationQuat(), Config.AttachToSubject.GetTrait<FLocated>().Location);
+
+						// 计算新的世界变换 = 初始相对变换 * 宿主当前变换
+						Config.SpawnTransform = Config.InitialRelativeTransform * CurrentAttachTransform;
+
+						// 更新所有生成的Actor
+						if (Config.bSpawned)
 						{
-							if (IsValid(Actor))
+							for (AActor* Actor : Config.SpawnedActors)
 							{
-								Actor->SetActorTransform(Config.SpawnTransform);
+								if (IsValid(Actor))
+								{
+									Actor->SetActorTransform(Config.SpawnTransform);
+								}
 							}
 						}
 					}
@@ -3006,21 +3015,6 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 			[&](FSubjectHandle Subject,
 				FFxConfig& Config)
 			{
-				if (!Config.bInitialized)
-				{
-					// 存储生成时的世界变换（用于后续相对位置计算）
-					const FTransform SpawnWorldTransform = Config.SpawnTransform;
-
-					// 如果启用附着且目标有效，计算初始相对变换
-					if (Config.bAttached && Config.AttachToSubject.IsValid())
-					{
-						const FTransform AttachWorldTransform(Config.AttachToSubject.GetTrait<FDirected>().Direction.Rotation(), Config.AttachToSubject.GetTrait<FLocated>().Location);
-						Config.InitialRelativeTransform = SpawnWorldTransform.GetRelativeTransform(AttachWorldTransform);
-					}
-
-					Config.bInitialized = true;
-				}
-
 				// delay to spawn Fx
 				if (!Config.bSpawned && Config.Delay == 0)
 				{
@@ -3088,32 +3082,37 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				}
 
 				// 更新附着对象位置
-				bool bShouldUpdateAttachment = (Config.bAttached && Config.AttachToSubject.IsValid()) || !Config.bSpawned;
+				bool bShouldUpdateAttachment = !Config.bSpawned || Config.bAttached;
 
 				if (bShouldUpdateAttachment)
 				{
-					// 获取宿主当前世界变换
-					const FTransform CurrentAttachTransform(Config.AttachToSubject.GetTrait<FDirected>().Direction.Rotation(), Config.AttachToSubject.GetTrait<FLocated>().Location);
+					bool bCanUpdateAttachment = Config.AttachToSubject.IsValid() && Config.AttachToSubject.HasTrait<FDirected>() && Config.AttachToSubject.HasTrait<FLocated>();
 
-					// 计算新的世界变换 = 初始相对变换 * 宿主当前变换
-					Config.SpawnTransform = Config.InitialRelativeTransform * CurrentAttachTransform;
-
-					// 更新所有生成的粒子系统
-					if (Config.bSpawned)
+					if (bCanUpdateAttachment)
 					{
-						for (auto Fx : Config.SpawnedNiagaraSystems)
-						{
-							if (IsValid(Fx))
-							{
-								Fx->SetWorldTransform(Config.SpawnTransform);
-							}
-						}
+						// 获取宿主当前世界变换
+						const FTransform CurrentAttachTransform(Config.AttachToSubject.GetTrait<FDirected>().Direction.Rotation(), Config.AttachToSubject.GetTrait<FLocated>().Location);
 
-						for (auto Fx : Config.SpawnedCascadeSystems)
+						// 计算新的世界变换 = 初始相对变换 * 宿主当前变换
+						Config.SpawnTransform = Config.InitialRelativeTransform * CurrentAttachTransform;
+
+						// 更新所有生成的粒子系统
+						if (Config.bSpawned)
 						{
-							if (IsValid(Fx))
+							for (auto Fx : Config.SpawnedNiagaraSystems)
 							{
-								Fx->SetWorldTransform(Config.SpawnTransform);
+								if (IsValid(Fx))
+								{
+									Fx->SetWorldTransform(Config.SpawnTransform);
+								}
+							}
+
+							for (auto Fx : Config.SpawnedCascadeSystems)
+							{
+								if (IsValid(Fx))
+								{
+									Fx->SetWorldTransform(Config.SpawnTransform);
+								}
 							}
 						}
 					}
@@ -3183,21 +3182,6 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 			[&](FSubjectHandle Subject,
 				FSoundConfig& Config)
 			{
-				if (!Config.bInitialized)
-				{
-					// 存储生成时的世界变换（用于后续相对位置计算）
-					const FTransform SpawnWorldTransform = Config.SpawnTransform;
-
-					// 如果启用附着且目标有效，计算初始相对变换
-					if (Config.bAttached && Config.AttachToSubject.IsValid())
-					{
-						const FTransform AttachWorldTransform(Config.AttachToSubject.GetTrait<FDirected>().Direction.Rotation(), Config.AttachToSubject.GetTrait<FLocated>().Location);
-						Config.InitialRelativeTransform = SpawnWorldTransform.GetRelativeTransform(AttachWorldTransform);
-					}
-
-					Config.bInitialized = true;
-				}
-
 				// delay to play sound
 				if (!Config.bSpawned && Config.Delay <= 0)
 				{
@@ -3243,24 +3227,29 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				}
 
 				// 更新附着对象位置（仅对3D音效有效）
-				bool bShouldUpdateAttachment = (Config.SpawnOrigin == EPlaySoundOrigin::PlaySound3D && Config.bAttached && Config.AttachToSubject.IsValid()) || !Config.bSpawned;
+				bool bShouldUpdateAttachment = !Config.bSpawned || Config.bAttached;
 
 				if (bShouldUpdateAttachment)
 				{
-					// 获取宿主当前世界变换
-					const FTransform CurrentAttachTransform(Config.AttachToSubject.GetTrait<FDirected>().Direction.Rotation(), Config.AttachToSubject.GetTrait<FLocated>().Location);
+					bool bCanUpdateAttachment = Config.AttachToSubject.IsValid() && Config.AttachToSubject.HasTrait<FDirected>() && Config.AttachToSubject.HasTrait<FLocated>();
 
-					// 计算新的世界变换 = 初始相对变换 * 宿主当前变换
-					Config.SpawnTransform = Config.InitialRelativeTransform * CurrentAttachTransform;
-
-					// 更新所有生成的音效位置
-					if (Config.bSpawned)
+					if (bCanUpdateAttachment)
 					{
-						for (UAudioComponent* AudioComp : Config.SpawnedSounds)
+						// 获取宿主当前世界变换
+						const FTransform CurrentAttachTransform(Config.AttachToSubject.GetTrait<FDirected>().Direction.Rotation(), Config.AttachToSubject.GetTrait<FLocated>().Location);
+
+						// 计算新的世界变换 = 初始相对变换 * 宿主当前变换
+						Config.SpawnTransform = Config.InitialRelativeTransform * CurrentAttachTransform;
+
+						// 更新所有生成的音效位置
+						if (Config.bSpawned)
 						{
-							if (IsValid(AudioComp))
+							for (UAudioComponent* AudioComp : Config.SpawnedSounds)
 							{
-								AudioComp->SetWorldLocationAndRotation(Config.SpawnTransform.GetLocation(), Config.SpawnTransform.Rotator());
+								if (IsValid(AudioComp))
+								{
+									AudioComp->SetWorldLocationAndRotation(Config.SpawnTransform.GetLocation(), Config.SpawnTransform.Rotator());
+								}
 							}
 						}
 					}
@@ -3721,7 +3710,9 @@ void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subje
 			{
 				Config.OwnerSubject = FSubjectHandle(Overlapper);
 				Config.AttachToSubject = FSubjectHandle(Overlapper);
-				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location, Config.Transform);
+				const FTransform WorldTransform(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location);
+				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(WorldTransform.GetRotation(),WorldTransform.GetLocation(), Config.Transform);
+				Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(WorldTransform);
 
 				Mechanism->SpawnSubject(Config);
 			}
@@ -3731,7 +3722,9 @@ void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subje
 			{
 				Config.OwnerSubject = FSubjectHandle(Overlapper);
 				Config.AttachToSubject = FSubjectHandle(Overlapper);
-				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location, Config.Transform);
+				const FTransform WorldTransform(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location);
+				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(WorldTransform.GetRotation(), WorldTransform.GetLocation(), Config.Transform);
+				Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(WorldTransform);
 
 				Mechanism->SpawnSubject(Config);
 			}
@@ -3741,7 +3734,9 @@ void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subje
 			{
 				Config.OwnerSubject = FSubjectHandle(Overlapper);
 				Config.AttachToSubject = FSubjectHandle(Overlapper);
-				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location, Config.Transform);
+				const FTransform WorldTransform(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location);
+				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(WorldTransform.GetRotation(), WorldTransform.GetLocation(), Config.Transform);
+				Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(WorldTransform);
 
 				Mechanism->SpawnSubject(Config);
 			}
@@ -4049,7 +4044,9 @@ void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subje
 			{
 				Config.OwnerSubject = FSubjectHandle(Overlapper);
 				Config.AttachToSubject = FSubjectHandle(Overlapper);
-				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location, Config.Transform);
+				const FTransform WorldTransform(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location);
+				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(WorldTransform.GetRotation(), WorldTransform.GetLocation(), Config.Transform);
+				Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(WorldTransform);
 
 				Mechanism->SpawnSubject(Config);
 			}
@@ -4059,7 +4056,9 @@ void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subje
 			{
 				Config.OwnerSubject = FSubjectHandle(Overlapper);
 				Config.AttachToSubject = FSubjectHandle(Overlapper);
-				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location, Config.Transform);
+				const FTransform WorldTransform(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location);
+				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(WorldTransform.GetRotation(), WorldTransform.GetLocation(), Config.Transform);
+				Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(WorldTransform);
 
 				Mechanism->SpawnSubject(Config);
 			}
@@ -4069,7 +4068,9 @@ void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subje
 			{
 				Config.OwnerSubject = FSubjectHandle(Overlapper);
 				Config.AttachToSubject = FSubjectHandle(Overlapper);
-				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location, Config.Transform);
+				const FTransform WorldTransform(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location);
+				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(WorldTransform.GetRotation(), WorldTransform.GetLocation(), Config.Transform);
+				Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(WorldTransform);
 
 				Mechanism->SpawnSubject(Config);
 			}
@@ -4378,7 +4379,9 @@ void ABattleFrameBattleControl::ApplyDamageToSubjectsDeferred(const FSubjectArra
 			{
 				Config.OwnerSubject = FSubjectHandle(Overlapper);
 				Config.AttachToSubject = FSubjectHandle(Overlapper);
-				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location, Config.Transform);
+				const FTransform WorldTransform(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location);
+				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(WorldTransform.GetRotation(), WorldTransform.GetLocation(), Config.Transform);
+				Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(WorldTransform);
 
 				Mechanism->SpawnSubjectDeferred(Config);
 			}
@@ -4388,7 +4391,9 @@ void ABattleFrameBattleControl::ApplyDamageToSubjectsDeferred(const FSubjectArra
 			{
 				Config.OwnerSubject = FSubjectHandle(Overlapper);
 				Config.AttachToSubject = FSubjectHandle(Overlapper);
-				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location, Config.Transform);
+				const FTransform WorldTransform(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location);
+				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(WorldTransform.GetRotation(), WorldTransform.GetLocation(), Config.Transform);
+				Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(WorldTransform);
 
 				Mechanism->SpawnSubjectDeferred(Config);
 			}
@@ -4398,7 +4403,9 @@ void ABattleFrameBattleControl::ApplyDamageToSubjectsDeferred(const FSubjectArra
 			{
 				Config.OwnerSubject = FSubjectHandle(Overlapper);
 				Config.AttachToSubject = FSubjectHandle(Overlapper);
-				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location, Config.Transform);
+				const FTransform WorldTransform(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location);
+				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(WorldTransform.GetRotation(), WorldTransform.GetLocation(), Config.Transform);
+				Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(WorldTransform);
 
 				Mechanism->SpawnSubjectDeferred(Config);
 			}
@@ -4706,7 +4713,9 @@ void ABattleFrameBattleControl::ApplyDamageToSubjectsDeferred(const FSubjectArra
 			{
 				Config.OwnerSubject = FSubjectHandle(Overlapper);
 				Config.AttachToSubject = FSubjectHandle(Overlapper);
-				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location, Config.Transform);
+				const FTransform WorldTransform(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location);
+				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(WorldTransform.GetRotation(), WorldTransform.GetLocation(), Config.Transform);
+				Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(WorldTransform);
 
 				Mechanism->SpawnSubjectDeferred(Config);
 			}
@@ -4716,7 +4725,9 @@ void ABattleFrameBattleControl::ApplyDamageToSubjectsDeferred(const FSubjectArra
 			{
 				Config.OwnerSubject = FSubjectHandle(Overlapper);
 				Config.AttachToSubject = FSubjectHandle(Overlapper);
-				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location, Config.Transform);
+				const FTransform WorldTransform(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location);
+				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(WorldTransform.GetRotation(), WorldTransform.GetLocation(), Config.Transform);
+				Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(WorldTransform);
 
 				Mechanism->SpawnSubjectDeferred(Config);
 			}
@@ -4726,7 +4737,9 @@ void ABattleFrameBattleControl::ApplyDamageToSubjectsDeferred(const FSubjectArra
 			{
 				Config.OwnerSubject = FSubjectHandle(Overlapper);
 				Config.AttachToSubject = FSubjectHandle(Overlapper);
-				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location, Config.Transform);
+				const FTransform WorldTransform(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location);
+				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(WorldTransform.GetRotation(), WorldTransform.GetLocation(), Config.Transform);
+				Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(WorldTransform);
 
 				Mechanism->SpawnSubjectDeferred(Config);
 			}
