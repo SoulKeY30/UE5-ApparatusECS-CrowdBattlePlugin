@@ -163,8 +163,6 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     auto& MoveTrait = AgentConfig.GetTraitRef<FMove>();
     MoveTrait.MoveSpeed *= Multipliers.MoveSpeedMult;
 
-    auto& ColliderTrait = AgentConfig.GetTraitRef<FCollider>();
-    ColliderTrait.Radius *= Multipliers.ScaleMult;
 
     while (SpawnedAgents.Num() < Quantity)// the following traits varies from agent to agent
     {
@@ -181,17 +179,16 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
         float RandomX = FMath::RandRange(-Region.X / 2, Region.X / 2);
         float RandomY = FMath::RandRange(-Region.Y / 2, Region.Y / 2);
 
-        FVector SpawnPoint2D = Origin + FVector(RandomX, RandomY, 0);
-        FVector SpawnPoint3D;
+        FVector SpawnPoint3D = Origin + FVector(RandomX, RandomY, 0);
 
         if (Move.bCanFly)
         {
             Moving.FlyingHeight = FMath::RandRange(Move.FlyHeightRange.X, Move.FlyHeightRange.Y);
-            SpawnPoint3D = FVector(SpawnPoint2D.X, SpawnPoint2D.Y, Moving.FlyingHeight + GetActorLocation().Z);
+            SpawnPoint3D = FVector(SpawnPoint3D.X, SpawnPoint3D.Y, SpawnPoint3D.Z + Moving.FlyingHeight);
         }
         else
         {
-            SpawnPoint3D = FVector(SpawnPoint2D.X, SpawnPoint2D.Y, Collider.Radius * Scaled.Scale + GetActorLocation().Z);
+            SpawnPoint3D = FVector(SpawnPoint3D.X, SpawnPoint3D.Y, SpawnPoint3D.Z + Collider.Radius * Scaled.Scale);
         }
 
         Patrol.Origin = SpawnPoint3D;
@@ -360,9 +357,6 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsByConfigRectangular
     auto& MoveTrait = AgentRecord.GetTraitRef<FMove>();
     MoveTrait.MoveSpeed *= Multipliers.MoveSpeedMult;
 
-    auto& ColliderTrait = AgentRecord.GetTraitRef<FCollider>();
-    ColliderTrait.Radius *= Multipliers.ScaleMult;
-
     while (SpawnedAgents.Num() < Quantity)// the following traits varies from agent to agent
     {
         FSubjectRecord Config = AgentRecord;
@@ -378,17 +372,16 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsByConfigRectangular
         float RandomX = FMath::RandRange(-Region.X / 2, Region.X / 2);
         float RandomY = FMath::RandRange(-Region.Y / 2, Region.Y / 2);
 
-        FVector SpawnPoint2D = Origin + FVector(RandomX, RandomY, 0);
-        FVector SpawnPoint3D;
+        FVector SpawnPoint3D = Origin + FVector(RandomX, RandomY, 0);
 
         if (Move.bCanFly)
         {
             Moving.FlyingHeight = FMath::RandRange(Move.FlyHeightRange.X, Move.FlyHeightRange.Y);
-            SpawnPoint3D = FVector(SpawnPoint2D.X, SpawnPoint2D.Y, Moving.FlyingHeight + GetActorLocation().Z);
+            SpawnPoint3D = FVector(SpawnPoint3D.X, SpawnPoint3D.Y, SpawnPoint3D.Z + Moving.FlyingHeight);
         }
         else
         {
-            SpawnPoint3D = FVector(SpawnPoint2D.X, SpawnPoint2D.Y, Collider.Radius * Scaled.Scale + GetActorLocation().Z);
+            SpawnPoint3D = FVector(SpawnPoint3D.X, SpawnPoint3D.Y, SpawnPoint3D.Z + Collider.Radius * Scaled.Scale);
         }
 
         Patrol.Origin = SpawnPoint3D;

@@ -65,7 +65,7 @@ void ANiagaraFXRenderer::Tick(float DeltaTime)
                 {
                     NewLocationArray.Add(Located.Location);
                     NewDirectionArray.Add(Directed.Direction);
-                    NewScaleArray.Add(Scaled.Scale * Scaled.RenderScale);
+                    NewScaleArray.Add(Scaled.RenderScale);
 
                     Subject.Despawn();
                 });
@@ -108,7 +108,7 @@ void ANiagaraFXRenderer::Tick(float DeltaTime)
                 {
                     FQuat Rotation{ FQuat::Identity };
                     Rotation = Directed.Direction.Rotation().Quaternion();
-                    FVector Scale = FVector(Scaled.Scale * Scaled.RenderScale);
+                    FVector Scale = FVector(Scaled.RenderScale);
 
                     FTransform SubjectTransform(Rotation, Located.Location, Scale);
 

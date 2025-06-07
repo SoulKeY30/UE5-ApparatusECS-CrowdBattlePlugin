@@ -59,7 +59,9 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "检测目标是不是在障碍物后面"))
 	bool bCheckVisibility = false;
 
-
+	//UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "NeighborGrid", Meta = (ToolTip = "绘制Debug图形"))
+	//bool bDrawDebugShape = false;
+	// 
 	//----------------------------------------
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, meta = (Tooltip = "索敌结果"))

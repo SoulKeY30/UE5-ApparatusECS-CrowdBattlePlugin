@@ -142,9 +142,6 @@ void UBFSubjectiveAgentComponent::InitializeTraits(AActor* OwnerActor)
     Move.MoveSpeed *= Multipliers.MoveSpeedMult;
 
     auto& Collider = AgentConfig.GetTraitRef<FCollider>();
-    Collider.Radius *= Multipliers.ScaleMult;
-
-
     auto& Located = AgentConfig.GetTraitRef<FLocated>();
     auto& Directed = AgentConfig.GetTraitRef<FDirected>();
     auto& Moving = AgentConfig.GetTraitRef<FMoving>();

@@ -67,7 +67,7 @@ public:
 	FVector2D FlyHeightRange = FVector2D(200.f, 400.f);
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "重力"))
-	float Gravity = -1000.f;
+	float Gravity = -2000.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Tooltip = "强制死亡高度 (低于此高度时强制移除)"))
 	float KillZ = -4000.f;

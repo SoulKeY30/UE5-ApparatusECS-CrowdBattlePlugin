@@ -77,3 +77,83 @@ public:
 	// 默认构造函数（必须）
 	FSpawnerMult() = default;
 };
+
+USTRUCT(BlueprintType)
+struct BATTLEFRAME_API FDebugPointConfig
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "位置"))
+	FVector Location = FVector::ZeroVector;
+
+};
+
+USTRUCT(BlueprintType)
+struct BATTLEFRAME_API FDebugLineConfig
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "起点"))
+	FVector StartLocation = FVector::ZeroVector;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "终点"))
+	FVector EndLocation = FVector::ZeroVector;
+
+};
+
+USTRUCT(BlueprintType)
+struct BATTLEFRAME_API FDebugSphereConfig
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "半径"))
+	float Radius = 100.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "位置"))
+	FVector Location = FVector::ZeroVector;
+
+};
+
+USTRUCT(BlueprintType)
+struct BATTLEFRAME_API FDebugCapsuleConfig
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "半径"))
+	float Radius = 100.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "高度"))
+	float Height = 100.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "位置"))
+	FVector Location = FVector::ZeroVector;
+};
+
+USTRUCT(BlueprintType)
+struct BATTLEFRAME_API FDebugSectorConfig
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "半径"))
+	float Radius = 100.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "高度"))
+	float Height = 100.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "位置"))
+	FVector Location = FVector::ZeroVector;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "朝向"))
+	FVector Direction = FVector::OneVector;
+};
+

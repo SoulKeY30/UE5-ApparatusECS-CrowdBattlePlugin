@@ -123,6 +123,12 @@ public:
 	TQueue<FDmgResult, EQueueMode::Mpsc> DamageResultQueue;
 	TSet<int32> ExistingRenderers;
 
+	TQueue<FDebugPointConfig, EQueueMode::Mpsc> DebugPointQueue;
+	TQueue<FDebugLineConfig, EQueueMode::Mpsc> DebugLineQueue;
+	TQueue<FDebugSphereConfig, EQueueMode::Mpsc> DebugSphereQueue;
+	TQueue<FDebugCapsuleConfig, EQueueMode::Mpsc> DebugCapsuleQueue;
+	TQueue<FDebugSectorConfig, EQueueMode::Mpsc> DebugSectorQueue;
+
 private:
 
 	// all filters we gonna use

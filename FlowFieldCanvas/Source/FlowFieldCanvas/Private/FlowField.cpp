@@ -513,7 +513,18 @@ void AFlowField::DrawArrows(EInitMode InitMode)
 			FQuat RotateInPlaneQuat = FQuat::FindBetweenNormals(AlignedDir, Dir);
 			FQuat CombinedQuat = RotateInPlaneQuat * AlignToNormalQuat;
 			FRotator AlignToNormalRot = CombinedQuat.Rotator();
-			FTransform Trans(AlignToNormalRot, Cell.worldLoc + Cell.normal, FVector(cellSize / 200.0f));
+
+			// ========== 关键修改开始 ==========
+			// 计算坡度影响的高度偏移 (法线Z分量越小=坡度越大)
+			const float BaseHeight = cellSize * 0.01f;       // 基础高度
+			const float MaxExtraHeight = cellSize * 0.5f;   // 最大额外高度
+			const float SteepnessFactor = 1.0f - FMath::Abs(Normal.Z); // 坡度因子(0~1)
+			const float HeightOffset = BaseHeight + MaxExtraHeight * SteepnessFactor;
+
+			// 应用高度偏移
+			FVector ArrowPosition = Cell.worldLoc + Normal * HeightOffset;
+			FTransform Trans(AlignToNormalRot, ArrowPosition, FVector(cellSize / 200.0f));
+			// ========== 关键修改结束 ==========
 
 			int32 CellIndex = CoordToIndex(Cell.gridCoord);
 
@@ -530,7 +541,7 @@ void AFlowField::DrawArrows(EInitMode InitMode)
 				ISM_Arrows->UpdateInstanceTransform(CellIndex, Trans, true, false, true);
 				ISM_Arrows->SetCustomDataValue(CellIndex, 0, 2, false);
 			}
-			else				
+			else
 			{
 				// If it was not modified, set custom data = 0 (so they will be white arrows)
 				//Trans = ToLocalTransform(ISM_Arrows, Trans);

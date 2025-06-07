@@ -17,4 +17,6 @@ struct BATTLEFRAME_API FDying
 
 	FSubjectHandle Instigator = FSubjectHandle();
 
+	FVector HitDirection = FVector::ZeroVector;
+
 };

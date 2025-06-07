@@ -29,6 +29,7 @@ public:
 
 	TQueue<float, EQueueMode::Mpsc> DamageToTake;
 	TQueue<FSubjectHandle, EQueueMode::Mpsc> DamageInstigator;
+	TQueue<FVector, EQueueMode::Mpsc> HitDirection;
 
 	// 默认构造函数
 	FHealth() = default;
