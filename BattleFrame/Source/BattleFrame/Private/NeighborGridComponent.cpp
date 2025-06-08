@@ -177,8 +177,8 @@ void UNeighborGridComponent::SphereTraceForSubjects
 
 				const FVector ToSubjectDir = (SubjectPos - CheckOrigin).GetSafeNormal();
 				const FVector SubjectSurfacePoint = SubjectPos - (ToSubjectDir * SubjectRadius);
-
-				SphereSweepForObstacle(CheckOrigin, SubjectSurfacePoint, CheckRadius, DrawDebugConfig, bVisibilityHit, VisibilityResult);
+				FTraceDrawDebugConfig CheckObstacleDrawDebugConfig;
+				SphereSweepForObstacle(CheckOrigin, SubjectSurfacePoint, CheckRadius, CheckObstacleDrawDebugConfig, bVisibilityHit, VisibilityResult);
 
 				if (bVisibilityHit) continue;
 			}
@@ -394,8 +394,8 @@ void UNeighborGridComponent::SphereSweepForSubjects
 					// Calculate the surface point on the subject's sphere
 					const FVector ToSubjectDir = (SubjectPos - CheckOrigin).GetSafeNormal();
 					const FVector SubjectSurfacePoint = SubjectPos - (ToSubjectDir * SubjectRadius);
-
-					SphereSweepForObstacle(CheckOrigin, SubjectSurfacePoint, CheckRadius, DrawDebugConfig, bHit, VisibilityResult);
+					FTraceDrawDebugConfig CheckObstacleDrawDebugConfig;
+					SphereSweepForObstacle(CheckOrigin, SubjectSurfacePoint, CheckRadius, CheckObstacleDrawDebugConfig, bHit, VisibilityResult);
 
 					if (bHit) continue; // Path is blocked, skip this subject
 				}
@@ -445,20 +445,37 @@ void UNeighborGridComponent::SphereSweepForSubjects
 
 	if (DrawDebugConfig.bDrawDebugShape)
 	{
-		float ShapeHeight = (End - Start).Size();
-		FVector ShapeLoc = (End + Start) * 0.5f;
-		FRotator ShapeRot = (End - Start).ToOrientationRotator();
+		// 计算起点到终点的向量
+		FVector Direction = End - Start;
+		float TotalDistance = Direction.Size();
 
-		// trace range
-		FDebugCapsuleConfig Config;
-		Config.Color = DrawDebugConfig.Color;
-		Config.Location = ShapeLoc;
-		Config.Rotation = ShapeRot;
-		Config.Radius = Radius;
-		Config.Height = ShapeHeight;
-		Config.Duration = DrawDebugConfig.Duration;
-		Config.LineThickness = DrawDebugConfig.LineThickness;
-		ABattleFrameBattleControl::GetInstance()->DebugCapsuleQueue.Enqueue(Config);
+		// 处理零距离情况（使用默认旋转）
+		FRotator ShapeRot = FRotator::ZeroRotator;
+
+		if (TotalDistance > KINDA_SMALL_NUMBER)
+		{
+			Direction /= TotalDistance;
+			ShapeRot = FRotationMatrix::MakeFromZ(Direction).Rotator();
+		}
+
+		// 计算圆柱部分高度（总高度减去两端的半球）
+		float CylinderHeight = FMath::Max(0.0f, TotalDistance - 2.0f * Radius);
+
+		// 计算胶囊体中心位置（两点中点）
+		FVector ShapeLoc = (Start + End) * 0.5f;
+
+		// 配置调试胶囊体参数
+		FDebugCapsuleConfig CapsuleConfig;
+		CapsuleConfig.Color = DrawDebugConfig.Color;
+		CapsuleConfig.Location = ShapeLoc;
+		CapsuleConfig.Rotation = ShapeRot;  // 修正后的旋转
+		CapsuleConfig.Radius = Radius;
+		CapsuleConfig.Height = CylinderHeight;  // 圆柱部分高度
+		CapsuleConfig.LineThickness = DrawDebugConfig.LineThickness;
+		CapsuleConfig.Duration = DrawDebugConfig.Duration;
+
+		// 加入调试队列
+		ABattleFrameBattleControl::GetInstance()->DebugCapsuleQueue.Enqueue(CapsuleConfig);
 
 		// hit points
 		for (const auto& Result : Results)
@@ -512,6 +529,7 @@ void UNeighborGridComponent::SectorTraceForSubjects
 
 	// 计算扇形的两个边界方向（如果不是全圆）
 	FVector LeftBoundDir, RightBoundDir;
+
 	if (!bFullCircle)
 	{
 		LeftBoundDir = NormalizedDir.RotateAngleAxis(Angle * 0.5f, FVector::UpVector);
@@ -655,8 +673,8 @@ void UNeighborGridComponent::SectorTraceForSubjects
 
 				const FVector ToSubjectDir = (SubjectPos - CheckOrigin).GetSafeNormal();
 				const FVector SubjectSurfacePoint = SubjectPos - (ToSubjectDir * SubjectRadius);
-
-				SphereSweepForObstacle(CheckOrigin, SubjectSurfacePoint, CheckRadius, DrawDebugConfig, bVisibilityHit, VisibilityResult);
+				FTraceDrawDebugConfig CheckObstacleDrawDebugConfig;
+				SphereSweepForObstacle(CheckOrigin, SubjectSurfacePoint, CheckRadius, CheckObstacleDrawDebugConfig, bVisibilityHit, VisibilityResult);
 
 				if (bVisibilityHit) continue;
 			}
@@ -1030,12 +1048,10 @@ void UNeighborGridComponent::SphereSweepForObstacle
 
 		// 处理零距离情况（使用默认旋转）
 		FRotator ShapeRot = FRotator::ZeroRotator;
+
 		if (TotalDistance > KINDA_SMALL_NUMBER)
 		{
-			// 归一化方向向量
 			Direction /= TotalDistance;
-
-			// 创建使Z轴指向方向的旋转（胶囊体默认沿Z轴）
 			ShapeRot = FRotationMatrix::MakeFromZ(Direction).Rotator();
 		}
 
@@ -1053,13 +1069,12 @@ void UNeighborGridComponent::SphereSweepForObstacle
 		CapsuleConfig.Radius = Radius;
 		CapsuleConfig.Height = CylinderHeight;  // 圆柱部分高度
 		CapsuleConfig.LineThickness = DrawDebugConfig.LineThickness;
+		CapsuleConfig.Duration = DrawDebugConfig.Duration;
 
 		// 加入调试队列
 		ABattleFrameBattleControl::GetInstance()->DebugCapsuleQueue.Enqueue(CapsuleConfig);
-
 	}
 }
-
 
 // To Do : 1.Sphere Trace For Subjects(can filter by direction angle)  2.Sphere Sweep For Subjects  3.Sphere Sweep For Subjects Async  4.Sector Trace For Subjects  5.Sector Trace For Subjects Async 
 // 

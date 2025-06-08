@@ -478,20 +478,37 @@ void USphereSweepForSubjectsAsyncAction::Activate()
 
 					if (DrawDebugConfig.bDrawDebugShape)
 					{
-						float ShapeHeight = (End - Start).Size();
-						FVector ShapeLoc = (End + Start) * 0.5f;
-						FRotator ShapeRot = (End - Start).ToOrientationRotator();
+						// 计算起点到终点的向量
+						FVector Direction = End - Start;
+						float TotalDistance = Direction.Size();
 
-						// trace range
-						FDebugCapsuleConfig Config;
-						Config.Color = DrawDebugConfig.Color;
-						Config.Location = ShapeLoc;
-						Config.Rotation = ShapeRot;
-						Config.Radius = Radius;
-						Config.Height = ShapeHeight;
-						Config.Duration = DrawDebugConfig.Duration;
-						Config.LineThickness = DrawDebugConfig.LineThickness;
-						ABattleFrameBattleControl::GetInstance()->DebugCapsuleQueue.Enqueue(Config);
+						// 处理零距离情况（使用默认旋转）
+						FRotator ShapeRot = FRotator::ZeroRotator;
+
+						if (TotalDistance > KINDA_SMALL_NUMBER)
+						{
+							Direction /= TotalDistance;
+							ShapeRot = FRotationMatrix::MakeFromZ(Direction).Rotator();
+						}
+
+						// 计算圆柱部分高度（总高度减去两端的半球）
+						float CylinderHeight = FMath::Max(0.0f, TotalDistance - 2.0f * Radius);
+
+						// 计算胶囊体中心位置（两点中点）
+						FVector ShapeLoc = (Start + End) * 0.5f;
+
+						// 配置调试胶囊体参数
+						FDebugCapsuleConfig CapsuleConfig;
+						CapsuleConfig.Color = DrawDebugConfig.Color;
+						CapsuleConfig.Location = ShapeLoc;
+						CapsuleConfig.Rotation = ShapeRot;  // 修正后的旋转
+						CapsuleConfig.Radius = Radius;
+						CapsuleConfig.Height = CylinderHeight;  // 圆柱部分高度
+						CapsuleConfig.LineThickness = DrawDebugConfig.LineThickness;
+						CapsuleConfig.Duration = DrawDebugConfig.Duration;
+
+						// 加入调试队列
+						ABattleFrameBattleControl::GetInstance()->DebugCapsuleQueue.Enqueue(CapsuleConfig);
 
 						// hit points
 						for (const auto& Result : Results)
