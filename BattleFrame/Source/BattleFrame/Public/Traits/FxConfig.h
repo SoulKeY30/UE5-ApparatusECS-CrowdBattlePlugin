@@ -123,4 +123,6 @@ public:
 
 	bool bInitialized = false;
 	bool bSpawned = false;
+
+	float LaunchSpeed = 0;
 };

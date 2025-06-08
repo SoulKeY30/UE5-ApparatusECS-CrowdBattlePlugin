@@ -2267,7 +2267,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 							// 记录伤害施加者
 							TargetHealth.DamageInstigator.Enqueue(TemporalDamager.TemporalDamageInstigator);
 
-							TargetHealth.HitDirection.Enqueue(FVector::ZeroVector);
+							TargetHealth.HitDirection.Enqueue(FVector(0,0,0.0001f));
 
 							//Temporal.TemporalDamageTarget.SetFlag(NeedSettleDmgFlag, true);
 
@@ -2489,6 +2489,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						Config.AttachToSubject = FSubjectHandle(Subject);
 						Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Dying.HitDirection.ToOrientationQuat(), Located.Location, Config.Transform);
 						Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(FTransform(Directed.Direction.ToOrientationQuat(), Located.Location));
+						Config.LaunchSpeed = Dying.HitDirection.Size();
 
 						Mechanism->SpawnSubjectDeferred(Config);
 					}
@@ -3133,7 +3134,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					if (Config.SubType != EESubType::None)
 					{
 						FLocated FxLocated = { SpawnWorldTransform.GetLocation() };
-						FDirected FxDirected = { SpawnWorldTransform.GetRotation().GetForwardVector()};
+						FDirected FxDirected = { SpawnWorldTransform.GetRotation().GetForwardVector() * Config.LaunchSpeed };
 						FScaled FxScaled = { 1, SpawnWorldTransform.GetScale3D() };
 
 						FSubjectRecord FxRecord;
