@@ -59,4 +59,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = ""))
 	TArray<FSoundConfig_Attack> PlaySound;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "绘制Debug图形"))
+	bool bDrawDebugShape = false;
+
 };

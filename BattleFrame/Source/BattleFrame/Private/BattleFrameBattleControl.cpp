@@ -275,6 +275,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 				bool Hit;
 				TArray<FTraceResult> Results;
+				FTraceDrawDebugConfig DebugConfig;
 
 				SphereObstacle.NeighborGrid->SphereTraceForSubjects
 				(
@@ -288,6 +289,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					FVector::ZeroVector,
 					FSubjectArray(SphereObstacle.OverridingAgents.Array()),
 					FFilter::Make<FAgent, FLocated, FScaled, FCollider, FMoving, FActivated>(),
+					DebugConfig,
 					Hit,
 					Results
 				);
@@ -654,24 +656,28 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				const bool bIsAttackingNotColling = bIsAttacking ? Subject.GetTraitRef<FAttacking, EParadigm::Unsafe>().State != EAttackState::Cooling : false;
 
 				// Stop after reaching goal
-				float DistanceToGoal;
+				float DistanceToGoal = 0;;
+				float FinalAcceptenceRadius = 0;
 				bool bIsInAcceptanceRadius = false;
 
-				if (UNLIKELY(bIsPatrolling))
+				if (UNLIKELY(bIsPatrolling))// 巡逻移动到目标点
 				{
 					DistanceToGoal = FVector::Dist2D(AgentLocation, Moving.Goal);
 					bIsInAcceptanceRadius = DistanceToGoal <= Patrol.AcceptanceRadius;
+					FinalAcceptenceRadius = Patrol.AcceptanceRadius;
 				}
-				else if(UNLIKELY(bIsValidTraceResult))
+				else if(UNLIKELY(bIsValidTraceResult))// 追击目标，要考虑自身目标的半径
 				{
 					float OtherRadius = Trace.TraceResult.HasTrait<FGridData>() ? Trace.TraceResult.GetTraitRef<FGridData, EParadigm::Unsafe>().Radius : 0;
 					DistanceToGoal = FMath::Clamp(FVector::Dist2D(AgentLocation, Moving.Goal) - SelfRadius - OtherRadius, 0, FLT_MAX);
 					bIsInAcceptanceRadius = DistanceToGoal <= Move.AcceptanceRadius;
+					FinalAcceptenceRadius = Move.AcceptanceRadius + OtherRadius;
 				}
-				else
+				else // 其它移动到目标点
 				{
 					DistanceToGoal = FVector::Dist2D(AgentLocation, Moving.Goal);
 					bIsInAcceptanceRadius = DistanceToGoal <= Move.AcceptanceRadius;
+					FinalAcceptenceRadius = Move.AcceptanceRadius;
 				}
 
 				// Stop under these circumstances
@@ -720,6 +726,23 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				//FVector CurrentVelocity = Moving.CurrentVelocity * FVector(1, 1, 0);
 				//FVector InterpedVelocity = FMath::VInterpConstantTo(CurrentVelocity, DesiredVelocity, DeltaTime, Move.MoveAcceleration);
 				Moving.DesiredVelocity = DesiredVelocity * FVector(1, 1, 0);
+
+				if (Move.bDrawDebugShape)
+				{
+					FDebugCircleConfig Config;
+					Config.Location = Moving.Goal;
+					Config.Radius = FinalAcceptenceRadius;
+					Config.Color = FColor::Purple;
+					Config.LineThickness = 10.f;
+					DebugCircleQueue.Enqueue(Config);
+
+					FDebugLineConfig LineConfig;
+					LineConfig.StartLocation = Located.Location;
+					LineConfig.EndLocation = Moving.Goal;
+					LineConfig.Color = FColor::Purple;
+					Config.LineThickness = 10.f;
+					DebugLineQueue.Enqueue(LineConfig);
+				}
 
 				//----------------------------- 朝向 ----------------------------//
 				
@@ -1226,11 +1249,6 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				Located.PreLocation = Located.Location;
 				Located.Location += Moving.CurrentVelocity * SafeDeltaTime;
 
-				if (Collider.bDrawDebugShape)
-				{
-					DebugSphereQueue.Enqueue(FDebugSphereConfig{Collider.Radius * Scaled.Scale, Located.Location});
-				}
-
 			}, ThreadsCount, BatchSize);
 	}
 	#pragma endregion
@@ -1290,7 +1308,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 		ValidSubjectsArray.SetNum(ThreadsCount);
 
 		// A workaround. Apparatus does not expose the array of iterables, so we have to gather manually
-		Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FTrace& Trace)
+		Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FTrace& Trace, FLocated& Located)
 			{
 				if (!Trace.bEnable)
 				{
@@ -1308,6 +1326,28 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				else
 				{
 					Trace.TimeLeft -= SafeDeltaTime;
+
+					if (Trace.bDrawDebugShape && Trace.TraceResult.IsValid() && Trace.TraceResult.HasTrait<FLocated>())
+					{
+						FVector OtherLocation = Trace.TraceResult.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
+						float OtherScale = Trace.TraceResult.HasTrait<FScaled>() ? Trace.TraceResult.GetTraitRef<FScaled, EParadigm::Unsafe>().Scale : 1;
+						float OtherRadius = Trace.TraceResult.HasTrait<FCollider>() ? Trace.TraceResult.GetTraitRef<FCollider, EParadigm::Unsafe>().Radius : 0;
+						OtherRadius *= OtherScale;
+
+						FDebugLineConfig LineConfig;
+						LineConfig.StartLocation = Located.Location;
+						LineConfig.EndLocation = OtherLocation;
+						LineConfig.Color = FColor::Orange;
+						LineConfig.LineThickness = 10.f;
+						DebugLineQueue.Enqueue(LineConfig);
+
+						FDebugSphereConfig SphereConfig;
+						SphereConfig.Location = OtherLocation;
+						SphereConfig.Radius = OtherRadius;
+						SphereConfig.Color = FColor::Orange;
+						SphereConfig.LineThickness = 10.f;
+						DebugSphereQueue.Enqueue(SphereConfig);
+					}
 				}
 
 				if (bShouldTrace)// we add iterables into separate arrays and then apend them.
@@ -1351,138 +1391,160 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 				const float SelfRadius = Collider.Radius * Scaled.Scale;
 
-				float FinalRange = 0;
+				float FinalRange = SelfRadius;
 				float FinalAngle = 0;
+				float FinalHeight = 0;
 				bool FinalCheckVisibility = false;
+				bool bFinalDrawDebugShape = false;
 
 				if (bIsSleeping)
 				{
-					FinalRange = Sleep.TraceRadius;
-					FinalAngle = Sleep.TraceAngle;
-					FinalCheckVisibility = Sleep.bCheckVisibility;
+					FinalRange += Sleep.SectorParams.TraceRadius;
+					FinalAngle = Sleep.SectorParams.TraceAngle;
+					FinalHeight = Sleep.SectorParams.TraceHeight;
+					FinalCheckVisibility = Sleep.SectorParams.bCheckVisibility;
+					bFinalDrawDebugShape = Sleep.bDrawDebugShape;
 				}
 				else if (bIsPatrolling)
 				{
-					FinalRange = Patrol.TraceRadius;
-					FinalAngle = Patrol.TraceAngle;
-					FinalCheckVisibility = Patrol.bCheckVisibility;
+					FinalRange += Patrol.SectorParams.TraceRadius;
+					FinalAngle = Patrol.SectorParams.TraceAngle;
+					FinalHeight = Patrol.SectorParams.TraceHeight;
+					FinalCheckVisibility = Patrol.SectorParams.bCheckVisibility;
+					bFinalDrawDebugShape = Patrol.bDrawDebugShape;
 				}
 				else
 				{
-					FinalRange = Trace.TraceRadius;
-					FinalAngle = Trace.TraceAngle;
-					FinalCheckVisibility = Trace.bCheckVisibility;
+					FinalRange += Trace.SectorParams.TraceRadius;
+					FinalAngle = Trace.SectorParams.TraceAngle;
+					FinalHeight = Trace.SectorParams.TraceHeight;
+					FinalCheckVisibility = Trace.SectorParams.bCheckVisibility;
+					bFinalDrawDebugShape = Trace.bDrawDebugShape;
 				}
 
 				// ========== 调试绘制入队逻辑 ==========
-				if (Trace.bDrawDebugShape)
-				{
-					FDebugSectorConfig SectorConfig;
-					SectorConfig.Location = Located.Location;
-					SectorConfig.Radius = FinalRange;
-					SectorConfig.Height = SelfRadius * 2.0f; // 与检测高度一致
-					SectorConfig.Direction = Directed.Direction.GetSafeNormal2D();
-					SectorConfig.Angle = FinalAngle; // 添加角度成员到FDebugSectorConfig
-					SectorConfig.Duration = Trace.CoolDown;
 
-					DebugSectorQueue.Enqueue(SectorConfig);
-
-					//UE_LOG(LogTemp, Log, TEXT("Enqueue"));
-				}
+				FTraceDrawDebugConfig DebugConfig;
+				DebugConfig.bDrawDebugShape = bFinalDrawDebugShape;
+				DebugConfig.Color = FColor::Orange;
+				DebugConfig.Duration = Trace.CoolDown;
+				DebugConfig.LineThickness = 10.f;
 
 				switch (Trace.Mode)
 				{
-				case ETraceMode::TargetIsPlayer_0:
-				{
-					Trace.TraceResult = FSubjectHandle();
-
-					if (bPlayerIsValid)
+					case ETraceMode::TargetIsPlayer_0:
 					{
-						// 计算目标半径和实际距离平方
-						float PlayerRadius = PlayerHandle.HasTrait<FCollider>() ? PlayerHandle.GetTrait<FCollider>().Radius : 0;
-						float CombinedRadius = FinalRange + SelfRadius + PlayerRadius;
-						float CombinedRadiusSquared = FMath::Square(CombinedRadius);
-						float DistanceSquared = FVector::DistSquared(Located.Location, PlayerLocation);
+						Trace.TraceResult = FSubjectHandle();
 
-						// 距离检查 - 使用距离平方
-						if (DistanceSquared <= CombinedRadiusSquared)
+						if (bPlayerIsValid)
 						{
-							// 角度检查
-							const FVector ToPlayerDir = (PlayerLocation - Located.Location).GetSafeNormal();
-							const float DotValue = FVector::DotProduct(Directed.Direction, ToPlayerDir);
-							const float AngleDiff = FMath::RadiansToDegrees(FMath::Acos(DotValue));
+							// 高度检查
+							float HeightDifference = PlayerLocation.Z - Located.Location.Z;
 
-							if (AngleDiff <= FinalAngle * 0.5f)
+							if (HeightDifference <= FinalHeight)
 							{
-								if (FinalCheckVisibility && IsValid(Trace.NeighborGrid))
-								{
-									bool Hit = false;
-									FTraceResult Result;
-									Trace.NeighborGrid->SphereSweepForObstacle(Located.Location, PlayerLocation, SelfRadius, Hit, Result);
+								// 计算目标半径和实际距离平方
+								float PlayerRadius = PlayerHandle.HasTrait<FCollider>() ? PlayerHandle.GetTrait<FCollider>().Radius : 0;
+								float CombinedRadiusSquared = FMath::Square(FinalRange);
+								float DistanceSquared = FVector::DistSquared(Located.Location, PlayerLocation);
 
-									if (!Hit)
-									{
-										Trace.TraceResult = PlayerHandle;
-									}
-								}
-								else
+								// 距离检查 - 使用距离平方
+								if (DistanceSquared <= CombinedRadiusSquared)
 								{
-									Trace.TraceResult = PlayerHandle;
+									// 角度检查
+									const FVector ToPlayerDir = (PlayerLocation - Located.Location).GetSafeNormal();
+									const float DotValue = FVector::DotProduct(Directed.Direction, ToPlayerDir);
+									const float AngleDiff = FMath::RadiansToDegrees(FMath::Acos(DotValue));
+
+									if (AngleDiff <= FinalAngle * 0.5f)
+									{
+										if (FinalCheckVisibility && IsValid(Trace.NeighborGrid))
+										{
+											bool Hit = false;
+											FTraceResult Result;
+											Trace.NeighborGrid->SphereSweepForObstacle(Located.Location, PlayerLocation, 1, DebugConfig, Hit, Result);
+
+											if (!Hit)
+											{
+												Trace.TraceResult = PlayerHandle;
+											}
+										}
+										else
+										{
+											Trace.TraceResult = PlayerHandle;
+										}
+									}
 								}
 							}
 						}
-					}
-					break;
-				}
 
-				case ETraceMode::SectorTraceByTraits:
-				{
-					Trace.TraceResult = FSubjectHandle();
-
-					if (LIKELY(IsValid(Trace.NeighborGrid)))
-					{
-						FFilter TargetFilter;
-						bool Hit;
-						TArray<FTraceResult> Results;
-
-						TargetFilter.Include(Trace.IncludeTraits);
-						TargetFilter.Exclude(Trace.ExcludeTraits);
-
-						// 使用扇形检测替换球体检测
-						const FVector TraceDirection = Directed.Direction.GetSafeNormal2D();
-						const float TraceHeight = SelfRadius * 2.0f; // 根据实际需求调整高度
-
-						// ignore self
-						FSubjectArray IgnoreList;
-						IgnoreList.Subjects.Add(FSubjectHandle(Subject));
-
-						Trace.NeighborGrid->SectorTraceForSubjects
-						(
-							1,
-							Located.Location,   // 检测原点
-							FinalRange,         // 检测半径
-							TraceHeight,        // 检测高度
-							TraceDirection,     // 扇形方向
-							FinalAngle,         // 扇形角度
-							FinalCheckVisibility,
-							Located.Location,
-							SelfRadius,
-							ESortMode::NearToFar,
-							Located.Location,
-							IgnoreList,
-							TargetFilter,       // 过滤条件
-							Hit,
-							Results              // 输出结果
-						);
-
-						// 直接使用结果（扇形检测已包含角度验证）
-						if (Hit && Results[0].Subject.IsValid())
+						if (bFinalDrawDebugShape)
 						{
-							Trace.TraceResult = Results[0].Subject;
+							FDebugSectorConfig SectorConfig;
+							SectorConfig.Location = Located.Location;
+							SectorConfig.Radius = FinalRange;
+							SectorConfig.Height = FinalHeight;
+							SectorConfig.Direction = Directed.Direction.GetSafeNormal2D();
+							SectorConfig.Angle = FinalAngle;
+							SectorConfig.Duration = DebugConfig.Duration;
+							SectorConfig.Color = DebugConfig.Color;
+							SectorConfig.LineThickness = DebugConfig.LineThickness;
+
+							DebugSectorQueue.Enqueue(SectorConfig);
+							//UE_LOG(LogTemp, Log, TEXT("Enqueue"));
 						}
+
+						break;
 					}
-					break;
-				}
+
+					case ETraceMode::SectorTraceByTraits:
+					{
+						Trace.TraceResult = FSubjectHandle();
+
+						if (LIKELY(IsValid(Trace.NeighborGrid)))
+						{
+							FFilter TargetFilter;
+							bool Hit;
+							TArray<FTraceResult> Results;
+
+							TargetFilter.Include(Trace.IncludeTraits);
+							TargetFilter.Exclude(Trace.ExcludeTraits);
+
+							// 使用扇形检测替换球体检测
+							const FVector TraceDirection = Directed.Direction.GetSafeNormal2D();
+
+							// ignore self
+							FSubjectArray IgnoreList;
+							IgnoreList.Subjects.Add(FSubjectHandle(Subject));
+
+							Trace.NeighborGrid->SectorTraceForSubjects
+							(
+								1,
+								Located.Location,   // 检测原点
+								FinalRange,         // 检测半径
+								FinalHeight,        // 检测高度
+								TraceDirection,     // 扇形方向
+								FinalAngle,         // 扇形角度
+								FinalCheckVisibility,
+								Located.Location,
+								1,
+								ESortMode::NearToFar,
+								Located.Location,
+								IgnoreList,
+								TargetFilter,       // 过滤条件
+								DebugConfig,
+								Hit,
+								Results              // 输出结果
+							);
+
+							// 直接使用结果（扇形检测已包含角度验证）
+							if (Hit && Results[0].Subject.IsValid())
+							{
+								Trace.TraceResult = Results[0].Subject;
+							}
+						}
+						break;
+					}
 				}
 
 				// if we have a valid target, we stop sleeping or patrolling
@@ -1524,25 +1586,40 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				//TRACE_CPUPROFILER_EVENT_SCOPE_STR("Do AgentAttackMain");
 				if (!Attack.bEnable) return;
 
-				const bool bHasValidTarget = Trace.TraceResult.IsValid() && Trace.TraceResult.HasTrait<FLocated>() && Trace.TraceResult.HasTrait<FHealth>();
-
-				if (bHasValidTarget)
+				if (Attack.bDrawDebugShape)
 				{
-					const float SelfRadius = Collider.Radius * Scaled.Scale;
-					float TargetHealth = Trace.TraceResult.GetTraitRef<FHealth,EParadigm::Unsafe>().Current;
+					FDebugCircleConfig CircleConfig;
+					CircleConfig.Location = Located.Location;
+					CircleConfig.Radius = Attack.Range + Collider.Radius * Scaled.Scale;
+					CircleConfig.Color = FColor::Red;
 
-					FVector TargetLocation = Trace.TraceResult.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
-					float OtherRadius = Trace.TraceResult.HasTrait<FGridData>() ? Trace.TraceResult.GetTraitRef<FGridData, EParadigm::Unsafe>().Radius : 0;
+					DebugCircleQueue.Enqueue(CircleConfig);
+				}
 
-					// 使用距离平方优化
-					float DistSquared = FVector::DistSquared(Located.Location, TargetLocation);
-					float CombinedRadius = Attack.Range + SelfRadius + OtherRadius;
-					float CombinedRadiusSquared = FMath::Square(CombinedRadius);
+				const bool bHasAttacking = Subject.HasTrait<FAttacking>();
 
-					// 触发攻击 - 使用距离平方比较
-					if (DistSquared <= CombinedRadiusSquared && TargetHealth > 0)
+				if(LIKELY(!bHasAttacking))
+				{
+					const bool bHasValidTarget = Trace.TraceResult.IsValid() && Trace.TraceResult.HasTrait<FLocated>() && Trace.TraceResult.HasTrait<FHealth>();
+
+					if (bHasValidTarget)
 					{
-						Subject.SetTraitDeferred(FAttacking());
+						const float SelfRadius = Collider.Radius * Scaled.Scale;
+						float TargetHealth = Trace.TraceResult.GetTraitRef<FHealth, EParadigm::Unsafe>().Current;
+
+						FVector TargetLocation = Trace.TraceResult.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
+						float OtherRadius = Trace.TraceResult.HasTrait<FGridData>() ? Trace.TraceResult.GetTraitRef<FGridData, EParadigm::Unsafe>().Radius : 0;
+
+						// 使用距离平方优化
+						float DistSquared = FVector::DistSquared(Located.Location, TargetLocation);
+						float CombinedRadius = Attack.Range + SelfRadius + OtherRadius;
+						float CombinedRadiusSquared = FMath::Square(CombinedRadius);
+
+						// 触发攻击 - 使用距离平方比较
+						if (DistSquared <= CombinedRadiusSquared && TargetHealth > 0)
+						{
+							Subject.SetTraitDeferred(FAttacking());
+						}
 					}
 				}
 
@@ -3356,6 +3433,47 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	// WIP 调试图形绘制 | Draw Debug Shapes
 	#pragma region
 	{
+		// 绘制胶囊体队列
+		while (!DebugCapsuleQueue.IsEmpty())
+		{
+			FDebugCapsuleConfig Config;
+			DebugCapsuleQueue.Dequeue(Config);
+
+			// 计算胶囊体半高（从中心到顶部/底部的距离）
+			const float HalfHeight = FMath::Max(0.0f, Config.Height * 0.5f);
+
+			DrawDebugCapsule(
+				CurrentWorld,
+				Config.Location,          // 胶囊体中心位置
+				HalfHeight,               // 半高（从中心到端点的距离）
+				Config.Radius,            // 半径
+				Config.Rotation.Quaternion(), // 转换为四元数
+				Config.Color,             // 配置的颜色
+				false,                    // 非持久
+				Config.Duration,          // 生命周期0=只持续1帧
+				0,						  
+				Config.LineThickness      // 线宽（胶囊体通常需要较细的线）
+			);
+		}
+
+		// 绘制线队列
+		while (!DebugLineQueue.IsEmpty())
+		{
+			FDebugLineConfig Config;
+			DebugLineQueue.Dequeue(Config);
+
+			DrawDebugLine(
+				CurrentWorld,
+				Config.StartLocation,
+				Config.EndLocation,
+				Config.Color,
+				false,
+				Config.Duration,
+				3,
+				Config.LineThickness
+			);
+		}
+
 		while (!DebugSphereQueue.IsEmpty())
 		{
 			FDebugSphereConfig Config;
@@ -3366,30 +3484,11 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				Config.Location,
 				Config.Radius,
 				12,
-				FColor::Red,
+				Config.Color,
 				false,
+				Config.Duration,
 				0,
-				0,
-				0.0f
-			);
-		}
-
-		// 绘制圆形队列
-		while (!DebugCircleQueue.IsEmpty())
-		{
-			FDebugCircleConfig Config;
-			DebugCircleQueue.Dequeue(Config);
-
-			DrawDebugCircle(
-				CurrentWorld,
-				Config.Location,
-				Config.Radius,
-				32, // 分段数
-				FColor::Green, // 绿色圆形
-				false, // 非持久
-				2, // 显示0.1秒（每帧更新）
-				0, // 深度优先级
-				2.0f // 线宽
+				Config.LineThickness
 			);
 		}
 
@@ -3406,16 +3505,38 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				Config.Radius,
 				Config.Angle, // 扇形角度
 				Config.Height,
-				FColor::Orange, // 橙色扇形
+				Config.Color, // 橙色扇形
 				false, // 非持久
 				Config.Duration, // 显示0.1秒
 				0, // 深度优先级
-				10.0f // 线宽
+				Config.LineThickness // 线宽
 			);
 
 			//UE_LOG(LogTemp, Log, TEXT("Dequeue"));
-
 		}
+
+		while (!DebugCircleQueue.IsEmpty())
+		{
+			FDebugCircleConfig Config;
+			DebugCircleQueue.Dequeue(Config);
+
+			// 绘制圆形（XY平面）
+			DrawDebugCircle(
+				CurrentWorld,
+				Config.Location,  // 圆心位置
+				Config.Radius,    // 圆半径
+				36,               // 分段数（足够平滑）
+				Config.Color,     // 配置的颜色
+				false,            // 非持久
+				Config.Duration,  // 生命周期0=只持续1帧
+				3,                // 深度优先级
+				Config.LineThickness,// 线宽
+				FVector(1, 0, 0), // X轴
+				FVector(0, 1, 0), // Y轴
+				false             // 不绘制坐标轴
+			);
+		}
+
 	}
 	#pragma endregion
 }
@@ -3433,7 +3554,7 @@ void ABattleFrameBattleControl::DefineFilters()
 	AgentAppearAnimFilter = FFilter::Make<FAgent, FRendering, FAnimation, FAppear, FAppearAnim, FActivated>();
 	AgentAppearDissolveFilter = FFilter::Make<FAgent, FRendering, FAppearDissolve, FAnimation, FCurves, FActivated>();
 	AgentTraceFilter = FFilter::Make<FAgent, FLocated, FDirected, FScaled, FCollider, FSleep, FPatrol, FTrace, FRendering, FActivated>().Exclude<FAppearing, FAttacking, FDying>();
-	AgentAttackFilter = FFilter::Make<FAgent, FAttack, FRendering, FLocated, FDirected, FCollider, FScaled, FTrace, FActivated>().Exclude<FAppearing, FSleeping, FPatrolling, FAttacking, FDying>();
+	AgentAttackFilter = FFilter::Make<FAgent, FAttack, FRendering, FLocated, FDirected, FCollider, FScaled, FTrace, FActivated>().Exclude<FAppearing, FSleeping, FPatrolling, FDying>();
 	AgentAttackingFilter = FFilter::Make<FAgent, FAttack, FRendering, FLocated, FDirected, FScaled, FAnimation, FAttacking, FMove, FMoving, FTrace, FDebuff, FDamage, FDefence, FSlowing, FActivated>().Exclude<FAppearing, FSleeping, FPatrolling, FDying>();
 	AgentHitGlowFilter = FFilter::Make<FAgent, FRendering, FHitGlow, FAnimation, FCurves, FActivated>();
 	AgentJiggleFilter = FFilter::Make<FAgent, FRendering, FJiggle, FScaled, FHit, FCurves, FActivated>();
@@ -4785,6 +4906,7 @@ void ABattleFrameBattleControl::ApplyDamageToSubjectsDeferred(const FSubjectArra
 	}
 }
 
+
 FVector ABattleFrameBattleControl::FindNewPatrolGoalLocation(const FPatrol& Patrol, const FCollider& Collider, const FTrace& Trace, const FLocated& Located, const FScaled& Scaled, int32 MaxAttempts)
 {
 	// Early out if no neighbor grid available
@@ -4806,7 +4928,7 @@ FVector ABattleFrameBattleControl::FindNewPatrolGoalLocation(const FPatrol& Patr
 		const FVector Candidate = Patrol.Origin + FVector(FMath::Cos(Angle) * Distance, FMath::Sin(Angle) * Distance, 0.f);
 
 		// Skip visibility check if not required
-		if (!Patrol.bCheckVisibility)
+		if (!Patrol.SectorParams.bCheckVisibility)
 		{
 			return Candidate;
 		}
@@ -4814,7 +4936,8 @@ FVector ABattleFrameBattleControl::FindNewPatrolGoalLocation(const FPatrol& Patr
 		// Check visibility through neighbor grid
 		bool bHit = false;
 		FTraceResult Result;
-		Trace.NeighborGrid->SphereSweepForObstacle(Located.Location, Candidate, Collider.Radius * Scaled.Scale, bHit, Result);
+		FTraceDrawDebugConfig DebugConfig;
+		Trace.NeighborGrid->SphereSweepForObstacle(Located.Location, Candidate, Collider.Radius * Scaled.Scale, DebugConfig, bHit, Result);
 
 		// Return first valid candidate found
 		if (!bHit)
@@ -4836,21 +4959,9 @@ FVector ABattleFrameBattleControl::FindNewPatrolGoalLocation(const FPatrol& Patr
 	return BestCandidate;
 }
 
-void ABattleFrameBattleControl::DrawDebugSector(
-	UWorld* World,
-	const FVector& Center,
-	const FVector& Direction,
-	float Radius,
-	float AngleDegrees,
-	float Height, // 总高度
-	const FColor& Color,
-	bool bPersistentLines,
-	float LifeTime,
-	uint8 DepthPriority,
-	float Thickness)
+void ABattleFrameBattleControl::DrawDebugSector(UWorld* World, const FVector& Center, const FVector& Direction, float Radius, float AngleDegrees, float Height, const FColor& Color, bool bPersistentLines, float LifeTime, uint8 DepthPriority, float Thickness)
 {
-	if (!World || AngleDegrees <= 0.f || Radius <= 0.f || Height <= 0.f)
-		return;
+	if (!World || AngleDegrees <= 0.f || Radius <= 0.f || Height <= 0.f) return;
 
 	// 确保角度在合理范围
 	AngleDegrees = FMath::Clamp(AngleDegrees, 1.f, 360.f);
@@ -4858,8 +4969,7 @@ void ABattleFrameBattleControl::DrawDebugSector(
 
 	// 计算方向向量
 	FVector Forward = Direction.GetSafeNormal2D();
-	if (Forward.IsNearlyZero())
-		Forward = FVector::ForwardVector;
+	if (Forward.IsNearlyZero()) Forward = FVector::ForwardVector;
 
 	// 计算顶面和底面中心位置（以Center为中心对称）
 	const float HalfHeight = Height * 0.5f;
@@ -4907,29 +5017,6 @@ void ABattleFrameBattleControl::DrawDebugSector(
 		LastBottomPoint = CurrentPoint;
 	}
 
-	// 绘制底面两条半径线
-	DrawDebugLine(
-		World,
-		BottomCenter,
-		BottomStart,
-		Color,
-		bPersistentLines,
-		LifeTime,
-		DepthPriority,
-		Thickness
-	);
-
-	DrawDebugLine(
-		World,
-		BottomCenter,
-		BottomEnd,
-		Color,
-		bPersistentLines,
-		LifeTime,
-		DepthPriority,
-		Thickness
-	);
-
 	// ========== 绘制顶面扇形 ==========
 	FVector LastTopPoint = TopStart;
 
@@ -4955,68 +5042,93 @@ void ABattleFrameBattleControl::DrawDebugSector(
 		LastTopPoint = CurrentPoint;
 	}
 
-	// 绘制顶面两条半径线
-	DrawDebugLine(
-		World,
-		TopCenter,
-		TopStart,
-		Color,
-		bPersistentLines,
-		LifeTime,
-		DepthPriority,
-		Thickness
-	);
-
-	DrawDebugLine(
-		World,
-		TopCenter,
-		TopEnd,
-		Color,
-		bPersistentLines,
-		LifeTime,
-		DepthPriority,
-		Thickness
-	);
-
 	// ========== 连接三个关键位置 ==========
-	// 1. 连接两个圆心（底面圆心 <-> 顶面圆心）
-	DrawDebugLine(
-		World,
-		BottomCenter,
-		TopCenter,
-		Color,
-		bPersistentLines,
-		LifeTime,
-		DepthPriority,
-		Thickness
-	);
 
-	// 2. 连接起点（底面起点 <-> 顶面起点）
-	DrawDebugLine(
-		World,
-		BottomStart,
-		TopStart,
-		Color,
-		bPersistentLines,
-		LifeTime,
-		DepthPriority,
-		Thickness
-	);
+	if (AngleDegrees != 360)
+	{
+		// 连接两个圆心（底面圆心 <-> 顶面圆心）
+		//DrawDebugLine(
+		//	World,
+		//	BottomCenter,
+		//	TopCenter,
+		//	Color,
+		//	bPersistentLines,
+		//	LifeTime,
+		//	DepthPriority,
+		//	Thickness
+		//);
 
-	// 3. 连接终点（底面终点 <-> 顶面终点）
-	DrawDebugLine(
-		World,
-		BottomEnd,
-		TopEnd,
-		Color,
-		bPersistentLines,
-		LifeTime,
-		DepthPriority,
-		Thickness
-	);
+		// 绘制顶面两条半径线
+		DrawDebugLine(
+			World,
+			TopCenter,
+			TopStart,
+			Color,
+			bPersistentLines,
+			LifeTime,
+			DepthPriority,
+			Thickness
+		);
+
+		DrawDebugLine(
+			World,
+			TopCenter,
+			TopEnd,
+			Color,
+			bPersistentLines,
+			LifeTime,
+			DepthPriority,
+			Thickness
+		);
+
+		// 绘制底面两条半径线
+		DrawDebugLine(
+			World,
+			BottomCenter,
+			BottomStart,
+			Color,
+			bPersistentLines,
+			LifeTime,
+			DepthPriority,
+			Thickness
+		);
+
+		DrawDebugLine(
+			World,
+			BottomCenter,
+			BottomEnd,
+			Color,
+			bPersistentLines,
+			LifeTime,
+			DepthPriority,
+			Thickness
+		);
+
+		// 连接起点（底面起点 <-> 顶面起点）
+		DrawDebugLine(
+			World,
+			BottomStart,
+			TopStart,
+			Color,
+			bPersistentLines,
+			LifeTime,
+			DepthPriority,
+			Thickness
+		);
+
+		// 连接终点（底面终点 <-> 顶面终点）
+		DrawDebugLine(
+			World,
+			BottomEnd,
+			TopEnd,
+			Color,
+			bPersistentLines,
+			LifeTime,
+			DepthPriority,
+			Thickness
+		);
+	}
 }
-
-
 
 
 //-------------------------------RVO2D Copyright 2023, EastFoxStudio. All Rights Reserved-------------------------------

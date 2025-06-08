@@ -72,4 +72,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Tooltip = "强制死亡高度 (低于此高度时强制移除)"))
 	float KillZ = -4000.f;
 
+	//---------------Draw Debug-----------------//
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "绘制Debug图形"))
+	bool bDrawDebugShape = false;
+
 };

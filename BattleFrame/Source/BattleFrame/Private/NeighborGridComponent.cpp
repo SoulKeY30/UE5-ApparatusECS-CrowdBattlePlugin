@@ -19,6 +19,7 @@
 #include "BitMask.h"
 #include "GenericPlatform/GenericPlatformMisc.h"
 #include "BattleFrameFunctionLibraryRT.h"
+#include "BattleFrameBattleControl.h"
 #include "Kismet/BlueprintAsyncActionBase.h"
 
 UNeighborGridComponent::UNeighborGridComponent()
@@ -69,6 +70,7 @@ void UNeighborGridComponent::SphereTraceForSubjects
 	const FVector& SortOrigin,
 	const FSubjectArray& IgnoreSubjects,
 	const FFilter& Filter,
+	const FTraceDrawDebugConfig& DrawDebugConfig,
 	bool& Hit,
 	TArray<FTraceResult>& Results
 ) const
@@ -176,7 +178,7 @@ void UNeighborGridComponent::SphereTraceForSubjects
 				const FVector ToSubjectDir = (SubjectPos - CheckOrigin).GetSafeNormal();
 				const FVector SubjectSurfacePoint = SubjectPos - (ToSubjectDir * SubjectRadius);
 
-				SphereSweepForObstacle(CheckOrigin, SubjectSurfacePoint, CheckRadius, bVisibilityHit, VisibilityResult);
+				SphereSweepForObstacle(CheckOrigin, SubjectSurfacePoint, CheckRadius, DrawDebugConfig, bVisibilityHit, VisibilityResult);
 
 				if (bVisibilityHit) continue;
 			}
@@ -289,6 +291,29 @@ void UNeighborGridComponent::SphereTraceForSubjects
 	}
 
 	Hit = !Results.IsEmpty();
+
+	if (DrawDebugConfig.bDrawDebugShape)
+	{
+		// trace range
+		FDebugSphereConfig Config;
+		Config.Color = DrawDebugConfig.Color;
+		Config.Location = Origin;
+		Config.Radius = Radius;
+		Config.Duration = DrawDebugConfig.Duration;
+		ABattleFrameBattleControl::GetInstance()->DebugSphereQueue.Enqueue(Config);
+
+		// hit points
+		for (const auto& Result : Results)
+		{
+			FVector OtherLocation = Result.Subject.GetTrait<FLocated>().Location;
+			FDebugSphereConfig SphereConfig;
+			SphereConfig.Color = DrawDebugConfig.Color;
+			SphereConfig.Location = Result.Subject.GetTrait<FLocated>().Location;
+			SphereConfig.Radius = Result.Subject.GetTrait<FGridData>().Radius;
+			SphereConfig.Duration = DrawDebugConfig.Duration;
+			ABattleFrameBattleControl::GetInstance()->DebugSphereQueue.Enqueue(SphereConfig);
+		}
+	}
 }
 
 // Multi Sweep Trace For Subjects
@@ -305,6 +330,7 @@ void UNeighborGridComponent::SphereSweepForSubjects
 	const FVector& SortOrigin,
 	const FSubjectArray& IgnoreSubjects,
 	const FFilter& Filter,
+	const FTraceDrawDebugConfig& DrawDebugConfig,
 	bool& Hit,
 	TArray<FTraceResult>& Results
 ) const
@@ -369,7 +395,7 @@ void UNeighborGridComponent::SphereSweepForSubjects
 					const FVector ToSubjectDir = (SubjectPos - CheckOrigin).GetSafeNormal();
 					const FVector SubjectSurfacePoint = SubjectPos - (ToSubjectDir * SubjectRadius);
 
-					SphereSweepForObstacle(CheckOrigin, SubjectSurfacePoint, CheckRadius, bHit, VisibilityResult);
+					SphereSweepForObstacle(CheckOrigin, SubjectSurfacePoint, CheckRadius, DrawDebugConfig, bHit, VisibilityResult);
 
 					if (bHit) continue; // Path is blocked, skip this subject
 				}
@@ -416,6 +442,37 @@ void UNeighborGridComponent::SphereSweepForSubjects
 	}
 
 	Hit = !Results.IsEmpty();
+
+	if (DrawDebugConfig.bDrawDebugShape)
+	{
+		float ShapeHeight = (End - Start).Size();
+		FVector ShapeLoc = (End + Start) * 0.5f;
+		FRotator ShapeRot = (End - Start).ToOrientationRotator();
+
+		// trace range
+		FDebugCapsuleConfig Config;
+		Config.Color = DrawDebugConfig.Color;
+		Config.Location = ShapeLoc;
+		Config.Rotation = ShapeRot;
+		Config.Radius = Radius;
+		Config.Height = ShapeHeight;
+		Config.Duration = DrawDebugConfig.Duration;
+		Config.LineThickness = DrawDebugConfig.LineThickness;
+		ABattleFrameBattleControl::GetInstance()->DebugCapsuleQueue.Enqueue(Config);
+
+		// hit points
+		for (const auto& Result : Results)
+		{
+			FVector OtherLocation = Result.Subject.GetTrait<FLocated>().Location;
+			FDebugSphereConfig SphereConfig;
+			SphereConfig.Color = DrawDebugConfig.Color;
+			SphereConfig.Location = Result.Subject.GetTrait<FLocated>().Location;
+			SphereConfig.Radius = Result.Subject.GetTrait<FGridData>().Radius;
+			SphereConfig.Duration = DrawDebugConfig.Duration;
+			SphereConfig.LineThickness = DrawDebugConfig.LineThickness;
+			ABattleFrameBattleControl::GetInstance()->DebugSphereQueue.Enqueue(SphereConfig);
+		}
+	}
 }
 
 void UNeighborGridComponent::SectorTraceForSubjects
@@ -433,6 +490,7 @@ void UNeighborGridComponent::SectorTraceForSubjects
 	const FVector& SortOrigin,
 	const FSubjectArray& IgnoreSubjects,
 	const FFilter& Filter,
+	const FTraceDrawDebugConfig& DrawDebugConfig,
 	bool& Hit,
 	TArray<FTraceResult>& Results
 ) const
@@ -598,7 +656,7 @@ void UNeighborGridComponent::SectorTraceForSubjects
 				const FVector ToSubjectDir = (SubjectPos - CheckOrigin).GetSafeNormal();
 				const FVector SubjectSurfacePoint = SubjectPos - (ToSubjectDir * SubjectRadius);
 
-				SphereSweepForObstacle(CheckOrigin, SubjectSurfacePoint, CheckRadius, bVisibilityHit, VisibilityResult);
+				SphereSweepForObstacle(CheckOrigin, SubjectSurfacePoint, CheckRadius, DrawDebugConfig, bVisibilityHit, VisibilityResult);
 
 				if (bVisibilityHit) continue;
 			}
@@ -711,6 +769,34 @@ void UNeighborGridComponent::SectorTraceForSubjects
 	}
 
 	Hit = !Results.IsEmpty();
+
+	if (DrawDebugConfig.bDrawDebugShape)
+	{
+		FDebugSectorConfig SectorConfig;
+		SectorConfig.Location = Origin;
+		SectorConfig.Radius = Radius;
+		SectorConfig.Height = Height;
+		SectorConfig.Direction = Direction;
+		SectorConfig.Angle = Angle;
+		SectorConfig.Duration = DrawDebugConfig.Duration;
+		SectorConfig.Color = DrawDebugConfig.Color;
+		SectorConfig.LineThickness = DrawDebugConfig.LineThickness;
+
+		ABattleFrameBattleControl::GetInstance()->DebugSectorQueue.Enqueue(SectorConfig);
+
+		// hit points
+		for (const auto& Result : Results)
+		{
+			FVector OtherLocation = Result.Subject.GetTrait<FLocated>().Location;
+			FDebugSphereConfig Config;
+			Config.Color = DrawDebugConfig.Color;
+			Config.Location = Result.Subject.GetTrait<FLocated>().Location;
+			Config.Radius = Result.Subject.GetTrait<FGridData>().Radius;
+			Config.Duration = DrawDebugConfig.Duration;
+			Config.LineThickness = DrawDebugConfig.LineThickness;
+			ABattleFrameBattleControl::GetInstance()->DebugSphereQueue.Enqueue(Config);
+		}
+	}
 }
 
 // Single Sweep Trace For Nearest Obstacle
@@ -719,6 +805,7 @@ void UNeighborGridComponent::SphereSweepForObstacle
 	const FVector& Start,
 	const FVector& End,
 	float Radius,
+	const FTraceDrawDebugConfig& DrawDebugConfig,
 	bool& Hit,
 	FTraceResult& Result
 ) const
@@ -934,6 +1021,43 @@ void UNeighborGridComponent::SphereSweepForObstacle
 			}
 		}
 	}
+
+	if (DrawDebugConfig.bDrawDebugShape)
+	{
+		// 计算起点到终点的向量
+		FVector Direction = End - Start;
+		float TotalDistance = Direction.Size();
+
+		// 处理零距离情况（使用默认旋转）
+		FRotator ShapeRot = FRotator::ZeroRotator;
+		if (TotalDistance > KINDA_SMALL_NUMBER)
+		{
+			// 归一化方向向量
+			Direction /= TotalDistance;
+
+			// 创建使Z轴指向方向的旋转（胶囊体默认沿Z轴）
+			ShapeRot = FRotationMatrix::MakeFromZ(Direction).Rotator();
+		}
+
+		// 计算圆柱部分高度（总高度减去两端的半球）
+		float CylinderHeight = FMath::Max(0.0f, TotalDistance - 2.0f * Radius);
+
+		// 计算胶囊体中心位置（两点中点）
+		FVector ShapeLoc = (Start + End) * 0.5f;
+
+		// 配置调试胶囊体参数
+		FDebugCapsuleConfig CapsuleConfig;
+		CapsuleConfig.Color = DrawDebugConfig.Color;
+		CapsuleConfig.Location = ShapeLoc;
+		CapsuleConfig.Rotation = ShapeRot;  // 修正后的旋转
+		CapsuleConfig.Radius = Radius;
+		CapsuleConfig.Height = CylinderHeight;  // 圆柱部分高度
+		CapsuleConfig.LineThickness = DrawDebugConfig.LineThickness;
+
+		// 加入调试队列
+		ABattleFrameBattleControl::GetInstance()->DebugCapsuleQueue.Enqueue(CapsuleConfig);
+
+	}
 }
 
 
@@ -1059,6 +1183,16 @@ void UNeighborGridComponent::Update()
 						}
 					}
 				}
+			}
+
+			if (Collider.bDrawDebugShape)
+			{
+				FDebugSphereConfig Config;
+				Config.Radius = GridData.Radius;
+				Config.Location = Located.Location;
+				Config.Color = FColor::Red;
+				Config.LineThickness = 0.f;
+				ABattleFrameBattleControl::GetInstance()->DebugSphereQueue.Enqueue(Config);
 			}
 
 		}, ThreadsCount, BatchSize);

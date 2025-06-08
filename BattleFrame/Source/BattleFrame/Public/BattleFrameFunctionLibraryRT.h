@@ -47,7 +47,7 @@ public:
     );
 
 
-    UFUNCTION(BlueprintCallable, Category = "BattleFrame | Tracing", meta = (AutoCreateRefTerm = "Origin, CheckOrigin, SortOrigin, IgnoreSubjects, Filter"))
+    UFUNCTION(BlueprintCallable, Category = "BattleFrame | Tracing", meta = (AutoCreateRefTerm = "Origin, CheckOrigin, SortOrigin, IgnoreSubjects, Filter, DrawDebugConfig"))
     static void SphereTraceForSubjects
     (
         bool& Hit,
@@ -62,10 +62,11 @@ public:
         ESortMode SortMode = ESortMode::None,
         UPARAM(ref) const FVector& SortOrigin = FVector(0, 0, 0),
         UPARAM(ref) const FSubjectArray& IgnoreSubjects = FSubjectArray(),
-        UPARAM(ref) const FFilter& Filter = FFilter()
+        UPARAM(ref) const FFilter& Filter = FFilter(),
+        UPARAM(ref) const FTraceDrawDebugConfig& DrawDebugConfig = FTraceDrawDebugConfig()
     );
 
-    UFUNCTION(BlueprintCallable, Category = "BattleFrame | Tracing", meta = (AutoCreateRefTerm = "Start, End, CheckOrigin, SortOrigin, IgnoreSubjects, Filter"))
+    UFUNCTION(BlueprintCallable, Category = "BattleFrame | Tracing", meta = (AutoCreateRefTerm = "Start, End, CheckOrigin, SortOrigin, IgnoreSubjects, Filter, DrawDebugConfig"))
     static void SphereSweepForSubjects
     (
         bool& Hit,
@@ -81,10 +82,11 @@ public:
         ESortMode SortMode = ESortMode::None,
         UPARAM(ref) const FVector& SortOrigin = FVector(0, 0, 0),
         UPARAM(ref) const FSubjectArray& IgnoreSubjects = FSubjectArray(),
-        UPARAM(ref) const FFilter& Filter = FFilter()
+        UPARAM(ref) const FFilter& Filter = FFilter(),
+        UPARAM(ref) const FTraceDrawDebugConfig & DrawDebugConfig = FTraceDrawDebugConfig()
     );
 
-    UFUNCTION(BlueprintCallable, Category = "BattleFrame | Tracing", meta = (AutoCreateRefTerm = "Origin, ForwardVector, CheckOrigin, SortOrigin, IgnoreSubjects, Filter"))
+    UFUNCTION(BlueprintCallable, Category = "BattleFrame | Tracing", meta = (AutoCreateRefTerm = "Origin, ForwardVector, CheckOrigin, SortOrigin, IgnoreSubjects, Filter, DrawDebugConfig"))
     static void SectorTraceForSubjects
     (
         bool& Hit,
@@ -102,10 +104,11 @@ public:
         ESortMode SortMode = ESortMode::None,
         UPARAM(ref) const FVector& SortOrigin = FVector(0, 0, 0),
         UPARAM(ref) const FSubjectArray& IgnoreSubjects = FSubjectArray(),
-        UPARAM(ref) const FFilter& Filter = FFilter()
+        UPARAM(ref) const FFilter& Filter = FFilter(),
+        UPARAM(ref) const FTraceDrawDebugConfig& DrawDebugConfig = FTraceDrawDebugConfig()
     );
 
-    UFUNCTION(BlueprintCallable, Category = "BattleFrame | Tracing", meta = (AutoCreateRefTerm = "Start, End"))
+    UFUNCTION(BlueprintCallable, Category = "BattleFrame | Tracing", meta = (AutoCreateRefTerm = "Start, End, DrawDebugConfig"))
     static void SphereSweepForObstacle
     (
         bool& Hit,
@@ -113,7 +116,8 @@ public:
         ANeighborGridActor* NeighborGridActor = nullptr,
         UPARAM(ref) const FVector& Start = FVector(0, 0, 0),
         UPARAM(ref) const FVector& End = FVector(0, 0, 0),
-        float Radius = 0.f
+        float Radius = 0.f,
+        UPARAM(ref) const FTraceDrawDebugConfig& DrawDebugConfig = FTraceDrawDebugConfig()
     );
 
     UFUNCTION(BlueprintCallable, Category = "BattleFrame | Misc", meta = (AutoCreateRefTerm = "Subjects, IgnoreSubjects, DmgInstigator, HitFromLocation, DmgSphere, Debuff", DisplayName = "ApplyDamageToSubjects(Deprecated)"))
@@ -452,15 +456,16 @@ public:
     ESortMode SortMode;
     FVector SortOrigin;
     FFilter Filter;
+    FTraceDrawDebugConfig DrawDebugConfig;
     FSubjectArray IgnoreSubjects;
     bool Hit;
     TArray<FTraceResult> TempResults;
     TArray<FTraceResult> Results;
 
-    UFUNCTION(BlueprintCallable, meta = (BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject", AutoCreateRefTerm = "Start, End, CheckOrigin, SortOrigin, IgnoreSubjects, Filter"))
+    UFUNCTION(BlueprintCallable, meta = (BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject", AutoCreateRefTerm = "Start, End, CheckOrigin, SortOrigin, IgnoreSubjects, Filter, DrawDebugConfig"))
     static USphereSweepForSubjectsAsyncAction* SphereSweepForSubjectsAsync
     (
-        const UObject* WorldContextObject = nullptr, 
+        const UObject* WorldContextObject = nullptr,
         ANeighborGridActor* NeighborGridActor = nullptr,
         int32 KeepCount = -1,
         const FVector Start = FVector(0, 0, 0),
@@ -472,7 +477,8 @@ public:
         ESortMode SortMode = ESortMode::None,
         const FVector SortOrigin = FVector(0, 0, 0),
         const FSubjectArray IgnoreSubjects = FSubjectArray(),
-        const FFilter Filter = FFilter()
+        const FFilter Filter = FFilter(),
+        const FTraceDrawDebugConfig DrawDebugConfig = FTraceDrawDebugConfig()
     );
 
     virtual void Activate() override;

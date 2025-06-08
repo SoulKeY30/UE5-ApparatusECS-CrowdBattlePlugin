@@ -21,6 +21,46 @@ public:
 };
 
 USTRUCT(BlueprintType)
+struct BATTLEFRAME_API FSectorTraceParams
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "索敌视野半径"))
+	float TraceRadius = 1000;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (UIMin = 0, UIMax = 360, Tooltip = "索敌视野角度"))
+	float TraceAngle = 360.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "索敌视野高度"))
+	float TraceHeight = 300.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "检测目标是不是在障碍物后面"))
+	bool bCheckVisibility = false;
+
+	FSectorTraceParams() {};
+
+	FSectorTraceParams(const FSectorTraceParams& Params)
+	{
+		TraceRadius = Params.TraceRadius;
+		TraceAngle = Params.TraceAngle;
+		TraceHeight = Params.TraceHeight;
+		bCheckVisibility = Params.bCheckVisibility;
+	}
+
+	FSectorTraceParams& operator=(const FSectorTraceParams& Params)
+	{
+		TraceRadius = Params.TraceRadius;
+		TraceAngle = Params.TraceAngle;
+		TraceHeight = Params.TraceHeight;
+		bCheckVisibility = Params.bCheckVisibility;
+		return *this;
+	}
+};
+
+
+USTRUCT(BlueprintType)
 struct BATTLEFRAME_API FDmgResult
 {
 	GENERATED_BODY()
@@ -88,6 +128,15 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "位置"))
 	FVector Location = FVector::ZeroVector;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "颜色"))
+	FColor Color = FColor::Red;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "持续时间"))
+	float Duration = 0.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "线宽"))
+	float LineThickness = 0.f;
+
 };
 
 USTRUCT(BlueprintType)
@@ -102,6 +151,39 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "终点"))
 	FVector EndLocation = FVector::ZeroVector;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "颜色"))
+	FColor Color = FColor::Red;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "持续时间"))
+	float Duration = 0.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "线宽"))
+	float LineThickness = 0.f;
+
+};
+
+USTRUCT(BlueprintType)
+struct BATTLEFRAME_API FDebugArrowConfig
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "起点"))
+	FVector StartLocation = FVector::ZeroVector;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "终点"))
+	FVector EndLocation = FVector::ZeroVector;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "位置"))
+	FColor Color = FColor::Red;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "持续时间"))
+	float Duration = 0.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "线宽"))
+	float LineThickness = 0.f;
 
 };
 
@@ -118,6 +200,15 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "位置"))
 	FVector Location = FVector::ZeroVector;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "颜色"))
+	FColor Color = FColor::Red;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "持续时间"))
+	float Duration = 0.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "线宽"))
+	float LineThickness = 0.f;
+
 };
 
 USTRUCT(BlueprintType)
@@ -127,14 +218,26 @@ struct BATTLEFRAME_API FDebugCapsuleConfig
 
 public:
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "位置"))
+	FVector Location = FVector::ZeroVector;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "朝向"))
+	FRotator Rotation = FRotator::ZeroRotator;
+
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "半径"))
 	float Radius = 100.f;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "高度"))
 	float Height = 100.f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "位置"))
-	FVector Location = FVector::ZeroVector;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "颜色"))
+	FColor Color = FColor::Red;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "持续时间"))
+	float Duration = 0.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "线宽"))
+	float LineThickness = 0.f;
 };
 
 USTRUCT(BlueprintType)
@@ -154,13 +257,19 @@ public:
 	float Angle = 100.f;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "张开角度"))
-	float Duration = 1.f;
+	float Duration = 0.f;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "位置"))
 	FVector Location = FVector::ZeroVector;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "朝向"))
 	FVector Direction = FVector::OneVector;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "颜色"))
+	FColor Color = FColor::Red;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "线宽"))
+	float LineThickness = 0.f;
 };
 
 USTRUCT(BlueprintType)
@@ -175,6 +284,39 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "位置"))
 	FVector Location = FVector::ZeroVector;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "颜色"))
+	FColor Color = FColor::Red;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "持续时间"))
+	float Duration = 0.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "线宽"))
+	float LineThickness = 0.f;
+
+};
+
+
+USTRUCT(BlueprintType)
+struct BATTLEFRAME_API FTraceDrawDebugConfig
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "启用"))
+	bool bDrawDebugShape = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "颜色"))
+	FColor Color = FColor::Red;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "持续时间"))
+	float Duration = 0.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "线宽"))
+	float LineThickness = 0.f;
+
+	FTraceDrawDebugConfig() = default;
 
 };
 

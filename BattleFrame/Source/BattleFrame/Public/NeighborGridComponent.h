@@ -142,6 +142,7 @@ public:
 		const FVector& SortOrigin,
 		const FSubjectArray& IgnoreSubjects,
 		const FFilter& Filter, 
+		const FTraceDrawDebugConfig& DrawDebugConfig,
 		bool& Hit, 
 		TArray<FTraceResult>& Results
 	) const;
@@ -159,6 +160,7 @@ public:
 		const FVector& SortOrigin,
 		const FSubjectArray& IgnoreSubjects,
 		const FFilter& Filter, 
+		const FTraceDrawDebugConfig& DrawDebugConfig,
 		bool& Hit, 
 		TArray<FTraceResult>& Results
 	) const;
@@ -178,6 +180,7 @@ public:
 		const FVector& SortOrigin, 
 		const FSubjectArray& IgnoreSubjects,
 		const FFilter& Filter, 
+		const FTraceDrawDebugConfig& DrawDebugConfig,
 		bool& Hit, 
 		TArray<FTraceResult>& Results
 	) const;	
@@ -187,6 +190,7 @@ public:
 		const FVector& Start,
 		const FVector& End,
 		float Radius,
+		const FTraceDrawDebugConfig& DrawDebugConfig,
 		bool& Hit,
 		FTraceResult& Result
 	) const;

@@ -63,7 +63,8 @@ void UBattleFrameFunctionLibraryRT::SphereTraceForSubjects
 	ESortMode SortMode,
 	UPARAM(ref) const FVector& SortOrigin,
 	UPARAM(ref) const FSubjectArray& IgnoreSubjects,
-	UPARAM(ref) const FFilter& Filter
+	UPARAM(ref) const FFilter& Filter,
+	UPARAM(ref) const FTraceDrawDebugConfig& DrawDebugConfig
 )
 {
 	TraceResults.Reset();
@@ -84,7 +85,7 @@ void UBattleFrameFunctionLibraryRT::SphereTraceForSubjects
 
 	UNeighborGridComponent* NeighborGrid = NeighborGridActor->GetComponentByClass<UNeighborGridComponent>();
 
-	NeighborGrid->SphereTraceForSubjects(KeepCount, Origin, Radius, bCheckVisibility, CheckOrigin, CheckRadius, SortMode, SortOrigin, IgnoreSubjects, Filter, Hit, TraceResults);
+	NeighborGrid->SphereTraceForSubjects(KeepCount, Origin, Radius, bCheckVisibility, CheckOrigin, CheckRadius, SortMode, SortOrigin, IgnoreSubjects, Filter, DrawDebugConfig, Hit, TraceResults);
 }
 
 void UBattleFrameFunctionLibraryRT::SphereSweepForSubjects
@@ -102,7 +103,8 @@ void UBattleFrameFunctionLibraryRT::SphereSweepForSubjects
 	ESortMode SortMode,
 	UPARAM(ref) const FVector& SortOrigin,
 	UPARAM(ref) const FSubjectArray& IgnoreSubjects,
-	UPARAM(ref) const FFilter& Filter
+	UPARAM(ref) const FFilter& Filter,
+	UPARAM(ref) const FTraceDrawDebugConfig& DrawDebugConfig
 )
 {
 	TraceResults.Reset();
@@ -123,7 +125,7 @@ void UBattleFrameFunctionLibraryRT::SphereSweepForSubjects
 
 	UNeighborGridComponent* NeighborGrid = NeighborGridActor->GetComponentByClass<UNeighborGridComponent>();
 
-	NeighborGrid->SphereSweepForSubjects(KeepCount, Start, End, Radius, bCheckVisibility, CheckOrigin, CheckRadius, SortMode, SortOrigin, IgnoreSubjects, Filter, Hit, TraceResults);
+	NeighborGrid->SphereSweepForSubjects(KeepCount, Start, End, Radius, bCheckVisibility, CheckOrigin, CheckRadius, SortMode, SortOrigin, IgnoreSubjects, Filter, DrawDebugConfig, Hit, TraceResults);
 }
 
 void UBattleFrameFunctionLibraryRT::SectorTraceForSubjects
@@ -143,7 +145,8 @@ void UBattleFrameFunctionLibraryRT::SectorTraceForSubjects
 	ESortMode SortMode,
 	UPARAM(ref) const FVector& SortOrigin,
 	UPARAM(ref) const FSubjectArray& IgnoreSubjects,
-	UPARAM(ref) const FFilter& Filter
+	UPARAM(ref) const FFilter& Filter,
+	UPARAM(ref) const FTraceDrawDebugConfig& DrawDebugConfig
 )
 {
 	if (!IsValid(NeighborGridActor))
@@ -162,7 +165,7 @@ void UBattleFrameFunctionLibraryRT::SectorTraceForSubjects
 
 	UNeighborGridComponent* NeighborGrid = NeighborGridActor->GetComponentByClass<UNeighborGridComponent>();
 
-	NeighborGrid->SectorTraceForSubjects(KeepCount, Origin, Radius, Height, ForwardVector, Angle, bCheckVisibility, CheckOrigin, CheckRadius, SortMode, SortOrigin, IgnoreSubjects, Filter, Hit, TraceResults);
+	NeighborGrid->SectorTraceForSubjects(KeepCount, Origin, Radius, Height, ForwardVector, Angle, bCheckVisibility, CheckOrigin, CheckRadius, SortMode, SortOrigin, IgnoreSubjects, Filter, DrawDebugConfig, Hit, TraceResults);
 }
 
 void UBattleFrameFunctionLibraryRT::SphereSweepForObstacle
@@ -172,7 +175,8 @@ void UBattleFrameFunctionLibraryRT::SphereSweepForObstacle
 	ANeighborGridActor* NeighborGridActor,
 	UPARAM(ref) const FVector& Start,
 	UPARAM(ref) const FVector& End,
-	float Radius
+	float Radius,
+	UPARAM(ref) const FTraceDrawDebugConfig& DrawDebugConfig
 )
 {
 	if (!IsValid(NeighborGridActor))
@@ -191,7 +195,7 @@ void UBattleFrameFunctionLibraryRT::SphereSweepForObstacle
 
 	UNeighborGridComponent* NeighborGrid = NeighborGridActor->GetComponentByClass<UNeighborGridComponent>();
 
-	NeighborGrid->SphereSweepForObstacle(Start, End, Radius, Hit, TraceResult);
+	NeighborGrid->SphereSweepForObstacle(Start, End, Radius, DrawDebugConfig, Hit, TraceResult);
 }
 
 void UBattleFrameFunctionLibraryRT::ApplyDamageToSubjects
@@ -322,7 +326,8 @@ USphereSweepForSubjectsAsyncAction* USphereSweepForSubjectsAsyncAction::SphereSw
 	ESortMode SortMode,
 	const FVector SortOrigin,
 	const FSubjectArray IgnoreSubjects,
-	const FFilter Filter
+	const FFilter Filter,
+	const FTraceDrawDebugConfig DrawDebugConfig
 )
 {
 	USphereSweepForSubjectsAsyncAction* AsyncAction = NewObject<USphereSweepForSubjectsAsyncAction>();
@@ -353,6 +358,7 @@ USphereSweepForSubjectsAsyncAction* USphereSweepForSubjectsAsyncAction::SphereSw
 	AsyncAction->SortOrigin = SortOrigin;
 	AsyncAction->IgnoreSubjects = IgnoreSubjects;
 	AsyncAction->Filter = Filter;
+	AsyncAction->DrawDebugConfig = DrawDebugConfig;
 
 	return AsyncAction;
 }
@@ -422,7 +428,7 @@ void USphereSweepForSubjectsAsyncAction::Activate()
 						{
 							bool HitObstacle = false;
 							FTraceResult TraceResult;
-							NeighborGrid->SphereSweepForObstacle(Start, SubjectPos, CheckRadius, HitObstacle, TraceResult);
+							NeighborGrid->SphereSweepForObstacle(Start, SubjectPos, CheckRadius, DrawDebugConfig, HitObstacle, TraceResult);
 
 							if (HitObstacle) continue; // 路径被阻挡，跳过该目标
 						}
@@ -469,6 +475,38 @@ void USphereSweepForSubjectsAsyncAction::Activate()
 					}
 
 					Hit = !Results.IsEmpty();
+
+					if (DrawDebugConfig.bDrawDebugShape)
+					{
+						float ShapeHeight = (End - Start).Size();
+						FVector ShapeLoc = (End + Start) * 0.5f;
+						FRotator ShapeRot = (End - Start).ToOrientationRotator();
+
+						// trace range
+						FDebugCapsuleConfig Config;
+						Config.Color = DrawDebugConfig.Color;
+						Config.Location = ShapeLoc;
+						Config.Rotation = ShapeRot;
+						Config.Radius = Radius;
+						Config.Height = ShapeHeight;
+						Config.Duration = DrawDebugConfig.Duration;
+						Config.LineThickness = DrawDebugConfig.LineThickness;
+						ABattleFrameBattleControl::GetInstance()->DebugCapsuleQueue.Enqueue(Config);
+
+						// hit points
+						for (const auto& Result : Results)
+						{
+							FVector OtherLocation = Result.Subject.GetTrait<FLocated>().Location;
+							FDebugSphereConfig SphereConfig;
+							SphereConfig.Color = DrawDebugConfig.Color;
+							SphereConfig.Location = Result.Subject.GetTrait<FLocated>().Location;
+							SphereConfig.Radius = Result.Subject.GetTrait<FGridData>().Radius;
+							SphereConfig.Duration = DrawDebugConfig.Duration;
+							SphereConfig.LineThickness = DrawDebugConfig.LineThickness;
+							ABattleFrameBattleControl::GetInstance()->DebugSphereQueue.Enqueue(SphereConfig);
+						}
+					}
+
 					Completed.Broadcast(Hit, Results);
 					SetReadyToDestroy();
 				});
