@@ -56,6 +56,7 @@ Comprehensive crowd battle system including many commonly needed features. Demo 
   - Getting and setting trait values to change agents' behaviors runtime
   - Trace for agents and apply damage and debuff
   - Easy spawning actor fx and sound on birth atk hit and death
+  - Draw Debug Shapes
 - **NS GPU Particle VAT**:
   - Basic A to B animation blending
   - Very handy editor utility widget to set up VAT in 1 click
