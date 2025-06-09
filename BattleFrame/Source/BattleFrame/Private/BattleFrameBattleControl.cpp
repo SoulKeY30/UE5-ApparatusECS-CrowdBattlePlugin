@@ -1666,8 +1666,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					FVector TargetPos = Trace.TraceResult.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
 
 					// 计算夹角
-					FVector AttackerForward = Subject.GetTraitRef<FDirected, EParadigm::Unsafe>().Direction.GetSafeNormal();
-					FVector ToTargetDir = (TargetPos - AttackerPos).GetSafeNormal();
+					FVector AttackerForward = Subject.GetTraitRef<FDirected, EParadigm::Unsafe>().Direction.GetSafeNormal2D();
+					FVector ToTargetDir = (TargetPos - AttackerPos).GetSafeNormal2D();
 					float Angle = FMath::RadiansToDegrees(FMath::Acos(FVector::DotProduct(AttackerForward, ToTargetDir)));
 
 					// wait for aiming
@@ -1801,8 +1801,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 								float Distance = FMath::Clamp(FVector::Distance(AttackerPos, TargetPos) - SelfRadius - OtherRadius, 0, FLT_MAX);
 
 								// 计算夹角
-								FVector AttackerForward = Subject.GetTraitRef<FDirected, EParadigm::Unsafe>().Direction.GetSafeNormal();
-								FVector ToTargetDir = (TargetPos - AttackerPos).GetSafeNormal();
+								FVector AttackerForward = Subject.GetTraitRef<FDirected, EParadigm::Unsafe>().Direction.GetSafeNormal2D();
+								FVector ToTargetDir = (TargetPos - AttackerPos).GetSafeNormal2D();
 								float Angle = FMath::RadiansToDegrees(FMath::Acos(FVector::DotProduct(AttackerForward, ToTargetDir)));
 
 								TArray<FDmgResult> DmgResults;
