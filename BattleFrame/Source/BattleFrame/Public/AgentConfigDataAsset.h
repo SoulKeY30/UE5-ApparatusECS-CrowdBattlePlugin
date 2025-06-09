@@ -32,6 +32,7 @@
 #include "Traits/Patrol.h"
 #include "Traits/Perception.h"
 #include "Traits/Curves.h"
+#include "Traits/Chase.h"
 #include "Traits/Statistics.h"
 #include "Traits/CustomData.h"
 #include "SubjectRecord.h"
@@ -78,6 +79,9 @@ public:
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "索敌"))
     FTrace Trace;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "追逐"))
+    FChase Chase;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "移动"))
     FMove Move;

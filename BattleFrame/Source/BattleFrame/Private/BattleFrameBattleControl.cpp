@@ -507,6 +507,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				FScaled& Scaled,
 				FCollider& Collider,
 				FPatrol& Patrol,
+				FChase& Chase,
 				FMove& Move,
 				FMoving& Moving,
 				FNavigation& Navigation,
@@ -670,8 +671,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				{
 					float OtherRadius = Trace.TraceResult.HasTrait<FGridData>() ? Trace.TraceResult.GetTraitRef<FGridData, EParadigm::Unsafe>().Radius : 0;
 					DistanceToGoal = FMath::Clamp(FVector::Dist2D(AgentLocation, Moving.Goal) - SelfRadius - OtherRadius, 0, FLT_MAX);
-					bIsInAcceptanceRadius = DistanceToGoal <= Move.AcceptanceRadius;
-					FinalAcceptenceRadius = Move.AcceptanceRadius + OtherRadius;
+					bIsInAcceptanceRadius = DistanceToGoal <= Chase.AcceptanceRadius;
+					FinalAcceptenceRadius = Chase.AcceptanceRadius + OtherRadius;
 				}
 				else // 其它移动到目标点
 				{
@@ -3564,7 +3565,7 @@ void ABattleFrameBattleControl::DefineFilters()
 	AgentDeathDissolveFilter = FFilter::Make<FAgent, FRendering, FDeathDissolve, FAnimation, FDying, FDeath, FCurves, FActivated>();
 	AgentDeathAnimFilter = FFilter::Make<FAgent, FRendering, FDeathAnim, FAnimation, FDying, FActivated>();
 	AgentPatrolFilter = FFilter::Make<FAgent, FLocated, FDirected, FScaled, FCollider, FPatrol, FTrace, FMove, FMoving, FRendering, FActivated>().Exclude<FAppearing, FSleeping, FAttacking, FDying>();
-	AgentMoveFilter = FFilter::Make<FAgent, FRendering, FAnimation, FMove, FMoving, FLocated, FDirected, FScaled, FCollider, FAttack, FTrace, FNavigation, FAvoidance, FAvoiding, FDefence, FPatrol, FGridData, FSlowing, FActivated>();
+	AgentMoveFilter = FFilter::Make<FAgent, FRendering, FAnimation, FMove, FMoving, FChase, FLocated, FDirected, FScaled, FCollider, FAttack, FTrace, FNavigation, FAvoidance, FAvoiding, FDefence, FPatrol, FGridData, FSlowing, FActivated>();
 	AgentStateMachineFilter = FFilter::Make<FAgent, FAnimation, FRendering, FAppear, FAttack, FDeath, FMoving, FSlowing, FActivated>();
 	AgentRenderFilter = FFilter::Make<FAgent, FRendering, FLocated, FDirected, FScaled, FCollider, FAnimation, FHealth, FHealthBar, FPoppingText, FActivated>();
 

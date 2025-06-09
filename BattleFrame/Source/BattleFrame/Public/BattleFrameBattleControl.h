@@ -83,6 +83,7 @@
 #include "Traits/IsSubjective.h"
 #include "Traits/TextPopConfig.h"
 #include "Traits/OwnerSubject.h"
+#include "Traits/Chase.h"
 #include "DmgResultInterface.h"
 #include "Math/UnrealMathUtility.h"
 #include "BattleFrameBattleControl.generated.h"

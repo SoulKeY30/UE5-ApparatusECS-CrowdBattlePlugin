@@ -109,6 +109,7 @@ void UBFSubjectiveAgentComponent::InitializeTraits(AActor* OwnerActor)
     AgentConfig.SetTrait(DataAsset->Appear);
     AgentConfig.SetTrait(DataAsset->Trace);
     AgentConfig.SetTrait(FTracing());
+    AgentConfig.SetTrait(DataAsset->Chase);
     AgentConfig.SetTrait(DataAsset->Attack);
     AgentConfig.SetTrait(DataAsset->Hit);
     AgentConfig.SetTrait(DataAsset->Death);

@@ -10,4 +10,7 @@ struct BATTLEFRAME_API FChase
 
 public:
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "与攻击目标距离低于该值时停止移动"))
+	float AcceptanceRadius = 100.f;
+
 };

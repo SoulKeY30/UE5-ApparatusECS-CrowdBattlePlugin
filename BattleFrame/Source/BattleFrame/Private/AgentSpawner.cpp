@@ -133,6 +133,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     AgentConfig.SetTrait(DataAsset->Appear);
     AgentConfig.SetTrait(DataAsset->Trace);
     AgentConfig.SetTrait(FTracing());
+    AgentConfig.SetTrait(DataAsset->Chase);
     AgentConfig.SetTrait(DataAsset->Attack);
     AgentConfig.SetTrait(DataAsset->Hit);
     AgentConfig.SetTrait(DataAsset->Death);
@@ -320,6 +321,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsByConfigRectangular
     AgentRecord.SetTrait(AgentConfig->Sleep);
     AgentRecord.SetTrait(AgentConfig->Move);
     AgentRecord.SetTrait(FMoving());
+    AgentRecord.SetTrait(AgentConfig->Chase);
     AgentRecord.SetTrait(AgentConfig->Patrol);
     AgentRecord.SetTrait(AgentConfig->Navigation);
     AgentRecord.SetTrait(AgentConfig->Avoidance);
