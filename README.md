@@ -38,6 +38,7 @@ This plugin is open source, but has the following dependencies:
   - RVO2 for avoidance/collision
   - Neighbour grid for collision detection
   - Flow field for navigation
+  - Does not support networking
 
 ## Features
 
