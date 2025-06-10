@@ -70,9 +70,10 @@ Comprehensive crowd battle system including many commonly needed features. Demo 
 
 In progress:
 1. Tower defence demo map
-2. Agent individual navigation
-3. Sprite rendering support
-4. TurboSequence GPU SKM support
+2. Agent blendspace 1D
+3. Agent individual navigation
+4. Sprite rendering support
+5. TurboSequence GPU SKM support
 6. Control agents with mouse
 7. Move in formation
 8. Network replication
