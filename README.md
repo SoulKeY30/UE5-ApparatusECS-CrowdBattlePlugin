@@ -38,6 +38,7 @@ This plugin is open source, but has the following dependencies:
   - RVO2 for avoidance/collision
   - Neighbour grid for collision detection
   - Flow field for navigation
+  - Does not support networking
 
 ## Features
 
@@ -51,15 +52,15 @@ Comprehensive crowd battle system including many commonly needed features. Demo 
 - **AI Perception**:
   - Support vision. Agent can trace for targets, and optionally only visible ones
 - **BP WorkFlow**:
-  - Spawning agents by data asset
-  - Bind agent with unreal's actor
-  - Getting and setting trait values to change agents' behaviors runtime
+  - Spawning agent by data asset
+  - Bind agent to unreal's actor
+  - Setting trait values runtime to control agents' behaviors 
   - Trace for agents and apply damage and debuff
-  - Easy spawning actor fx and sound on birth atk hit and death
+  - Spawning actor fx and sound on birth atk hit and death
   - Draw Debug Shapes
 - **NS GPU Particle VAT**:
   - Basic A to B animation blending
-  - Very handy editor utility widget to set up VAT in 1 click
+  - Editor utility widget to set up VAT in 1 click
 - **NS GPU Particle UI**:
   - Health Bar, Text Pop, Ground Ring
 - **NS CPU Batched Emitter**:
@@ -69,9 +70,10 @@ Comprehensive crowd battle system including many commonly needed features. Demo 
 
 In progress:
 1. Tower defence demo map
-2. Agent individual navigation
-3. Sprite rendering support
-4. TurboSequence GPU SKM support
+2. Agent blendspace 1D
+3. Agent individual navigation
+4. Sprite rendering support
+5. TurboSequence GPU SKM support
 6. Control agents with mouse
 7. Move in formation
 8. Network replication
