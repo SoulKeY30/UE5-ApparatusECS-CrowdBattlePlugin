@@ -30,11 +30,17 @@ public:
 
   public:
 
-	  UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "想要达成的速度和方向"))
+	  UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "想要达成的线速度"))
 	  FVector DesiredVelocity = FVector::ZeroVector;
 
-	  UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "当前实际速度和方向"))
+	  UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "当前实际线速度"))
 	  FVector CurrentVelocity = FVector::ZeroVector;
+
+	  UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "当前角速度"))
+	  float CurrentAngularVelocity = 0;
+
+	  UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "想要抵达的位置"))
+	  FVector Goal = FVector::ZeroVector;
 
 	  UPROPERTY(BlueprintReadOnly, VisibleAnywhere, meta = (Tooltip = "正在下落？"))
 	  bool bFalling = false;
@@ -50,8 +56,6 @@ public:
 	  float FlyingHeight = 0;
 	  float MoveSpeedMult = 1;
 	  float TurnSpeedMult = 1;
-	  float CurrentAngularVelocity = 0;
-	  FVector Goal = FVector::ZeroVector;
 
 	  // 速度历史记录
 	  TArray<FVector,TInlineAllocator<5>> HistoryVelocity;

@@ -3,9 +3,10 @@
 
 #include "CoreMinimal.h"
 #include "BattleFrameStructs.h"
+#include "UObject/Interface.h"
 #include "DmgResultInterface.generated.h"
 
-UINTERFACE(MinimalAPI, Blueprintable)
+UINTERFACE(MinimalAPI)
 class UDmgResultInterface : public UInterface
 {
     GENERATED_BODY()
@@ -18,7 +19,7 @@ class BATTLEFRAME_API IDmgResultInterface
 public:
 
     // 接受伤害时触发
-    UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "MyInterface")
+    UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
     void ReceiveDamage(const FDmgResult& DmgResult);
 
 };

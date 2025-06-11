@@ -1137,7 +1137,6 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 							InterpedVelocity = FMath::VInterpConstantTo(CurrentVelocity, AvoidingVelocity, DeltaTime, Move.MoveDeceleration);
 						}
 
-
 						Moving.CurrentVelocity = FVector(InterpedVelocity.X, InterpedVelocity.Y, Moving.CurrentVelocity.Z);
 					}
 
@@ -3476,6 +3475,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 			);
 		}
 
+		// 绘制球队列
 		while (!DebugSphereQueue.IsEmpty())
 		{
 			FDebugSphereConfig Config;
@@ -3517,6 +3517,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 			//UE_LOG(LogTemp, Log, TEXT("Dequeue"));
 		}
 
+		// 绘制圆队列
 		while (!DebugCircleQueue.IsEmpty())
 		{
 			FDebugCircleConfig Config;
@@ -3538,7 +3539,6 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				false             // 不绘制坐标轴
 			);
 		}
-
 	}
 	#pragma endregion
 }
