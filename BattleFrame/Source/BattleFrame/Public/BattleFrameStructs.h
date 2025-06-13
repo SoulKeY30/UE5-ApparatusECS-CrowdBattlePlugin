@@ -21,6 +21,55 @@ public:
 };
 
 USTRUCT(BlueprintType)
+struct BATTLEFRAME_API FSectorTraceParamsSpecific
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "启用后，使用独立的索敌参数，否则使用Trace里的通用参数"))
+	bool bEnable = true;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "索敌视野半径"))
+	float TraceRadius = 1000;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (UIMin = 0, UIMax = 360, Tooltip = "索敌视野角度"))
+	float TraceAngle = 360.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "索敌视野高度"))
+	float TraceHeight = 300.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "检测目标是不是在障碍物后面"))
+	bool bCheckVisibility = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "偏移"))
+	FTransform Offset = FTransform::Identity;
+
+	FSectorTraceParamsSpecific() {};
+
+	FSectorTraceParamsSpecific(const FSectorTraceParamsSpecific& Params)
+	{
+		bEnable = Params.bEnable;
+		TraceRadius = Params.TraceRadius;
+		TraceAngle = Params.TraceAngle;
+		TraceHeight = Params.TraceHeight;
+		bCheckVisibility = Params.bCheckVisibility;
+		Offset = Params.Offset;
+	}
+
+	FSectorTraceParamsSpecific& operator=(const FSectorTraceParamsSpecific& Params)
+	{
+		bEnable = Params.bEnable;
+		TraceRadius = Params.TraceRadius;
+		TraceAngle = Params.TraceAngle;
+		TraceHeight = Params.TraceHeight;
+		bCheckVisibility = Params.bCheckVisibility;
+		Offset = Params.Offset;
+		return *this;
+	}
+};
+
+USTRUCT(BlueprintType)
 struct BATTLEFRAME_API FSectorTraceParams
 {
 	GENERATED_BODY()
@@ -39,6 +88,9 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "检测目标是不是在障碍物后面"))
 	bool bCheckVisibility = false;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "偏移"))
+	FTransform Offset = FTransform::Identity;
+
 	FSectorTraceParams() {};
 
 	FSectorTraceParams(const FSectorTraceParams& Params)
@@ -47,6 +99,7 @@ public:
 		TraceAngle = Params.TraceAngle;
 		TraceHeight = Params.TraceHeight;
 		bCheckVisibility = Params.bCheckVisibility;
+		Offset = Params.Offset;
 	}
 
 	FSectorTraceParams& operator=(const FSectorTraceParams& Params)
@@ -55,13 +108,36 @@ public:
 		TraceAngle = Params.TraceAngle;
 		TraceHeight = Params.TraceHeight;
 		bCheckVisibility = Params.bCheckVisibility;
+		Offset = Params.Offset;
 		return *this;
 	}
 };
 
-
 USTRUCT(BlueprintType)
 struct BATTLEFRAME_API FDmgResult
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FSubjectHandle DamagedSubject = FSubjectHandle();
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FSubjectHandle InstigatorSubject = FSubjectHandle();
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	bool IsCritical = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	bool IsKill = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	float DmgDealt = 0;
+};
+
+USTRUCT(BlueprintType)
+struct BATTLEFRAME_API FHitData
 {
 	GENERATED_BODY()
 
@@ -295,7 +371,6 @@ public:
 	float LineThickness = 0.f;
 
 };
-
 
 USTRUCT(BlueprintType)
 struct BATTLEFRAME_API FTraceDrawDebugConfig

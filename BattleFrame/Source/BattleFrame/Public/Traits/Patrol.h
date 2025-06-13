@@ -47,8 +47,8 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "抵达目标点后的停留时长"))
 	float CoolDown = 2.f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "索敌扇形视野的尺寸"))
-	FSectorTraceParams SectorParams = FSectorTraceParams();
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "Patrol专用索敌扇形视野的尺寸"))
+	FSectorTraceParamsSpecific SectorParams = FSectorTraceParamsSpecific();
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "绘制Debug图形"))
 	bool bDrawDebugShape = false;

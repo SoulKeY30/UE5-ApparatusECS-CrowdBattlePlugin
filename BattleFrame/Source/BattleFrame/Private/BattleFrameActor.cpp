@@ -17,7 +17,7 @@ void ABattleFrameActor::Tick(float DeltaTime)
     Super::Tick(DeltaTime);
 }
 
-void ABattleFrameActor::ReceiveDamage_Implementation(const FDmgResult& DmgResult)
+void ABattleFrameActor::OnHit_Implementation(const FHitData& Data)
 {
 
 }

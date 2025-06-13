@@ -31,7 +31,7 @@ void ABattleFrameCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInp
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 }
 
-void ABattleFrameCharacter::ReceiveDamage_Implementation(const FDmgResult& DmgResult) 
+void ABattleFrameCharacter::OnHit_Implementation(const FHitData& Data) 
 {
  
 }

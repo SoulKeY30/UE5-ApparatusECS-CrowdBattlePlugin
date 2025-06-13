@@ -16,6 +16,7 @@
 #include "Sound/SoundBase.h"
 #include "Engine/World.h"
 #include "HAL/PlatformMisc.h"
+#include "Math/UnrealMathUtility.h"
 
 // Apparatus
 #include "Machine.h"
@@ -23,15 +24,23 @@
 
 // BattleFrame
 #include "BattleFrameFunctionLibraryRT.h"
+#include "BattleFrameStructs.h"
 
 #include "Traits/Debuff.h"
 #include "Traits/DmgSphere.h"
-#include "Traits/SubType.h"
 #include "Traits/Animation.h"
+#include "Traits/Trace.h"
+#include "Traits/Damage.h"
+#include "Traits/PoppingText.h"
+#include "Traits/Scaled.h"
+#include "Traits/Located.h"
+#include "Traits/Avoidance.h"
+#include "Traits/Avoiding.h"
+#include "Traits/Collider.h"
+#include "Traits/SubType.h"
 #include "Traits/Move.h"
 #include "Traits/Moving.h"
 #include "Traits/Navigation.h"
-#include "Traits/Trace.h"
 #include "Traits/Death.h"
 #include "Traits/Dying.h"
 #include "Traits/DeathAnim.h"
@@ -50,29 +59,20 @@
 #include "Traits/Jiggle.h"
 #include "Traits/Health.h"
 #include "Traits/HealthBar.h"
-#include "Traits/Damage.h"
 #include "Traits/TextPopUp.h"
 #include "Traits/Slowing.h"
 #include "Traits/Slower.h"
-#include "Traits/PoppingText.h"
 #include "Traits/SpawningFx.h"
 #include "Traits/Defence.h"
 #include "Traits/Agent.h"
 #include "Traits/SphereObstacle.h"
-#include "Traits/Scaled.h"
 #include "Traits/Directed.h"
-#include "Traits/Located.h"
-#include "Traits/Avoidance.h"
-#include "Traits/Avoiding.h"
-#include "Traits/Collider.h"
 #include "Traits/Curves.h"
 #include "Traits/Corpse.h"
 #include "Traits/Statistics.h"
 #include "Traits/BindFlowField.h"
 #include "Traits/ValidSubjects.h"
-#include "BattleFrameStructs.h"
 #include "Traits/Sleep.h"
-#include "Traits/Patrol.h"
 #include "Traits/Sleeping.h"
 #include "Traits/Patrolling.h"
 #include "Traits/TemporalDamaging.h"
@@ -81,11 +81,11 @@
 #include "Traits/FxConfig.h"
 #include "Traits/Activated.h"
 #include "Traits/IsSubjective.h"
-#include "Traits/TextPopConfig.h"
 #include "Traits/OwnerSubject.h"
 #include "Traits/Chase.h"
-#include "DmgResultInterface.h"
-#include "Math/UnrealMathUtility.h"
+#include "Traits/Patrol.h"
+#include "Traits/TextPopConfig.h"
+
 #include "BattleFrameBattleControl.generated.h"
 
 // Forward Declearation
@@ -118,18 +118,36 @@ public:
 	UWorld* CurrentWorld = nullptr;
 	AMechanism* Mechanism = nullptr;
 	TArray<UNeighborGridComponent*> NeighborGrids;
-	EFlagmarkBit ReloadFlowFieldFlag = EFlagmarkBit::F;
-	EFlagmarkBit HasPoppingTextFlag = EFlagmarkBit::T;
-	//EFlagmarkBit NeedSettleDmgFlag = EFlagmarkBit::D;
-	TQueue<FDmgResult, EQueueMode::Mpsc> DamageResultQueue;
 	TSet<int32> ExistingRenderers;
 
+	// Agent Status Flags
+	EFlagmarkBit ReloadFlowFieldFlag = EFlagmarkBit::F;
+	EFlagmarkBit HasPoppingTextFlag = EFlagmarkBit::T;
+	EFlagmarkBit PatrollingFlag = EFlagmarkBit::P;
+	EFlagmarkBit SleepingFlag = EFlagmarkBit::S;
+	EFlagmarkBit ChasingFlag = EFlagmarkBit::C;
+	EFlagmarkBit AttackingFlag = EFlagmarkBit::A;
+
+	// Event Callbacks
+	TQueue<FHitData, EQueueMode::Mpsc> OnHitQueue;
+	//TQueue<FHitData, EQueueMode::Mpsc> OnHitQueue;
+	//TQueue<FHitData, EQueueMode::Mpsc> OnHitQueue;
+	//TQueue<FHitData, EQueueMode::Mpsc> OnHitQueue;
+	//TQueue<FHitData, EQueueMode::Mpsc> OnHitQueue;
+	//TQueue<FHitData, EQueueMode::Mpsc> OnHitQueue;
+	//TQueue<FHitData, EQueueMode::Mpsc> OnHitQueue;
+	//TQueue<FHitData, EQueueMode::Mpsc> OnHitQueue;
+	//TQueue<FHitData, EQueueMode::Mpsc> OnHitQueue;
+
+	// Draw Debug Queue
 	TQueue<FDebugPointConfig, EQueueMode::Mpsc> DebugPointQueue;
 	TQueue<FDebugLineConfig, EQueueMode::Mpsc> DebugLineQueue;
 	TQueue<FDebugSphereConfig, EQueueMode::Mpsc> DebugSphereQueue;
 	TQueue<FDebugCapsuleConfig, EQueueMode::Mpsc> DebugCapsuleQueue;
 	TQueue<FDebugSectorConfig, EQueueMode::Mpsc> DebugSectorQueue;
 	TQueue<FDebugCircleConfig, EQueueMode::Mpsc> DebugCircleQueue;
+
+
 
 private:
 

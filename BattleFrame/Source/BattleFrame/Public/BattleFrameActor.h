@@ -2,12 +2,12 @@
 
 #include "CoreMinimal.h"
 #include "BFSubjectiveActorComponent.h"
-#include "DmgResultInterface.h"
+#include "BattleFrameInterface.h"
 #include "BattleFrameStructs.h"
 #include "BattleFrameActor.generated.h"
 
 UCLASS()
-class BATTLEFRAME_API ABattleFrameActor : public AActor, public IDmgResultInterface
+class BATTLEFRAME_API ABattleFrameActor : public AActor, public IBattleFrameInterface
 {
     GENERATED_BODY()
 
@@ -22,5 +22,5 @@ protected:
 
 public:
     virtual void Tick(float DeltaTime) override;
-    virtual void ReceiveDamage_Implementation(const FDmgResult& DmgResult) override;
+    virtual void OnHit_Implementation(const FHitData& Data) override;
 };

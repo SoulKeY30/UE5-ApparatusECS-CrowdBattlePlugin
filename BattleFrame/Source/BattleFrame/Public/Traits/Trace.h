@@ -53,7 +53,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "索敌冷却时间（秒）"))
 	float CoolDown = 2;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "索敌扇形视野的尺寸"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "通用的索敌扇形视野的尺寸"))
 	FSectorTraceParams SectorParams = FSectorTraceParams();
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "绘制Debug图形"))
@@ -61,7 +61,7 @@ public:
 	
 	//----------------------------------------
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, meta = (Tooltip = "索敌结果"))
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, meta = (Tooltip = "索敌结果(只读)"))
 	FSubjectHandle TraceResult = FSubjectHandle();
 
 	UNeighborGridComponent* NeighborGrid = nullptr;

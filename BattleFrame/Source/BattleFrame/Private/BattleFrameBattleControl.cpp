@@ -6,7 +6,6 @@
 
 #include "BattleFrameBattleControl.h"
 #include "Kismet/GameplayStatics.h"
-#include "HAL/ThreadManager.h"
 #include "EngineUtils.h"
 #include "DrawDebugHelpers.h"
 
@@ -22,6 +21,9 @@
 // BattleFrame 插件
 #include "NeighborGridActor.h"
 #include "NeighborGridComponent.h"
+
+#include "BattleFrameInterface.h"
+
 
 
 ABattleFrameBattleControl* ABattleFrameBattleControl::Instance = nullptr;
@@ -120,36 +122,39 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				if (Appearing.time == 0)
 				{
 					// Actor
-					for (FActorSpawnConfig Config : Appear.SpawnActor)
+					for (const FActorSpawnConfig& Config : Appear.SpawnActor)
 					{
-						Config.OwnerSubject = FSubjectHandle(Subject);
-						Config.AttachToSubject = FSubjectHandle(Subject);
-						Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Directed.Direction.ToOrientationQuat(), Located.Location, Config.Transform);
-						Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(FTransform(Directed.Direction.ToOrientationQuat(), Located.Location));
+						FActorSpawnConfig_Final NewConfig(Config);
+						NewConfig.OwnerSubject = FSubjectHandle(Subject);
+						NewConfig.AttachToSubject = FSubjectHandle(Subject);
+						NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Directed.Direction.ToOrientationQuat(), Located.Location, NewConfig.Transform);
+						NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(FTransform(Directed.Direction.ToOrientationQuat(), Located.Location));
 
-						Mechanism->SpawnSubjectDeferred(Config);
+						Mechanism->SpawnSubjectDeferred(NewConfig);
 					}
 
 					// Fx
-					for (FFxConfig Config : Appear.SpawnFx)
+					for (const FFxConfig& Config : Appear.SpawnFx)
 					{
-						Config.OwnerSubject = FSubjectHandle(Subject);
-						Config.AttachToSubject = FSubjectHandle(Subject);
-						Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Directed.Direction.ToOrientationQuat(), Located.Location, Config.Transform);
-						Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(FTransform(Directed.Direction.ToOrientationQuat(), Located.Location));
+						FFxConfig_Final NewConfig(Config);
+						NewConfig.OwnerSubject = FSubjectHandle(Subject);
+						NewConfig.AttachToSubject = FSubjectHandle(Subject);
+						NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Directed.Direction.ToOrientationQuat(), Located.Location, NewConfig.Transform);
+						NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(FTransform(Directed.Direction.ToOrientationQuat(), Located.Location));
 
-						Mechanism->SpawnSubjectDeferred(Config);
+						Mechanism->SpawnSubjectDeferred(NewConfig);
 					}
 
 					// Sound
-					for (FSoundConfig Config : Appear.PlaySound)
+					for (const FSoundConfig& Config : Appear.PlaySound)
 					{
-						Config.OwnerSubject = FSubjectHandle(Subject);
-						Config.AttachToSubject = FSubjectHandle(Subject);
-						Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Directed.Direction.ToOrientationQuat(), Located.Location, Config.Transform);
-						Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(FTransform(Directed.Direction.ToOrientationQuat(), Located.Location));
+						FSoundConfig_Final NewConfig(Config);
+						NewConfig.OwnerSubject = FSubjectHandle(Subject);
+						NewConfig.AttachToSubject = FSubjectHandle(Subject);
+						NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Directed.Direction.ToOrientationQuat(), Located.Location, NewConfig.Transform);
+						NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(FTransform(Directed.Direction.ToOrientationQuat(), Located.Location));
 
-						Mechanism->SpawnSubjectDeferred(Config);
+						Mechanism->SpawnSubjectDeferred(NewConfig);
 					}
 				}
 				
@@ -539,6 +544,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				const bool bIsAppearing = Subject.HasTrait<FAppearing>();
 				const bool bIsSleeping = Subject.HasTrait<FSleeping>();
 				const bool bIsPatrolling = Subject.HasTrait<FPatrolling>();
+				const bool bIsChasing = Subject.HasFlag(ChasingFlag);
 				const bool bIsAttacking = Subject.HasTrait<FAttacking>();
 				const bool bIsDying = Subject.HasTrait<FDying>();
 
@@ -661,24 +667,39 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				float FinalAcceptenceRadius = 0;
 				bool bIsInAcceptanceRadius = false;
 
-				if (UNLIKELY(bIsPatrolling))// 巡逻移动到目标点
+				if (bIsPatrolling)// 巡逻移动到目标点
 				{
 					DistanceToGoal = FVector::Dist2D(AgentLocation, Moving.Goal);
 					bIsInAcceptanceRadius = DistanceToGoal <= Patrol.AcceptanceRadius;
 					FinalAcceptenceRadius = Patrol.AcceptanceRadius;
+
+					if (bIsChasing)
+					{
+						Subject.SetFlag(ChasingFlag, false);
+					}
 				}
-				else if(UNLIKELY(bIsValidTraceResult))// 追击目标，要考虑自身目标的半径
+				else if(Chase.bEnable && bIsValidTraceResult)// 追击目标，要考虑自身目标的半径
 				{
 					float OtherRadius = Trace.TraceResult.HasTrait<FGridData>() ? Trace.TraceResult.GetTraitRef<FGridData, EParadigm::Unsafe>().Radius : 0;
 					DistanceToGoal = FMath::Clamp(FVector::Dist2D(AgentLocation, Moving.Goal) - SelfRadius - OtherRadius, 0, FLT_MAX);
 					bIsInAcceptanceRadius = DistanceToGoal <= Chase.AcceptanceRadius;
 					FinalAcceptenceRadius = Chase.AcceptanceRadius + OtherRadius;
+
+					if (!bIsChasing)
+					{
+						Subject.SetFlag(ChasingFlag, true);
+					}
 				}
 				else // 其它移动到目标点
 				{
 					DistanceToGoal = FVector::Dist2D(AgentLocation, Moving.Goal);
 					bIsInAcceptanceRadius = DistanceToGoal <= Move.AcceptanceRadius;
 					FinalAcceptenceRadius = Move.AcceptanceRadius;
+
+					if (bIsChasing)
+					{
+						Subject.SetFlag(ChasingFlag, false);
+					}
 				}
 
 				// Stop under these circumstances
@@ -724,8 +745,6 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 				float DesiredSpeed = Move.MoveSpeed * Moving.MoveSpeedMult;
 				FVector DesiredVelocity = DesiredSpeed * DesiredMoveDirection;
-				//FVector CurrentVelocity = Moving.CurrentVelocity * FVector(1, 1, 0);
-				//FVector InterpedVelocity = FMath::VInterpConstantTo(CurrentVelocity, DesiredVelocity, DeltaTime, Move.MoveAcceleration);
 				Moving.DesiredVelocity = DesiredVelocity * FVector(1, 1, 0);
 
 				if (Move.bDrawDebugShape)
@@ -1385,9 +1404,11 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				FTrace& Trace = Subject.GetTraitRef<FTrace>();
 				FSleep& Sleep = Subject.GetTraitRef<FSleep>();
 				FPatrol& Patrol = Subject.GetTraitRef<FPatrol>();
+				FChase& Chase = Subject.GetTraitRef<FChase>();
 
 				const bool bIsSleeping = Subject.HasTrait<FSleeping>();
 				const bool bIsPatrolling = Subject.HasTrait<FPatrolling>();
+				const bool bIsChasing = Subject.HasFlag(ChasingFlag);
 
 				const float SelfRadius = Collider.Radius * Scaled.Scale;
 
@@ -1399,26 +1420,51 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 				if (bIsSleeping)
 				{
-					FinalRange += Sleep.SectorParams.TraceRadius;
-					FinalAngle = Sleep.SectorParams.TraceAngle;
-					FinalHeight = Sleep.SectorParams.TraceHeight;
-					FinalCheckVisibility = Sleep.SectorParams.bCheckVisibility;
-					bFinalDrawDebugShape = Sleep.bDrawDebugShape;
+					const auto& Params = Sleep.SectorParams;
+
+					if (Params.bEnable)
+					{
+						FinalRange += Params.TraceRadius;
+						FinalAngle = Params.TraceAngle;
+						FinalHeight = Params.TraceHeight;
+						FinalCheckVisibility = Params.bCheckVisibility;
+						bFinalDrawDebugShape = Sleep.bDrawDebugShape;
+					}
 				}
 				else if (bIsPatrolling)
 				{
-					FinalRange += Patrol.SectorParams.TraceRadius;
-					FinalAngle = Patrol.SectorParams.TraceAngle;
-					FinalHeight = Patrol.SectorParams.TraceHeight;
-					FinalCheckVisibility = Patrol.SectorParams.bCheckVisibility;
-					bFinalDrawDebugShape = Patrol.bDrawDebugShape;
+					const auto& Params = Patrol.SectorParams;
+
+					if (Params.bEnable)
+					{
+						FinalRange += Params.TraceRadius;
+						FinalAngle = Params.TraceAngle;
+						FinalHeight = Params.TraceHeight;
+						FinalCheckVisibility = Params.bCheckVisibility;
+						bFinalDrawDebugShape = Patrol.bDrawDebugShape;
+					}
+				}
+				else if (bIsChasing)
+				{
+					const auto& Params = Chase.SectorParams;
+
+					if (Params.bEnable)
+					{
+						FinalRange += Chase.SectorParams.TraceRadius;
+						FinalAngle = Chase.SectorParams.TraceAngle;
+						FinalHeight = Chase.SectorParams.TraceHeight;
+						FinalCheckVisibility = Chase.SectorParams.bCheckVisibility;
+						bFinalDrawDebugShape = Chase.bDrawDebugShape;
+					}
 				}
 				else
 				{
-					FinalRange += Trace.SectorParams.TraceRadius;
-					FinalAngle = Trace.SectorParams.TraceAngle;
-					FinalHeight = Trace.SectorParams.TraceHeight;
-					FinalCheckVisibility = Trace.SectorParams.bCheckVisibility;
+					const auto& Params = Trace.SectorParams;
+
+					FinalRange += Params.TraceRadius;
+					FinalAngle = Params.TraceAngle;
+					FinalHeight = Params.TraceHeight;
+					FinalCheckVisibility = Params.bCheckVisibility;
 					bFinalDrawDebugShape = Trace.bDrawDebugShape;
 				}
 
@@ -1688,9 +1734,9 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						FQuat SpawnRotation = Directed.Direction.ToOrientationQuat();
 
 						// Actor
-						for (FActorSpawnConfig_Attack Config : Attack.SpawnActor)
+						for (const FActorSpawnConfig_Attack& Config : Attack.SpawnActor)
 						{
-							FActorSpawnConfig NewConfig(Config);
+							FActorSpawnConfig_Final NewConfig(Config);
 							NewConfig.OwnerSubject = FSubjectHandle(Subject);
 
 							switch (Config.SpawnOrigin)
@@ -1719,40 +1765,40 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						}
 
 						// Fx
-						for (FFxConfig_Attack Config : Attack.SpawnFx)
+						for (const FFxConfig_Attack& Config : Attack.SpawnFx)
 						{
-							FFxConfig NewConfig(Config);
+							FFxConfig_Final NewConfig(Config);
 							NewConfig.OwnerSubject = FSubjectHandle(Subject);
 
 							switch (Config.SpawnOrigin)
 							{
-							case ESpawnOrigin::AtSelf:
+								case ESpawnOrigin::AtSelf:
 
-								NewConfig.AttachToSubject = FSubjectHandle(Subject);
-								NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(SpawnRotation, SpawnLocation, NewConfig.Transform);
-								NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(FTransform(SpawnRotation, SpawnLocation));
-								Mechanism->SpawnSubjectDeferred(NewConfig);
-								break;
-
-							case ESpawnOrigin::AtTarget:
-
-								if (Trace.TraceResult.IsValid())
-								{
-									NewConfig.AttachToSubject = Trace.TraceResult;
-									SpawnLocation = Trace.TraceResult.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
-									FQuat TargetRotation = Trace.TraceResult.GetTraitRef<FDirected, EParadigm::Unsafe>().Direction.ToOrientationQuat();
+									NewConfig.AttachToSubject = FSubjectHandle(Subject);
 									NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(SpawnRotation, SpawnLocation, NewConfig.Transform);
-									NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(FTransform(TargetRotation, SpawnLocation));
+									NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(FTransform(SpawnRotation, SpawnLocation));
 									Mechanism->SpawnSubjectDeferred(NewConfig);
-								}
-								break;
+									break;
+
+								case ESpawnOrigin::AtTarget:
+
+									if (Trace.TraceResult.IsValid())
+									{
+										NewConfig.AttachToSubject = Trace.TraceResult;
+										SpawnLocation = Trace.TraceResult.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
+										FQuat TargetRotation = Trace.TraceResult.GetTraitRef<FDirected, EParadigm::Unsafe>().Direction.ToOrientationQuat();
+										NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(SpawnRotation, SpawnLocation, NewConfig.Transform);
+										NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(FTransform(TargetRotation, SpawnLocation));
+										Mechanism->SpawnSubjectDeferred(NewConfig);
+									}
+									break;
 							}
 						}
 
 						// Sound
-						for (FSoundConfig_Attack Config : Attack.PlaySound)
+						for (const FSoundConfig_Attack& Config : Attack.PlaySound)
 						{
-							FSoundConfig NewConfig(Config);
+							FSoundConfig_Final NewConfig(Config);
 							NewConfig.OwnerSubject = FSubjectHandle(Subject);
 
 							switch (Config.SpawnOrigin)
@@ -2472,37 +2518,40 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				if (Dying.Time == 0)
 				{
 					// Actor
-					for (FActorSpawnConfig Config : Death.SpawnActor)
+					for (const FActorSpawnConfig& Config : Death.SpawnActor)
 					{
-						Config.OwnerSubject = FSubjectHandle(Subject);
-						Config.AttachToSubject = FSubjectHandle(Subject);
-						Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Dying.HitDirection.ToOrientationQuat(), Located.Location, Config.Transform);
-						Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(FTransform(Directed.Direction.ToOrientationQuat(), Located.Location));
+						FActorSpawnConfig_Final NewConfig(Config);
+						NewConfig.OwnerSubject = FSubjectHandle(Subject);
+						NewConfig.AttachToSubject = FSubjectHandle(Subject);
+						NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Dying.HitDirection.ToOrientationQuat(), Located.Location, NewConfig.Transform);
+						NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(FTransform(Directed.Direction.ToOrientationQuat(), Located.Location));
 
-						Mechanism->SpawnSubjectDeferred(Config);
+						Mechanism->SpawnSubjectDeferred(NewConfig);
 					}
 
 					// Fx
-					for (FFxConfig Config : Death.SpawnFx)
+					for (const FFxConfig& Config : Death.SpawnFx)
 					{
-						Config.OwnerSubject = FSubjectHandle(Subject);
-						Config.AttachToSubject = FSubjectHandle(Subject);
-						Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Dying.HitDirection.ToOrientationQuat(), Located.Location, Config.Transform);
-						Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(FTransform(Directed.Direction.ToOrientationQuat(), Located.Location));
-						Config.LaunchSpeed = Dying.HitDirection.Size();
+						FFxConfig_Final NewConfig(Config);
+						NewConfig.OwnerSubject = FSubjectHandle(Subject);
+						NewConfig.AttachToSubject = FSubjectHandle(Subject);
+						NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Dying.HitDirection.ToOrientationQuat(), Located.Location, NewConfig.Transform);
+						NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(FTransform(Directed.Direction.ToOrientationQuat(), Located.Location));
+						NewConfig.LaunchSpeed = Dying.HitDirection.Size();
 
-						Mechanism->SpawnSubjectDeferred(Config);
+						Mechanism->SpawnSubjectDeferred(NewConfig);
 					}
 
 					// Sound
-					for (FSoundConfig Config : Death.PlaySound)
+					for (const FSoundConfig& Config : Death.PlaySound)
 					{
-						Config.OwnerSubject = FSubjectHandle(Subject);
-						Config.AttachToSubject = FSubjectHandle(Subject);
-						Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Dying.HitDirection.ToOrientationQuat(), Located.Location, Config.Transform);
-						Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(FTransform(Directed.Direction.ToOrientationQuat(), Located.Location));
+						FSoundConfig_Final NewConfig(Config);
+						NewConfig.OwnerSubject = FSubjectHandle(Subject);
+						NewConfig.AttachToSubject = FSubjectHandle(Subject);
+						NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Dying.HitDirection.ToOrientationQuat(), Located.Location, NewConfig.Transform);
+						NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(FTransform(Directed.Direction.ToOrientationQuat(), Located.Location));
 
-						Mechanism->SpawnSubjectDeferred(Config);
+						Mechanism->SpawnSubjectDeferred(NewConfig);
 					}
 
 					if (Death.DespawnDelay > 0)
@@ -3006,7 +3055,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 		Mechanism->Operate<FUnsafeChain>(SpawnActorsFilter,
 			[&](FSubjectHandle Subject,
-				FActorSpawnConfig& Config)
+				FActorSpawnConfig_Final& Config)
 			{
 				// delay to spawn actors
 				if (!Config.bSpawned && Config.Delay == 0)
@@ -3088,16 +3137,21 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						}
 					}
 
-					const bool bLifeExpired = Config.LifeSpan <= 0;
-					const bool bInvalidAttachment = Config.bAttached && !Config.AttachToSubject.IsValid();
+					const bool bLifeIsInfinite = Config.LifeSpan < 0;
 
-					if (!bHasValidChild || bLifeExpired || bInvalidAttachment)
+					if (!bLifeIsInfinite)
 					{
-						for (AActor* Actor : Config.SpawnedActors)
+						const bool bLifeExpired = Config.LifeSpan == 0;
+						const bool bInvalidAttachment = Config.bAttached && !Config.AttachToSubject.IsValid();
+
+						if (!bHasValidChild || bLifeExpired || bInvalidAttachment)
 						{
-							if (IsValid(Actor)) Actor->Destroy();
+							for (AActor* Actor : Config.SpawnedActors)
+							{
+								if (IsValid(Actor)) Actor->Destroy();
+							}
+							Subject.Despawn();
 						}
-						Subject.Despawn();
 					}
 				}
 
@@ -3122,7 +3176,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 		Mechanism->Operate<FUnsafeChain>(SpawnFxFilter,
 			[&](FSubjectHandle Subject,
-				FFxConfig& Config)
+				FFxConfig_Final& Config)
 			{
 				// delay to spawn Fx
 				if (!Config.bSpawned && Config.Delay == 0)
@@ -3252,20 +3306,25 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						}
 					}
 
-					const bool bLifeExpired = Config.LifeSpan <= 0;
-					const bool bInvalidAttachment = Config.bAttached && !Config.AttachToSubject.IsValid();
+					const bool bLifeIsInfinite = Config.LifeSpan < 0;
 
-					if (!bHasValidChild || bLifeExpired || bInvalidAttachment)
+					if (!bLifeIsInfinite)
 					{
-						for (auto Fx : Config.SpawnedNiagaraSystems)
+						const bool bLifeExpired = Config.LifeSpan == 0;
+						const bool bInvalidAttachment = Config.bAttached && !Config.AttachToSubject.IsValid();
+
+						if (!bHasValidChild || bLifeExpired || bInvalidAttachment)
 						{
-							if (IsValid(Fx)) Fx->DestroyComponent();
+							for (auto Fx : Config.SpawnedNiagaraSystems)
+							{
+								if (IsValid(Fx)) Fx->DestroyComponent();
+							}
+							for (auto Fx : Config.SpawnedCascadeSystems)
+							{
+								if (IsValid(Fx)) Fx->DestroyComponent();
+							}
+							Subject.Despawn();
 						}
-						for (auto Fx : Config.SpawnedCascadeSystems)
-						{
-							if (IsValid(Fx)) Fx->DestroyComponent();
-						}
-						Subject.Despawn();
 					}
 				}
 
@@ -3289,7 +3348,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 		Mechanism->Operate<FUnsafeChain>(PlaySoundFilter,
 			[&](FSubjectHandle Subject,
-				FSoundConfig& Config)
+				FSoundConfig_Final& Config)
 			{
 				// delay to play sound
 				if (!Config.bSpawned && Config.Delay <= 0)
@@ -3378,20 +3437,25 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						}
 					}
 
-					const bool bLifeExpired = Config.LifeSpan <= 0;
-					const bool bInvalidAttachment = Config.bAttached && Config.bDespawnWhenNoParent && !Config.AttachToSubject.IsValid();
+					const bool bLifeIsInfinite = Config.LifeSpan < 0;
 
-					if (!bHasValidChild || bLifeExpired || bInvalidAttachment)
+					if (!bLifeIsInfinite)
 					{
-						for (UAudioComponent* AudioComp : Config.SpawnedSounds)
+						const bool bLifeExpired = Config.LifeSpan == 0;
+						const bool bInvalidAttachment = Config.bAttached && Config.bDespawnWhenNoParent && !Config.AttachToSubject.IsValid();
+
+						if (!bHasValidChild || bLifeExpired || bInvalidAttachment)
 						{
-							if (IsValid(AudioComp))
+							for (UAudioComponent* AudioComp : Config.SpawnedSounds)
 							{
-								AudioComp->Stop();
-								AudioComp->DestroyComponent();
+								if (IsValid(AudioComp))
+								{
+									AudioComp->Stop();
+									AudioComp->DestroyComponent();
+								}
 							}
+							Subject.Despawn();
 						}
-						Subject.Despawn();
 					}
 				}
 
@@ -3411,20 +3475,20 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	// WIP 事件回调接口 | Event Callback Interface
 	#pragma region
 	{
-		while (!DamageResultQueue.IsEmpty())
+		while (!OnHitQueue.IsEmpty())
 		{
-			FDmgResult DmgResult;
-			DamageResultQueue.Dequeue(DmgResult);
+			FHitData Data;
+			OnHitQueue.Dequeue(Data);
 
-			if (DmgResult.DamagedSubject.IsValid())
+			if (Data.DamagedSubject.IsValid())
 			{
-				AActor* DmgActor = DmgResult.DamagedSubject.GetSubjective()->GetActor();
+				AActor* DmgActor = Data.DamagedSubject.GetSubjective()->GetActor();
 
 				// 检查actor是否实现了伤害接口
-				if (DmgActor && DmgActor->GetClass()->ImplementsInterface(UDmgResultInterface::StaticClass()))
+				if (DmgActor && DmgActor->GetClass()->ImplementsInterface(UBattleFrameInterface::StaticClass()))
 				{
 					// 调用接口方法
-					IDmgResultInterface::Execute_ReceiveDamage(DmgActor, DmgResult);
+					IBattleFrameInterface::Execute_OnHit(DmgActor, Data);
 				}
 			}
 		}
@@ -3869,45 +3933,54 @@ void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subje
 			}
 
 			// Actor
-			for (FActorSpawnConfig Config : Hit.SpawnActor)
+			for (const FActorSpawnConfig& Config : Hit.SpawnActor)
 			{
-				Config.OwnerSubject = FSubjectHandle(Overlapper);
-				Config.AttachToSubject = FSubjectHandle(Overlapper);
+				FActorSpawnConfig_Final NewConfig(Config);
+				NewConfig.OwnerSubject = FSubjectHandle(Overlapper);
+				NewConfig.AttachToSubject = FSubjectHandle(Overlapper);
 				const FTransform WorldTransform(HitDirection.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location);
-				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(),WorldTransform.GetLocation(), Config.Transform);
-				Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(WorldTransform);
+				NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(),WorldTransform.GetLocation(), NewConfig.Transform);
+				NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(WorldTransform);
 
-				Mechanism->SpawnSubject(Config);
+				Mechanism->SpawnSubject(NewConfig);
 			}
 
 			// Fx
-			for (FFxConfig Config : Hit.SpawnFx)
+			for (const FFxConfig& Config : Hit.SpawnFx)
 			{
-				Config.OwnerSubject = FSubjectHandle(Overlapper);
-				Config.AttachToSubject = FSubjectHandle(Overlapper);
+				FFxConfig_Final NewConfig(Config);
+				NewConfig.OwnerSubject = FSubjectHandle(Overlapper);
+				NewConfig.AttachToSubject = FSubjectHandle(Overlapper);
 				const FTransform WorldTransform(HitDirection.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location);
-				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), WorldTransform.GetLocation(), Config.Transform);
-				Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(WorldTransform);
+				NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), WorldTransform.GetLocation(), NewConfig.Transform);
+				NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(WorldTransform);
 
-				Mechanism->SpawnSubject(Config);
+				Mechanism->SpawnSubject(NewConfig);
 			}
 
 			// Sound
-			for (FSoundConfig Config : Hit.PlaySound)
+			for (const FSoundConfig& Config : Hit.PlaySound)
 			{
-				Config.OwnerSubject = FSubjectHandle(Overlapper);
-				Config.AttachToSubject = FSubjectHandle(Overlapper);
+				FSoundConfig_Final NewConfig(Config);
+				NewConfig.OwnerSubject = FSubjectHandle(Overlapper);
+				NewConfig.AttachToSubject = FSubjectHandle(Overlapper);
 				const FTransform WorldTransform(HitDirection.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location);
-				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), WorldTransform.GetLocation(), Config.Transform);
-				Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(WorldTransform);
+				NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), WorldTransform.GetLocation(), NewConfig.Transform);
+				NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(WorldTransform);
 
-				Mechanism->SpawnSubject(Config);
+				Mechanism->SpawnSubject(NewConfig);
 			}
 		}
 
 		if (bHasIsSubjective)
 		{
-			DamageResultQueue.Enqueue(DmgResult);
+			FHitData HitData;
+			HitData.DamagedSubject = DmgResult.DamagedSubject;
+			HitData.InstigatorSubject = DmgResult.InstigatorSubject;
+			HitData.IsCritical = DmgResult.IsCritical;
+			HitData.IsKill = DmgResult.IsKill;
+			HitData.DmgDealt = DmgResult.DmgDealt;
+			OnHitQueue.Enqueue(HitData);
 		}
 
 		DamageResults.Add(DmgResult);
@@ -4200,45 +4273,54 @@ void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subje
 			}
 
 			// Actor
-			for (FActorSpawnConfig Config : Hit.SpawnActor) 
+			for (const FActorSpawnConfig& Config : Hit.SpawnActor)
 			{
-				Config.OwnerSubject = FSubjectHandle(Overlapper);
-				Config.AttachToSubject = FSubjectHandle(Overlapper);
+				FActorSpawnConfig_Final NewConfig(Config);
+				NewConfig.OwnerSubject = FSubjectHandle(Overlapper);
+				NewConfig.AttachToSubject = FSubjectHandle(Overlapper);
 				const FTransform WorldTransform(HitDirection.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location);
-				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), WorldTransform.GetLocation(), Config.Transform);
-				Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(WorldTransform);
+				NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), WorldTransform.GetLocation(), NewConfig.Transform);
+				NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(WorldTransform);
 
-				Mechanism->SpawnSubject(Config);
+				Mechanism->SpawnSubject(NewConfig);
 			}
 
 			// Fx
-			for (FFxConfig Config : Hit.SpawnFx)
+			for (const FFxConfig& Config : Hit.SpawnFx)
 			{
-				Config.OwnerSubject = FSubjectHandle(Overlapper);
-				Config.AttachToSubject = FSubjectHandle(Overlapper);
+				FFxConfig_Final NewConfig(Config);
+				NewConfig.OwnerSubject = FSubjectHandle(Overlapper);
+				NewConfig.AttachToSubject = FSubjectHandle(Overlapper);
 				const FTransform WorldTransform(HitDirection.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location);
-				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), WorldTransform.GetLocation(), Config.Transform);
-				Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(WorldTransform);
+				NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), WorldTransform.GetLocation(), NewConfig.Transform);
+				NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(WorldTransform);
 
-				Mechanism->SpawnSubject(Config);
+				Mechanism->SpawnSubject(NewConfig);
 			}
 
 			// Sound
-			for (FSoundConfig Config : Hit.PlaySound)
+			for (const FSoundConfig& Config : Hit.PlaySound)
 			{
-				Config.OwnerSubject = FSubjectHandle(Overlapper);
-				Config.AttachToSubject = FSubjectHandle(Overlapper);
+				FSoundConfig_Final NewConfig(Config);
+				NewConfig.OwnerSubject = FSubjectHandle(Overlapper);
+				NewConfig.AttachToSubject = FSubjectHandle(Overlapper);
 				const FTransform WorldTransform(HitDirection.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location);
-				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), WorldTransform.GetLocation(), Config.Transform);
-				Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(WorldTransform);
+				NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), WorldTransform.GetLocation(), NewConfig.Transform);
+				NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(WorldTransform);
 
-				Mechanism->SpawnSubject(Config);
+				Mechanism->SpawnSubject(NewConfig);
 			}
 		}
 	
 		if (bHasIsSubjective)
 		{
-			DamageResultQueue.Enqueue(DmgResult);
+			FHitData HitData;
+			HitData.DamagedSubject = DmgResult.DamagedSubject;
+			HitData.InstigatorSubject = DmgResult.InstigatorSubject;
+			HitData.IsCritical = DmgResult.IsCritical;
+			HitData.IsKill = DmgResult.IsKill;
+			HitData.DmgDealt = DmgResult.DmgDealt;
+			OnHitQueue.Enqueue(HitData);
 		}
 
 		DamageResults.Add(DmgResult);
@@ -4532,45 +4614,54 @@ void ABattleFrameBattleControl::ApplyDamageToSubjectsDeferred(const FSubjectArra
 			}
 
 			// Actor
-			for (FActorSpawnConfig Config : Hit.SpawnActor)
+			for (const FActorSpawnConfig& Config : Hit.SpawnActor)
 			{
-				Config.OwnerSubject = FSubjectHandle(Overlapper);
-				Config.AttachToSubject = FSubjectHandle(Overlapper);
-				const FTransform WorldTransform(HitDirection.ToOrientationQuat(), Overlapper.GetTraitRef<FLocated, EParadigm::Unsafe>().Location);
-				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTraitRef<FDirected, EParadigm::Unsafe>().Direction.ToOrientationQuat(), WorldTransform.GetLocation(), Config.Transform);
-				Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(WorldTransform);
+				FActorSpawnConfig_Final NewConfig(Config);
+				NewConfig.OwnerSubject = FSubjectHandle(Overlapper);
+				NewConfig.AttachToSubject = FSubjectHandle(Overlapper);
+				const FTransform WorldTransform(HitDirection.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location);
+				NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), WorldTransform.GetLocation(), NewConfig.Transform);
+				NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(WorldTransform);
 
-				Mechanism->SpawnSubjectDeferred(Config);
+				Mechanism->SpawnSubjectDeferred(NewConfig);
 			}
 
 			// Fx
-			for (FFxConfig Config : Hit.SpawnFx)
+			for (const FFxConfig& Config : Hit.SpawnFx)
 			{
-				Config.OwnerSubject = FSubjectHandle(Overlapper);
-				Config.AttachToSubject = FSubjectHandle(Overlapper);
-				const FTransform WorldTransform(HitDirection.ToOrientationQuat(), Overlapper.GetTraitRef<FLocated, EParadigm::Unsafe>().Location);
-				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTraitRef<FDirected, EParadigm::Unsafe>().Direction.ToOrientationQuat(), WorldTransform.GetLocation(), Config.Transform);
-				Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(WorldTransform);
+				FFxConfig_Final NewConfig(Config);
+				NewConfig.OwnerSubject = FSubjectHandle(Overlapper);
+				NewConfig.AttachToSubject = FSubjectHandle(Overlapper);
+				const FTransform WorldTransform(HitDirection.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location);
+				NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), WorldTransform.GetLocation(), NewConfig.Transform);
+				NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(WorldTransform);
 
-				Mechanism->SpawnSubjectDeferred(Config);
+				Mechanism->SpawnSubjectDeferred(NewConfig);
 			}
 
 			// Sound
-			for (FSoundConfig Config : Hit.PlaySound)
+			for (const FSoundConfig& Config : Hit.PlaySound)
 			{
-				Config.OwnerSubject = FSubjectHandle(Overlapper);
-				Config.AttachToSubject = FSubjectHandle(Overlapper);
-				const FTransform WorldTransform(HitDirection.ToOrientationQuat(), Overlapper.GetTraitRef<FLocated, EParadigm::Unsafe>().Location);
-				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTraitRef<FDirected, EParadigm::Unsafe>().Direction.ToOrientationQuat(), WorldTransform.GetLocation(), Config.Transform);
-				Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(WorldTransform);
+				FSoundConfig_Final NewConfig(Config);
+				NewConfig.OwnerSubject = FSubjectHandle(Overlapper);
+				NewConfig.AttachToSubject = FSubjectHandle(Overlapper);
+				const FTransform WorldTransform(HitDirection.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location);
+				NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), WorldTransform.GetLocation(), NewConfig.Transform);
+				NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(WorldTransform);
 
-				Mechanism->SpawnSubjectDeferred(Config);
+				Mechanism->SpawnSubjectDeferred(NewConfig);
 			}
 		}
 
 		if (bHasIsSubjective)
 		{
-			DamageResultQueue.Enqueue(DmgResult);
+			FHitData HitData;
+			HitData.DamagedSubject = DmgResult.DamagedSubject;
+			HitData.InstigatorSubject = DmgResult.InstigatorSubject;
+			HitData.IsCritical = DmgResult.IsCritical;
+			HitData.IsKill = DmgResult.IsKill;
+			HitData.DmgDealt = DmgResult.DmgDealt;
+			OnHitQueue.Enqueue(HitData);
 		}
 
 		DamageResults.Add(DmgResult);
@@ -4863,45 +4954,54 @@ void ABattleFrameBattleControl::ApplyDamageToSubjectsDeferred(const FSubjectArra
 			}
 
 			// Actor
-			for (FActorSpawnConfig Config : Hit.SpawnActor)
+			for (const FActorSpawnConfig& Config : Hit.SpawnActor)
 			{
-				Config.OwnerSubject = FSubjectHandle(Overlapper);
-				Config.AttachToSubject = FSubjectHandle(Overlapper);
-				const FTransform WorldTransform(HitDirection.ToOrientationQuat(), Overlapper.GetTraitRef<FLocated, EParadigm::Unsafe>().Location);
-				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTraitRef<FDirected, EParadigm::Unsafe>().Direction.ToOrientationQuat(), WorldTransform.GetLocation(), Config.Transform);
-				Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(WorldTransform);
+				FActorSpawnConfig_Final NewConfig(Config);
+				NewConfig.OwnerSubject = FSubjectHandle(Overlapper);
+				NewConfig.AttachToSubject = FSubjectHandle(Overlapper);
+				const FTransform WorldTransform(HitDirection.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location);
+				NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), WorldTransform.GetLocation(), NewConfig.Transform);
+				NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(WorldTransform);
 
-				Mechanism->SpawnSubjectDeferred(Config);
+				Mechanism->SpawnSubjectDeferred(NewConfig);
 			}
 
 			// Fx
-			for (FFxConfig Config : Hit.SpawnFx)
+			for (const FFxConfig& Config : Hit.SpawnFx)
 			{
-				Config.OwnerSubject = FSubjectHandle(Overlapper);
-				Config.AttachToSubject = FSubjectHandle(Overlapper);
-				const FTransform WorldTransform(HitDirection.ToOrientationQuat(), Overlapper.GetTraitRef<FLocated, EParadigm::Unsafe>().Location);
-				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTraitRef<FDirected, EParadigm::Unsafe>().Direction.ToOrientationQuat(), WorldTransform.GetLocation(), Config.Transform);
-				Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(WorldTransform);
+				FFxConfig_Final NewConfig(Config);
+				NewConfig.OwnerSubject = FSubjectHandle(Overlapper);
+				NewConfig.AttachToSubject = FSubjectHandle(Overlapper);
+				const FTransform WorldTransform(HitDirection.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location);
+				NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), WorldTransform.GetLocation(), NewConfig.Transform);
+				NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(WorldTransform);
 
-				Mechanism->SpawnSubjectDeferred(Config);
+				Mechanism->SpawnSubjectDeferred(NewConfig);
 			}
 
 			// Sound
-			for (FSoundConfig Config : Hit.PlaySound)
+			for (const FSoundConfig& Config : Hit.PlaySound)
 			{
-				Config.OwnerSubject = FSubjectHandle(Overlapper);
-				Config.AttachToSubject = FSubjectHandle(Overlapper);
-				const FTransform WorldTransform(HitDirection.ToOrientationQuat(), Overlapper.GetTraitRef<FLocated, EParadigm::Unsafe>().Location);
-				Config.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTraitRef<FDirected, EParadigm::Unsafe>().Direction.ToOrientationQuat(), WorldTransform.GetLocation(), Config.Transform);
-				Config.InitialRelativeTransform = Config.SpawnTransform.GetRelativeTransform(WorldTransform);
+				FSoundConfig_Final NewConfig(Config);
+				NewConfig.OwnerSubject = FSubjectHandle(Overlapper);
+				NewConfig.AttachToSubject = FSubjectHandle(Overlapper);
+				const FTransform WorldTransform(HitDirection.ToOrientationQuat(), Overlapper.GetTrait<FLocated>().Location);
+				NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(Overlapper.GetTrait<FDirected>().Direction.ToOrientationQuat(), WorldTransform.GetLocation(), NewConfig.Transform);
+				NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(WorldTransform);
 
-				Mechanism->SpawnSubjectDeferred(Config);
+				Mechanism->SpawnSubjectDeferred(NewConfig);
 			}
 		}
 
 		if (bHasIsSubjective)
 		{
-			DamageResultQueue.Enqueue(DmgResult);
+			FHitData HitData;
+			HitData.DamagedSubject = DmgResult.DamagedSubject;
+			HitData.InstigatorSubject = DmgResult.InstigatorSubject;
+			HitData.IsCritical = DmgResult.IsCritical;
+			HitData.IsKill = DmgResult.IsKill;
+			HitData.DmgDealt = DmgResult.DmgDealt;
+			OnHitQueue.Enqueue(HitData);
 		}
 
 		DamageResults.Add(DmgResult);

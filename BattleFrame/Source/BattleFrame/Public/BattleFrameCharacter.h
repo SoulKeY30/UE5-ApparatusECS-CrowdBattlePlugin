@@ -10,12 +10,12 @@
 #include "GameFramework/Character.h"
 #include "BFSubjectiveActorComponent.h"
 #include "Kismet/GameplayStatics.h"
-#include "DmgResultInterface.h"
+#include "BattleFrameInterface.h"
 #include "BattleFrameStructs.h"
 #include "BattleFrameCharacter.generated.h"
 
 UCLASS()
-class BATTLEFRAME_API ABattleFrameCharacter : public ACharacter, public IDmgResultInterface
+class BATTLEFRAME_API ABattleFrameCharacter : public ACharacter, public IBattleFrameInterface
 {
 	GENERATED_BODY()
 
@@ -41,6 +41,6 @@ public:
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
-	virtual void ReceiveDamage_Implementation(const FDmgResult& DmgResult) override;
+	virtual void OnHit_Implementation(const FHitData& Data) override;
 
 };
