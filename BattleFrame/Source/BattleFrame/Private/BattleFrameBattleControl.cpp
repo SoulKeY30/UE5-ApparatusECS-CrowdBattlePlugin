@@ -83,22 +83,34 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	// 统计游戏时长 | Game Time Counter
 	#pragma region
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("Agent Age");
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("Agent Statistics");
 
-		auto Chain = Mechanism->EnchainSolid(AgentAgeFilter);
+		auto Chain = Mechanism->EnchainSolid(AgentStatFilter);
 		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
 
-		Chain->OperateConcurrently([&](FStatistics& Stats)
+		Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FStatistics& Stats)
 		{
 			if (Stats.bEnable)
 			{
 				Stats.totalTime += SafeDeltaTime;
 			}
 
+			// 最大寿命机制
+			const bool bHasDeath = Subject.HasTrait<FDeath>();
+
+			if (bHasDeath)
+			{
+				const auto& Death = Subject.GetTraitRef<FDeath>();
+
+				if (Death.LifeSpan >= 0 && Stats.totalTime > Death.LifeSpan)
+				{
+					Subject.SetTraitDeferred(FDying());
+				}
+			}
+
 		}, ThreadsCount, BatchSize);
 	}
 	#pragma endregion
-
 
 	//----------------------出生 | Appear-----------------------
 
@@ -258,10 +270,334 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	}
 	#pragma endregion
 
+	//-----------------------索敌 | Trace-----------------------
 
-	//----------------------移动 | Move------------------------
+	// 索敌 | Trace
+	#pragma region
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentTrace");
 
-	// 速度覆盖 | Override Max Speed
+		// Trace Player 0
+		bool bPlayerIsValid = false;
+		FVector PlayerLocation;
+		FSubjectHandle PlayerHandle;
+		APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(CurrentWorld, 0);
+
+		if (IsValid(PlayerPawn))
+		{
+			USubjectiveActorComponent* SubjectiveComponent = PlayerPawn->FindComponentByClass<USubjectiveActorComponent>();
+
+			if (IsValid(SubjectiveComponent))
+			{
+				PlayerHandle = SubjectiveComponent->GetHandle();
+
+				if (PlayerHandle.IsValid())
+				{
+					if (PlayerHandle.HasTrait<FLocated>() && PlayerHandle.HasTrait<FHealth>() && !PlayerHandle.HasTrait<FDying>())
+					{
+						PlayerLocation = PlayerPawn->GetActorLocation();
+						bPlayerIsValid = true;
+					}
+				}
+			}
+		}
+
+		// Trace By Filter
+		auto Chain = Mechanism->EnchainSolid(AgentTraceFilter);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, 200, ThreadsCount, BatchSize);
+
+		TArray<FValidSubjects> ValidSubjectsArray;
+		ValidSubjectsArray.SetNum(ThreadsCount);
+
+		// A workaround. Apparatus does not expose the array of iterables, so we have to gather manually
+		Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FTrace& Trace, FLocated& Located)
+			{
+				if (!Trace.bEnable)
+				{
+					Trace.TraceResult = FSubjectHandle();
+					return;
+				}
+
+				bool bShouldTrace = false;
+
+				if (Trace.TimeLeft <= 0)
+				{
+					Trace.TimeLeft = Trace.CoolDown;
+					bShouldTrace = true;
+				}
+				else
+				{
+					Trace.TimeLeft -= SafeDeltaTime;
+
+					if (Trace.bDrawDebugShape && Trace.TraceResult.IsValid() && Trace.TraceResult.HasTrait<FLocated>())
+					{
+						FVector OtherLocation = Trace.TraceResult.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
+						float OtherScale = Trace.TraceResult.HasTrait<FScaled>() ? Trace.TraceResult.GetTraitRef<FScaled, EParadigm::Unsafe>().Scale : 1;
+						float OtherRadius = Trace.TraceResult.HasTrait<FCollider>() ? Trace.TraceResult.GetTraitRef<FCollider, EParadigm::Unsafe>().Radius : 0;
+						OtherRadius *= OtherScale;
+
+						FDebugLineConfig LineConfig;
+						LineConfig.StartLocation = Located.Location;
+						LineConfig.EndLocation = OtherLocation;
+						LineConfig.Color = FColor::Orange;
+						LineConfig.LineThickness = 10.f;
+						DebugLineQueue.Enqueue(LineConfig);
+
+						FDebugSphereConfig SphereConfig;
+						SphereConfig.Location = OtherLocation;
+						SphereConfig.Radius = OtherRadius;
+						SphereConfig.Color = FColor::Orange;
+						SphereConfig.LineThickness = 10.f;
+						DebugSphereQueue.Enqueue(SphereConfig);
+					}
+				}
+
+				if (bShouldTrace)// we add iterables into separate arrays and then apend them.
+				{
+					uint32 ThreadId = FPlatformTLS::GetCurrentThreadId();
+					uint32 index = ThreadId % ThreadsCount;// this may not evenly distribute, but well enough
+
+					if (LIKELY(ValidSubjectsArray.IsValidIndex(index)))
+					{
+						ValidSubjectsArray[index].Lock();// we lock child arrays individually
+						ValidSubjectsArray[index].Subjects.Add(Subject);
+						ValidSubjectsArray[index].Unlock();
+					}
+				}
+
+			}, ThreadsCount, BatchSize);
+
+		TArray<FSolidSubjectHandle> ValidSubjects;
+
+		for (auto& CurrentArray : ValidSubjectsArray)
+		{
+			ValidSubjects.Append(CurrentArray.Subjects);
+		}
+
+		// 并行处理筛选结果
+		ParallelFor(ValidSubjects.Num(), [&](int32 Index)
+			{
+				FSolidSubjectHandle Subject = ValidSubjects[Index];
+
+				FLocated& Located = Subject.GetTraitRef<FLocated>();
+				FDirected& Directed = Subject.GetTraitRef<FDirected>();
+				FScaled& Scaled = Subject.GetTraitRef<FScaled>();
+				FCollider& Collider = Subject.GetTraitRef<FCollider>();
+
+				FTrace& Trace = Subject.GetTraitRef<FTrace>();
+				FSleep& Sleep = Subject.GetTraitRef<FSleep>();
+				FPatrol& Patrol = Subject.GetTraitRef<FPatrol>();
+				FChase& Chase = Subject.GetTraitRef<FChase>();
+
+				const bool bIsSleeping = Subject.HasTrait<FSleeping>();
+				const bool bIsPatrolling = Subject.HasTrait<FPatrolling>();
+				const bool bIsChasing = Subject.HasFlag(ChasingFlag);
+
+				const float SelfRadius = Collider.Radius * Scaled.Scale;
+
+				float FinalRange = SelfRadius;
+				float FinalAngle = 0;
+				float FinalHeight = 0;
+				bool FinalCheckVisibility = false;
+				bool bFinalDrawDebugShape = false;
+
+				if (bIsSleeping)
+				{
+					const auto& Params = Sleep.SectorParams;
+
+					if (Params.bEnable)
+					{
+						FinalRange += Params.TraceRadius;
+						FinalAngle = Params.TraceAngle;
+						FinalHeight = Params.TraceHeight;
+						FinalCheckVisibility = Params.bCheckVisibility;
+						bFinalDrawDebugShape = Sleep.bDrawDebugShape;
+					}
+				}
+				else if (bIsPatrolling)
+				{
+					const auto& Params = Patrol.SectorParams;
+
+					if (Params.bEnable)
+					{
+						FinalRange += Params.TraceRadius;
+						FinalAngle = Params.TraceAngle;
+						FinalHeight = Params.TraceHeight;
+						FinalCheckVisibility = Params.bCheckVisibility;
+						bFinalDrawDebugShape = Patrol.bDrawDebugShape;
+					}
+				}
+				else if (bIsChasing)
+				{
+					const auto& Params = Chase.SectorParams;
+
+					if (Params.bEnable)
+					{
+						FinalRange += Params.TraceRadius;
+						FinalAngle = Params.TraceAngle;
+						FinalHeight = Params.TraceHeight;
+						FinalCheckVisibility = Params.bCheckVisibility;
+						bFinalDrawDebugShape = Chase.bDrawDebugShape;
+					}
+				}
+				else
+				{
+					const auto& Params = Trace.SectorParams;
+
+					FinalRange += Params.TraceRadius;
+					FinalAngle = Params.TraceAngle;
+					FinalHeight = Params.TraceHeight;
+					FinalCheckVisibility = Params.bCheckVisibility;
+					bFinalDrawDebugShape = Trace.bDrawDebugShape;
+				}
+
+				// ========== 调试绘制入队逻辑 ==========
+
+				FTraceDrawDebugConfig DebugConfig;
+				DebugConfig.bDrawDebugShape = bFinalDrawDebugShape;
+				DebugConfig.Color = FColor::Orange;
+				DebugConfig.Duration = Trace.CoolDown;
+				DebugConfig.LineThickness = 10.f;
+
+				switch (Trace.Mode)
+				{
+				case ETraceMode::TargetIsPlayer_0:
+				{
+					Trace.TraceResult = FSubjectHandle();
+
+					if (bPlayerIsValid)
+					{
+						// 高度检查
+						float HeightDifference = PlayerLocation.Z - Located.Location.Z;
+
+						if (HeightDifference <= FinalHeight)
+						{
+							// 计算目标半径和实际距离平方
+							float PlayerRadius = PlayerHandle.HasTrait<FCollider>() ? PlayerHandle.GetTrait<FCollider>().Radius : 0;
+							float CombinedRadiusSquared = FMath::Square(FinalRange);
+							float DistanceSquared = FVector::DistSquared(Located.Location, PlayerLocation);
+
+							// 距离检查 - 使用距离平方
+							if (DistanceSquared <= CombinedRadiusSquared)
+							{
+								// 角度检查
+								const FVector ToPlayerDir = (PlayerLocation - Located.Location).GetSafeNormal();
+								const float DotValue = FVector::DotProduct(Directed.Direction, ToPlayerDir);
+								const float AngleDiff = FMath::RadiansToDegrees(FMath::Acos(DotValue));
+
+								if (AngleDiff <= FinalAngle * 0.5f)
+								{
+									if (FinalCheckVisibility && IsValid(Trace.NeighborGrid))
+									{
+										bool Hit = false;
+										FTraceResult Result;
+										Trace.NeighborGrid->SphereSweepForObstacle(Located.Location, PlayerLocation, 1, DebugConfig, Hit, Result);
+
+										if (!Hit)
+										{
+											Trace.TraceResult = PlayerHandle;
+										}
+									}
+									else
+									{
+										Trace.TraceResult = PlayerHandle;
+									}
+								}
+							}
+						}
+					}
+
+					if (bFinalDrawDebugShape)
+					{
+						FDebugSectorConfig SectorConfig;
+						SectorConfig.Location = Located.Location;
+						SectorConfig.Radius = FinalRange;
+						SectorConfig.Height = FinalHeight;
+						SectorConfig.Direction = Directed.Direction.GetSafeNormal2D();
+						SectorConfig.Angle = FinalAngle;
+						SectorConfig.Duration = DebugConfig.Duration;
+						SectorConfig.Color = DebugConfig.Color;
+						SectorConfig.LineThickness = DebugConfig.LineThickness;
+
+						DebugSectorQueue.Enqueue(SectorConfig);
+						//UE_LOG(LogTemp, Log, TEXT("Enqueue"));
+					}
+
+					break;
+				}
+
+				case ETraceMode::SectorTraceByTraits:
+				{
+					Trace.TraceResult = FSubjectHandle();
+
+					if (LIKELY(IsValid(Trace.NeighborGrid)))
+					{
+						FFilter TargetFilter;
+						bool Hit;
+						TArray<FTraceResult> Results;
+
+						TargetFilter.Include(Trace.IncludeTraits);
+						TargetFilter.Exclude(Trace.ExcludeTraits);
+
+						// 使用扇形检测替换球体检测
+						const FVector TraceDirection = Directed.Direction.GetSafeNormal2D();
+
+						// ignore self
+						FSubjectArray IgnoreList;
+						IgnoreList.Subjects.Add(FSubjectHandle(Subject));
+
+						Trace.NeighborGrid->SectorTraceForSubjects
+						(
+							1,
+							Located.Location,   // 检测原点
+							FinalRange,         // 检测半径
+							FinalHeight,        // 检测高度
+							TraceDirection,     // 扇形方向
+							FinalAngle,         // 扇形角度
+							FinalCheckVisibility,
+							Located.Location,
+							1,
+							ESortMode::NearToFar,
+							Located.Location,
+							IgnoreList,
+							TargetFilter,       // 过滤条件
+							DebugConfig,
+							Hit,
+							Results              // 输出结果
+						);
+
+						// 直接使用结果（扇形检测已包含角度验证）
+						if (Hit && Results[0].Subject.IsValid())
+						{
+							Trace.TraceResult = Results[0].Subject;
+						}
+					}
+					break;
+				}
+				}
+
+				// if we have a valid target, we stop sleeping or patrolling
+				if (Trace.TraceResult.IsValid())
+				{
+					if (bIsSleeping)
+					{
+						Subject.RemoveTraitDeferred<FSleeping>();
+					}
+
+					if (bIsPatrolling)
+					{
+						Subject.RemoveTraitDeferred<FPatrolling>();
+					}
+				}
+			});
+
+		Mechanism->ApplyDeferreds();
+	}
+	#pragma endregion
+
+	//-----------------------移动 | Move------------------------
+
+	// 推动 | Pushed Back
 	#pragma region
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("SpeedLimitOverride");
@@ -390,20 +726,20 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 		// do reload, this only works on game thread
 		Mechanism->Operate<FUnsafeChain>(Filter.IncludeFlag(ReloadFlowFieldFlag),
-			[&](FUnsafeSubjectHandle Subject)
+			[&](FSubjectHandle Subject)
 			{
 				const bool bHasNavigation = Subject.HasTrait<FNavigation>();
 				const bool bHasBindFlowField = Subject.HasTrait<FBindFlowField>();
 
 				if (bHasNavigation)
 				{
-					auto& Navigation = Subject.GetTraitRef<FNavigation>();
+					auto& Navigation = Subject.GetTraitRef<FNavigation, EParadigm::Unsafe>();
 					Navigation.FlowField = Navigation.FlowFieldToUse.LoadSynchronous();
 				}
 
 				if (bHasBindFlowField)
 				{
-					auto& BindFlowField = Subject.GetTraitRef<FBindFlowField>();
+					auto& BindFlowField = Subject.GetTraitRef<FBindFlowField, EParadigm::Unsafe>();
 					BindFlowField.FlowField = BindFlowField.FlowFieldToBind.LoadSynchronous();
 				}
 			});
@@ -1289,329 +1625,6 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 	//-----------------------攻击 | Attack-----------------------
 
-	// 索敌 | Trace
-	#pragma region
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentTrace");
-
-		// Trace Player 0
-		bool bPlayerIsValid = false;
-		FVector PlayerLocation;
-		FSubjectHandle PlayerHandle;
-		APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(CurrentWorld, 0);
-
-		if (IsValid(PlayerPawn))
-		{
-			USubjectiveActorComponent* SubjectiveComponent = PlayerPawn->FindComponentByClass<USubjectiveActorComponent>();
-
-			if (IsValid(SubjectiveComponent))
-			{
-				PlayerHandle = SubjectiveComponent->GetHandle();
-
-				if (PlayerHandle.IsValid())
-				{
-					if (PlayerHandle.HasTrait<FLocated>() && PlayerHandle.HasTrait<FHealth>() && !PlayerHandle.HasTrait<FDying>())
-					{
-						PlayerLocation = PlayerPawn->GetActorLocation();
-						bPlayerIsValid = true;
-					}
-				}
-			}
-		}
-
-		// Trace By Filter
-		auto Chain = Mechanism->EnchainSolid(AgentTraceFilter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, 200, ThreadsCount, BatchSize);
-
-		TArray<FValidSubjects> ValidSubjectsArray;
-		ValidSubjectsArray.SetNum(ThreadsCount);
-
-		// A workaround. Apparatus does not expose the array of iterables, so we have to gather manually
-		Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FTrace& Trace, FLocated& Located)
-			{
-				if (!Trace.bEnable)
-				{
-					Trace.TraceResult = FSubjectHandle();
-					return;
-				}
-
-				bool bShouldTrace = false;
-
-				if (Trace.TimeLeft <= 0)
-				{
-					Trace.TimeLeft = Trace.CoolDown;
-					bShouldTrace = true;
-				}
-				else
-				{
-					Trace.TimeLeft -= SafeDeltaTime;
-
-					if (Trace.bDrawDebugShape && Trace.TraceResult.IsValid() && Trace.TraceResult.HasTrait<FLocated>())
-					{
-						FVector OtherLocation = Trace.TraceResult.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
-						float OtherScale = Trace.TraceResult.HasTrait<FScaled>() ? Trace.TraceResult.GetTraitRef<FScaled, EParadigm::Unsafe>().Scale : 1;
-						float OtherRadius = Trace.TraceResult.HasTrait<FCollider>() ? Trace.TraceResult.GetTraitRef<FCollider, EParadigm::Unsafe>().Radius : 0;
-						OtherRadius *= OtherScale;
-
-						FDebugLineConfig LineConfig;
-						LineConfig.StartLocation = Located.Location;
-						LineConfig.EndLocation = OtherLocation;
-						LineConfig.Color = FColor::Orange;
-						LineConfig.LineThickness = 10.f;
-						DebugLineQueue.Enqueue(LineConfig);
-
-						FDebugSphereConfig SphereConfig;
-						SphereConfig.Location = OtherLocation;
-						SphereConfig.Radius = OtherRadius;
-						SphereConfig.Color = FColor::Orange;
-						SphereConfig.LineThickness = 10.f;
-						DebugSphereQueue.Enqueue(SphereConfig);
-					}
-				}
-
-				if (bShouldTrace)// we add iterables into separate arrays and then apend them.
-				{
-					uint32 ThreadId = FPlatformTLS::GetCurrentThreadId();
-					uint32 index = ThreadId % ThreadsCount;// this may not evenly distribute, but well enough
-
-					if (LIKELY(ValidSubjectsArray.IsValidIndex(index)))
-					{
-						ValidSubjectsArray[index].Lock();// we lock child arrays individually
-						ValidSubjectsArray[index].Subjects.Add(Subject);
-						ValidSubjectsArray[index].Unlock();
-					}
-				}
-
-			}, ThreadsCount, BatchSize);
-
-		TArray<FSolidSubjectHandle> ValidSubjects;
-
-		for (auto& CurrentArray : ValidSubjectsArray)
-		{
-			ValidSubjects.Append(CurrentArray.Subjects);
-		}
-
-		// 并行处理筛选结果
-		ParallelFor(ValidSubjects.Num(), [&](int32 Index)
-			{
-				FSolidSubjectHandle Subject = ValidSubjects[Index];
-
-				FLocated& Located = Subject.GetTraitRef<FLocated>();
-				FDirected& Directed = Subject.GetTraitRef<FDirected>();
-				FScaled& Scaled = Subject.GetTraitRef<FScaled>();
-				FCollider& Collider = Subject.GetTraitRef<FCollider>();
-
-				FTrace& Trace = Subject.GetTraitRef<FTrace>();
-				FSleep& Sleep = Subject.GetTraitRef<FSleep>();
-				FPatrol& Patrol = Subject.GetTraitRef<FPatrol>();
-				FChase& Chase = Subject.GetTraitRef<FChase>();
-
-				const bool bIsSleeping = Subject.HasTrait<FSleeping>();
-				const bool bIsPatrolling = Subject.HasTrait<FPatrolling>();
-				const bool bIsChasing = Subject.HasFlag(ChasingFlag);
-
-				const float SelfRadius = Collider.Radius * Scaled.Scale;
-
-				float FinalRange = SelfRadius;
-				float FinalAngle = 0;
-				float FinalHeight = 0;
-				bool FinalCheckVisibility = false;
-				bool bFinalDrawDebugShape = false;
-
-				if (bIsSleeping)
-				{
-					const auto& Params = Sleep.SectorParams;
-
-					if (Params.bEnable)
-					{
-						FinalRange += Params.TraceRadius;
-						FinalAngle = Params.TraceAngle;
-						FinalHeight = Params.TraceHeight;
-						FinalCheckVisibility = Params.bCheckVisibility;
-						bFinalDrawDebugShape = Sleep.bDrawDebugShape;
-					}
-				}
-				else if (bIsPatrolling)
-				{
-					const auto& Params = Patrol.SectorParams;
-
-					if (Params.bEnable)
-					{
-						FinalRange += Params.TraceRadius;
-						FinalAngle = Params.TraceAngle;
-						FinalHeight = Params.TraceHeight;
-						FinalCheckVisibility = Params.bCheckVisibility;
-						bFinalDrawDebugShape = Patrol.bDrawDebugShape;
-					}
-				}
-				else if (bIsChasing)
-				{
-					const auto& Params = Chase.SectorParams;
-
-					if (Params.bEnable)
-					{
-						FinalRange += Chase.SectorParams.TraceRadius;
-						FinalAngle = Chase.SectorParams.TraceAngle;
-						FinalHeight = Chase.SectorParams.TraceHeight;
-						FinalCheckVisibility = Chase.SectorParams.bCheckVisibility;
-						bFinalDrawDebugShape = Chase.bDrawDebugShape;
-					}
-				}
-				else
-				{
-					const auto& Params = Trace.SectorParams;
-
-					FinalRange += Params.TraceRadius;
-					FinalAngle = Params.TraceAngle;
-					FinalHeight = Params.TraceHeight;
-					FinalCheckVisibility = Params.bCheckVisibility;
-					bFinalDrawDebugShape = Trace.bDrawDebugShape;
-				}
-
-				// ========== 调试绘制入队逻辑 ==========
-
-				FTraceDrawDebugConfig DebugConfig;
-				DebugConfig.bDrawDebugShape = bFinalDrawDebugShape;
-				DebugConfig.Color = FColor::Orange;
-				DebugConfig.Duration = Trace.CoolDown;
-				DebugConfig.LineThickness = 10.f;
-
-				switch (Trace.Mode)
-				{
-					case ETraceMode::TargetIsPlayer_0:
-					{
-						Trace.TraceResult = FSubjectHandle();
-
-						if (bPlayerIsValid)
-						{
-							// 高度检查
-							float HeightDifference = PlayerLocation.Z - Located.Location.Z;
-
-							if (HeightDifference <= FinalHeight)
-							{
-								// 计算目标半径和实际距离平方
-								float PlayerRadius = PlayerHandle.HasTrait<FCollider>() ? PlayerHandle.GetTrait<FCollider>().Radius : 0;
-								float CombinedRadiusSquared = FMath::Square(FinalRange);
-								float DistanceSquared = FVector::DistSquared(Located.Location, PlayerLocation);
-
-								// 距离检查 - 使用距离平方
-								if (DistanceSquared <= CombinedRadiusSquared)
-								{
-									// 角度检查
-									const FVector ToPlayerDir = (PlayerLocation - Located.Location).GetSafeNormal();
-									const float DotValue = FVector::DotProduct(Directed.Direction, ToPlayerDir);
-									const float AngleDiff = FMath::RadiansToDegrees(FMath::Acos(DotValue));
-
-									if (AngleDiff <= FinalAngle * 0.5f)
-									{
-										if (FinalCheckVisibility && IsValid(Trace.NeighborGrid))
-										{
-											bool Hit = false;
-											FTraceResult Result;
-											Trace.NeighborGrid->SphereSweepForObstacle(Located.Location, PlayerLocation, 1, DebugConfig, Hit, Result);
-
-											if (!Hit)
-											{
-												Trace.TraceResult = PlayerHandle;
-											}
-										}
-										else
-										{
-											Trace.TraceResult = PlayerHandle;
-										}
-									}
-								}
-							}
-						}
-
-						if (bFinalDrawDebugShape)
-						{
-							FDebugSectorConfig SectorConfig;
-							SectorConfig.Location = Located.Location;
-							SectorConfig.Radius = FinalRange;
-							SectorConfig.Height = FinalHeight;
-							SectorConfig.Direction = Directed.Direction.GetSafeNormal2D();
-							SectorConfig.Angle = FinalAngle;
-							SectorConfig.Duration = DebugConfig.Duration;
-							SectorConfig.Color = DebugConfig.Color;
-							SectorConfig.LineThickness = DebugConfig.LineThickness;
-
-							DebugSectorQueue.Enqueue(SectorConfig);
-							//UE_LOG(LogTemp, Log, TEXT("Enqueue"));
-						}
-
-						break;
-					}
-
-					case ETraceMode::SectorTraceByTraits:
-					{
-						Trace.TraceResult = FSubjectHandle();
-
-						if (LIKELY(IsValid(Trace.NeighborGrid)))
-						{
-							FFilter TargetFilter;
-							bool Hit;
-							TArray<FTraceResult> Results;
-
-							TargetFilter.Include(Trace.IncludeTraits);
-							TargetFilter.Exclude(Trace.ExcludeTraits);
-
-							// 使用扇形检测替换球体检测
-							const FVector TraceDirection = Directed.Direction.GetSafeNormal2D();
-
-							// ignore self
-							FSubjectArray IgnoreList;
-							IgnoreList.Subjects.Add(FSubjectHandle(Subject));
-
-							Trace.NeighborGrid->SectorTraceForSubjects
-							(
-								1,
-								Located.Location,   // 检测原点
-								FinalRange,         // 检测半径
-								FinalHeight,        // 检测高度
-								TraceDirection,     // 扇形方向
-								FinalAngle,         // 扇形角度
-								FinalCheckVisibility,
-								Located.Location,
-								1,
-								ESortMode::NearToFar,
-								Located.Location,
-								IgnoreList,
-								TargetFilter,       // 过滤条件
-								DebugConfig,
-								Hit,
-								Results              // 输出结果
-							);
-
-							// 直接使用结果（扇形检测已包含角度验证）
-							if (Hit && Results[0].Subject.IsValid())
-							{
-								Trace.TraceResult = Results[0].Subject;
-							}
-						}
-						break;
-					}
-				}
-
-				// if we have a valid target, we stop sleeping or patrolling
-				if (Trace.TraceResult.IsValid())
-				{
-					if (bIsSleeping)
-					{
-						Subject.RemoveTraitDeferred<FSleeping>();
-					}
-
-					if (bIsPatrolling)
-					{
-						Subject.RemoveTraitDeferred<FPatrolling>();
-					}
-				}
-			});
-
-		Mechanism->ApplyDeferreds();
-	}
-	#pragma endregion
-
 	// 攻击触发 | Trigger Attack
 	#pragma region 
 	{
@@ -1644,7 +1657,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 				const bool bHasAttacking = Subject.HasTrait<FAttacking>();
 
-				if(LIKELY(!bHasAttacking))
+				if (LIKELY(!bHasAttacking))
 				{
 					const bool bHasValidTarget = Trace.TraceResult.IsValid() && Trace.TraceResult.HasTrait<FLocated>() && Trace.TraceResult.HasTrait<FHealth>();
 
@@ -1700,7 +1713,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 			{
 				if (Attacking.State == EAttackState::Aim)
 				{
-					if(!Trace.TraceResult.IsValid()||!Trace.TraceResult.HasTrait<FLocated>())
+					if (!Trace.TraceResult.IsValid() || !Trace.TraceResult.HasTrait<FLocated>())
 					{
 						Subject.RemoveTraitDeferred<FAttacking>();// 移除攻击状态
 						Moving.LaunchVelSum = FVector::ZeroVector; // 击退力清零
@@ -1741,26 +1754,26 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 							switch (Config.SpawnOrigin)
 							{
-								case ESpawnOrigin::AtSelf:
+							case ESpawnOrigin::AtSelf:
 
-									NewConfig.AttachToSubject = FSubjectHandle(Subject);
+								NewConfig.AttachToSubject = FSubjectHandle(Subject);
+								NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(SpawnRotation, SpawnLocation, NewConfig.Transform);
+								NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(FTransform(SpawnRotation, SpawnLocation));
+								Mechanism->SpawnSubjectDeferred(NewConfig);
+								break;
+
+							case ESpawnOrigin::AtTarget:
+
+								if (Trace.TraceResult.IsValid())
+								{
+									NewConfig.AttachToSubject = Trace.TraceResult;
+									SpawnLocation = Trace.TraceResult.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
+									FQuat TargetRotation = Trace.TraceResult.GetTraitRef<FDirected, EParadigm::Unsafe>().Direction.ToOrientationQuat();
 									NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(SpawnRotation, SpawnLocation, NewConfig.Transform);
-									NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(FTransform(SpawnRotation, SpawnLocation));
+									NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(FTransform(TargetRotation, SpawnLocation));
 									Mechanism->SpawnSubjectDeferred(NewConfig);
-									break;
-
-								case ESpawnOrigin::AtTarget:
-
-									if (Trace.TraceResult.IsValid())
-									{
-										NewConfig.AttachToSubject = Trace.TraceResult;
-										SpawnLocation = Trace.TraceResult.GetTraitRef<FLocated,EParadigm::Unsafe>().Location;
-										FQuat TargetRotation = Trace.TraceResult.GetTraitRef<FDirected, EParadigm::Unsafe>().Direction.ToOrientationQuat();
-										NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(SpawnRotation, SpawnLocation, NewConfig.Transform);
-										NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(FTransform(TargetRotation, SpawnLocation));
-										Mechanism->SpawnSubjectDeferred(NewConfig);
-									}
-									break;
+								}
+								break;
 							}
 						}
 
@@ -1772,26 +1785,26 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 							switch (Config.SpawnOrigin)
 							{
-								case ESpawnOrigin::AtSelf:
+							case ESpawnOrigin::AtSelf:
 
-									NewConfig.AttachToSubject = FSubjectHandle(Subject);
+								NewConfig.AttachToSubject = FSubjectHandle(Subject);
+								NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(SpawnRotation, SpawnLocation, NewConfig.Transform);
+								NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(FTransform(SpawnRotation, SpawnLocation));
+								Mechanism->SpawnSubjectDeferred(NewConfig);
+								break;
+
+							case ESpawnOrigin::AtTarget:
+
+								if (Trace.TraceResult.IsValid())
+								{
+									NewConfig.AttachToSubject = Trace.TraceResult;
+									SpawnLocation = Trace.TraceResult.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
+									FQuat TargetRotation = Trace.TraceResult.GetTraitRef<FDirected, EParadigm::Unsafe>().Direction.ToOrientationQuat();
 									NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(SpawnRotation, SpawnLocation, NewConfig.Transform);
-									NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(FTransform(SpawnRotation, SpawnLocation));
+									NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(FTransform(TargetRotation, SpawnLocation));
 									Mechanism->SpawnSubjectDeferred(NewConfig);
-									break;
-
-								case ESpawnOrigin::AtTarget:
-
-									if (Trace.TraceResult.IsValid())
-									{
-										NewConfig.AttachToSubject = Trace.TraceResult;
-										SpawnLocation = Trace.TraceResult.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
-										FQuat TargetRotation = Trace.TraceResult.GetTraitRef<FDirected, EParadigm::Unsafe>().Direction.ToOrientationQuat();
-										NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(SpawnRotation, SpawnLocation, NewConfig.Transform);
-										NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(FTransform(TargetRotation, SpawnLocation));
-										Mechanism->SpawnSubjectDeferred(NewConfig);
-									}
-									break;
+								}
+								break;
 							}
 						}
 
@@ -1803,26 +1816,26 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 							switch (Config.SpawnOrigin)
 							{
-								case EPlaySoundOrigin_Attack::PlaySound3D_AtSelf:
+							case EPlaySoundOrigin_Attack::PlaySound3D_AtSelf:
 
-									NewConfig.AttachToSubject = FSubjectHandle(Subject);
+								NewConfig.AttachToSubject = FSubjectHandle(Subject);
+								NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(SpawnRotation, SpawnLocation, NewConfig.Transform);
+								NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(FTransform(SpawnRotation, SpawnLocation));
+								Mechanism->SpawnSubjectDeferred(NewConfig);
+								break;
+
+							case EPlaySoundOrigin_Attack::PlaySound3D_AtTarget:
+
+								if (Trace.TraceResult.IsValid())
+								{
+									NewConfig.AttachToSubject = Trace.TraceResult;
+									SpawnLocation = Trace.TraceResult.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
+									FQuat TargetRotation = Trace.TraceResult.GetTraitRef<FDirected, EParadigm::Unsafe>().Direction.ToOrientationQuat();
 									NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(SpawnRotation, SpawnLocation, NewConfig.Transform);
-									NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(FTransform(SpawnRotation, SpawnLocation));
+									NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(FTransform(TargetRotation, SpawnLocation));
 									Mechanism->SpawnSubjectDeferred(NewConfig);
-									break;
-
-								case EPlaySoundOrigin_Attack::PlaySound3D_AtTarget:
-
-									if (Trace.TraceResult.IsValid())
-									{
-										NewConfig.AttachToSubject = Trace.TraceResult;
-										SpawnLocation = Trace.TraceResult.GetTraitRef<FLocated, EParadigm::Unsafe>().Location;
-										FQuat TargetRotation = Trace.TraceResult.GetTraitRef<FDirected, EParadigm::Unsafe>().Direction.ToOrientationQuat();
-										NewConfig.SpawnTransform = ABattleFrameBattleControl::LocalOffsetToWorld(SpawnRotation, SpawnLocation, NewConfig.Transform);
-										NewConfig.InitialRelativeTransform = NewConfig.SpawnTransform.GetRelativeTransform(FTransform(TargetRotation, SpawnLocation));
-										Mechanism->SpawnSubjectDeferred(NewConfig);
-									}
-									break;
+								}
+								break;
 							}
 						}
 					}
@@ -1885,6 +1898,11 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					{
 						Subject.RemoveTraitDeferred<FAttacking>();// 移除攻击状态
 						Moving.LaunchVelSum = FVector::ZeroVector; // 击退力清零
+
+						if (!Trace.TraceResult.IsValid())
+						{
+							Trace.TimeLeft = 0; // Request immediate re-trace
+						}
 					}
 
 					// 更新计时器
@@ -1895,7 +1913,6 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 			}, ThreadsCount, BatchSize);
 	}
 	#pragma endregion
-
 
 	//------------------------受击 | Hit-------------------------
 
@@ -2494,8 +2511,32 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	}
 	#pragma endregion
 
-
 	//-----------------------死亡 | Death-------------------------
+
+	// 或死亡 | May Die Tag
+	#pragma region
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("AgentMayDie");
+
+		auto Chain = Mechanism->EnchainSolid(AgentMayDieFilter);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
+
+		Chain->OperateConcurrently(
+			[&](FSolidSubjectHandle Subject,
+				FMayDie& MayDie)
+			{
+				if (MayDie.TimeLeft <= 0)
+				{
+					Subject.RemoveTraitDeferred<FMayDie>();
+				}
+				else
+				{
+					MayDie.TimeLeft -= SafeDeltaTime;
+				}
+
+			}, ThreadsCount, BatchSize);
+	}
+	#pragma endregion
 
 	// 死亡总 | Death Main
 	#pragma region
@@ -2667,7 +2708,6 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 			}, ThreadsCount, BatchSize);
 	}
 	#pragma endregion
-
 
 	//-------------------- 渲染 | Rendering ------------------------
 
@@ -3044,7 +3084,6 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 			});
 	}
 	#pragma endregion
-
 
 	//------------------其它游戏线程逻辑 | Other Game Thread Logic--------------------
 
@@ -3615,7 +3654,8 @@ void ABattleFrameBattleControl::DefineFilters()
 	bIsFilterReady = true;
 
 	AgentCountFilter = FFilter::Make<FAgent>();
-	AgentAgeFilter = FFilter::Make<FStatistics>();
+	AgentStatFilter = FFilter::Make<FStatistics>();
+	AgentMayDieFilter = FFilter::Make<FMayDie>();
 	AgentAppeaFilter = FFilter::Make<FAgent, FRendering, FLocated, FDirected, FScaled, FAppear, FAppearing, FAnimation, FActivated>();
 	AgentAppearAnimFilter = FFilter::Make<FAgent, FRendering, FAnimation, FAppear, FAppearAnim, FActivated>();
 	AgentAppearDissolveFilter = FFilter::Make<FAgent, FRendering, FAppearDissolve, FAnimation, FCurves, FActivated>();
@@ -3758,12 +3798,16 @@ void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subje
 			float ClampedDamage = FMath::Min(PostCritDamage, Health.Current);
 
 			DmgResult.IsCritical = bIsCrit;
-			DmgResult.IsKill = Health.Current == ClampedDamage;
 			DmgResult.DmgDealt = ClampedDamage;
+
+			if (ClampedDamage == Health.Current)
+			{
+				DmgResult.IsKill = true;
+				Overlapper.SetTrait(FMayDie());
+			}
 
 			// 应用伤害
 			Overlapper.GetTraitRef<FHealth, EParadigm::Unsafe>().DamageToTake.Enqueue(ClampedDamage);
-			//Overlapper.SetFlag(NeedSettleDmgFlag, true);
 
 			// 记录伤害施加者
 			if (DmgInstigator.IsValid())
@@ -3984,6 +4028,7 @@ void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subje
 		}
 
 		DamageResults.Add(DmgResult);
+
 	}
 }
 
@@ -4097,12 +4142,16 @@ void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subje
 			float ClampedDamage = FMath::Min(PostCritDamage, Health.Current);
 
 			DmgResult.IsCritical = bIsCrit;
-			DmgResult.IsKill = Health.Current == ClampedDamage;
 			DmgResult.DmgDealt = ClampedDamage;
 
+			if (ClampedDamage == Health.Current)
+			{
+				DmgResult.IsKill = true;
+				Overlapper.SetTrait(FMayDie());
+			}
+
 			// 应用伤害
-			Overlapper.GetTraitRef<FHealth,EParadigm::Unsafe>().DamageToTake.Enqueue(ClampedDamage);
-			//Overlapper.SetFlag(NeedSettleDmgFlag, true);
+			Overlapper.GetTraitRef<FHealth, EParadigm::Unsafe>().DamageToTake.Enqueue(ClampedDamage);
 
 			// 记录伤害施加者
 			if (DmgInstigator.IsValid())
@@ -4438,12 +4487,16 @@ void ABattleFrameBattleControl::ApplyDamageToSubjectsDeferred(const FSubjectArra
 			float ClampedDamage = FMath::Min(PostCritDamage, Health.Current);
 
 			DmgResult.IsCritical = bIsCrit;
-			DmgResult.IsKill = Health.Current == ClampedDamage;
 			DmgResult.DmgDealt = ClampedDamage;
+
+			if (ClampedDamage == Health.Current)
+			{
+				DmgResult.IsKill = true;
+				Overlapper.SetTraitDeferred(FMayDie());
+			}
 
 			// 应用伤害
 			Health.DamageToTake.Enqueue(ClampedDamage);
-			//Overlapper.SetFlag(NeedSettleDmgFlag, true);
 
 			// 记录伤害施加者
 			if (DmgInstigator.IsValid())
@@ -4778,12 +4831,16 @@ void ABattleFrameBattleControl::ApplyDamageToSubjectsDeferred(const FSubjectArra
 			float ClampedDamage = FMath::Min(PostCritDamage, Health.Current);
 
 			DmgResult.IsCritical = bIsCrit;
-			DmgResult.IsKill = Health.Current == ClampedDamage;
 			DmgResult.DmgDealt = ClampedDamage;
+
+			if (ClampedDamage == Health.Current)
+			{
+				DmgResult.IsKill = true;
+				Overlapper.SetTraitDeferred(FMayDie());
+			}
 
 			// 应用伤害
 			Health.DamageToTake.Enqueue(ClampedDamage);
-			//Overlapper.SetFlag(NeedSettleDmgFlag, true);
 
 			// 记录伤害施加者
 			if (DmgInstigator.IsValid())

@@ -35,6 +35,7 @@
 #include "Traits/Chase.h"
 #include "Traits/Statistics.h"
 #include "Traits/CustomData.h"
+#include "Traits/Statistics.h"
 #include "SubjectRecord.h"
 #include "AgentConfigDataAsset.generated.h"
 
@@ -115,6 +116,9 @@ public:
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "死亡"))
     FDeath Death;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "数据统计"))
+    FStatistics Statistics;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "自定义数据"))
     FSubjectRecord ExtraTraits;

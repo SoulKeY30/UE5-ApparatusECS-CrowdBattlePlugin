@@ -120,6 +120,7 @@ void UBFSubjectiveAgentComponent::InitializeTraits(AActor* OwnerActor)
     AgentConfig.SetTrait(DataAsset->Curves);
     AgentConfig.SetTrait(FTemporalDamaging());
     AgentConfig.SetTrait(FSlowing());
+    AgentConfig.SetTrait(DataAsset->Statistics);
     AgentConfig.SetTrait(FIsSubjective());
     AgentConfig.SetTrait(FActivated());
 

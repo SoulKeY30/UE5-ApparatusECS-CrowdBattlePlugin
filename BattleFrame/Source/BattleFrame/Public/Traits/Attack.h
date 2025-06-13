@@ -62,4 +62,6 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "绘制Debug图形"))
 	bool bDrawDebugShape = false;
 
+	//add a random stream variable
+
 };

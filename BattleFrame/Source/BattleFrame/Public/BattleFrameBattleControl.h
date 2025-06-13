@@ -85,6 +85,7 @@
 #include "Traits/Chase.h"
 #include "Traits/Patrol.h"
 #include "Traits/TextPopConfig.h"
+#include "Traits/MayDie.h"
 
 #include "BattleFrameBattleControl.generated.h"
 
@@ -154,7 +155,8 @@ private:
 	// all filters we gonna use
 	bool bIsFilterReady = false;
 	FFilter AgentCountFilter;
-	FFilter AgentAgeFilter;
+	FFilter AgentStatFilter;
+	FFilter AgentMayDieFilter;
 	FFilter AgentAppeaFilter;
 	FFilter AgentAppearAnimFilter;
 	FFilter AgentAppearDissolveFilter;

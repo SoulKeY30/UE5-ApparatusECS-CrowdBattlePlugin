@@ -144,6 +144,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     AgentConfig.SetTrait(DataAsset->Curves);
     AgentConfig.SetTrait(FTemporalDamaging());
     AgentConfig.SetTrait(FSlowing());
+    AgentConfig.SetTrait(DataAsset->Statistics);
 
     // Apply Multipliers
     auto& HealthTrait = AgentConfig.GetTraitRef<FHealth>();
@@ -339,6 +340,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsByConfigRectangular
     AgentRecord.SetTrait(AgentConfig->Curves);
     AgentRecord.SetTrait(FTemporalDamaging());
     AgentRecord.SetTrait(FSlowing());
+    AgentRecord.SetTrait(AgentConfig->Statistics);
 
     // Apply Multipliers
     auto& HealthTrait = AgentRecord.GetTraitRef<FHealth>();
