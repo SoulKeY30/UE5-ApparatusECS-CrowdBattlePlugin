@@ -174,7 +174,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					if (Subject.HasTrait<FIsSubjective>())
 					{
 						FAppearData AppearData;
-						AppearData.Self = FSubjectHandle(Subject);
+						AppearData.SelfSubject = FSubjectHandle(Subject);
 						OnAppearQueue.Enqueue(AppearData);
 					}
 				}
@@ -598,8 +598,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						if (bHasIsSubjective)
 						{
 							FSleepData SleepData;
-							SleepData.Self = FSubjectHandle(Subject);
-							SleepData.State = ESleepState::End;
+							SleepData.SelfSubject = FSubjectHandle(Subject);
+							SleepData.State = ESleepEventState::End;
 							OnSleepQueue.Enqueue(SleepData);
 						}
 					}
@@ -612,8 +612,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						if (bHasIsSubjective)
 						{
 							FPatrolData PatrolData;
-							PatrolData.Self = FSubjectHandle(Subject);
-							PatrolData.State = EPatrolState::End;
+							PatrolData.SelfSubject = FSubjectHandle(Subject);
+							PatrolData.State = EPatrolEventState::End;
 							OnPatrolQueue.Enqueue(PatrolData);
 						}
 					}
@@ -633,8 +633,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				if (bHasIsSubjective)
 				{
 					FTraceData TraceData;
-					TraceData.Self = FSubjectHandle(Subject);
-					TraceData.State = bHasValidTraceResult ? ETraceState::Succeed : ETraceState::Fail;
+					TraceData.SelfSubject = FSubjectHandle(Subject);
+					TraceData.State = bHasValidTraceResult ? ETraceEventState::Succeed : ETraceEventState::Fail;
 					TraceData.TraceResult = bHasValidTraceResult ? Trace.TraceResult : FSubjectHandle();
 					OnTraceQueue.Enqueue(TraceData);
 				}
@@ -833,8 +833,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						if (Patrolling.MoveTimeLeft == Patrol.MaxMovingTime && Subject.HasTrait<FIsSubjective>())
 						{
 							FPatrolData PatrolData;
-							PatrolData.Self = FSubjectHandle(Subject);
-							PatrolData.State = EPatrolState::Begin;
+							PatrolData.SelfSubject = FSubjectHandle(Subject);
+							PatrolData.State = EPatrolEventState::Begin;
 							OnPatrolQueue.Enqueue(PatrolData);
 						}
 
@@ -855,8 +855,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						if (Patrolling.WaitTimeLeft == Patrol.CoolDown && Subject.HasTrait<FIsSubjective>())
 						{
 							FPatrolData PatrolData;
-							PatrolData.Self = FSubjectHandle(Subject);
-							PatrolData.State = EPatrolState::Wait;
+							PatrolData.SelfSubject = FSubjectHandle(Subject);
+							PatrolData.State = EPatrolEventState::Wait;
 							OnPatrolQueue.Enqueue(PatrolData);
 						}
 
@@ -1717,8 +1717,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 							if (Subject.HasTrait<FIsSubjective>())
 							{
 								FAttackData AttackData;
-								AttackData.Self = FSubjectHandle(Subject);
-								AttackData.State = EAttackState::Aim;
+								AttackData.SelfSubject = FSubjectHandle(Subject);
+								AttackData.State = EAttackEventState::Aim;
 								AttackData.AttackTarget = Trace.TraceResult;
 								OnAttackQueue.Enqueue(AttackData);
 							}
@@ -1766,8 +1766,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						if (Subject.HasTrait<FIsSubjective>())
 						{
 							FAttackData AttackData;
-							AttackData.Self = FSubjectHandle(Subject);
-							AttackData.State = EAttackState::End;
+							AttackData.SelfSubject = FSubjectHandle(Subject);
+							AttackData.State = EAttackEventState::End_Reason_InvalidTarget;
 							OnAttackQueue.Enqueue(AttackData);
 						}
 						return;
@@ -1888,12 +1888,12 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 							}
 						}
 
-						// Attack PreCast Event
+						// Attack Begin Event
 						if (Subject.HasTrait<FIsSubjective>())
 						{
 							FAttackData AttackData;
-							AttackData.Self = FSubjectHandle(Subject);
-							AttackData.State = EAttackState::PreCast;
+							AttackData.SelfSubject = FSubjectHandle(Subject);
+							AttackData.State = EAttackEventState::Begin;
 							AttackData.AttackTarget = Trace.TraceResult.IsValid() ? Trace.TraceResult : FSubjectHandle();
 							OnAttackQueue.Enqueue(AttackData);
 						}
@@ -1932,6 +1932,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 										if (Distance <= Attack.Range && Angle <= Attack.AngleToleranceHit)
 										{
 											ApplyDamageToSubjectsDeferred(FSubjectArray{ TArray<FSubjectHandle>{Trace.TraceResult} }, FSubjectArray(), FSubjectHandle{ Subject }, Located.Location, Damage, Debuff, DmgResults);
+											UE_LOG(LogTemp, Warning, TEXT("TryApplyDmg"));
 										}
 									}
 								}
@@ -1940,8 +1941,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 								if (Subject.HasTrait<FIsSubjective>())
 								{
 									FAttackData AttackData;
-									AttackData.Self = FSubjectHandle(Subject);
-									AttackData.State = EAttackState::Hit;
+									AttackData.SelfSubject = FSubjectHandle(Subject);
+									AttackData.State = EAttackEventState::Hit;
 									AttackData.AttackTarget = Trace.TraceResult.IsValid() ? Trace.TraceResult : FSubjectHandle();
 									AttackData.DmgResults.Append(DmgResults);
 									OnAttackQueue.Enqueue(AttackData);
@@ -1956,8 +1957,9 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 									if (Subject.HasTrait<FIsSubjective>())
 									{
 										FAttackData AttackData;
-										AttackData.Self = FSubjectHandle(Subject);
-										AttackData.State = EAttackState::End;
+										AttackData.SelfSubject = FSubjectHandle(Subject);
+										AttackData.State = EAttackEventState::End_Reason_Suicide;
+										AttackData.AttackTarget = Trace.TraceResult.IsValid() ? Trace.TraceResult : FSubjectHandle();
 										OnAttackQueue.Enqueue(AttackData);
 									}
 								}
@@ -1977,8 +1979,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 							if (Subject.HasTrait<FIsSubjective>())
 							{
 								FAttackData AttackData;
-								AttackData.Self = FSubjectHandle(Subject);
-								AttackData.State = EAttackState::Cooling;
+								AttackData.SelfSubject = FSubjectHandle(Subject);
+								AttackData.State = EAttackEventState::Cooling;
 								AttackData.AttackTarget = Trace.TraceResult.IsValid() ? Trace.TraceResult : FSubjectHandle();
 								OnAttackQueue.Enqueue(AttackData);
 							}
@@ -1998,8 +2000,9 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						if (Subject.HasTrait<FIsSubjective>())
 						{
 							FAttackData AttackData;
-							AttackData.Self = FSubjectHandle(Subject);
-							AttackData.State = EAttackState::End;
+							AttackData.SelfSubject = FSubjectHandle(Subject);
+							AttackData.State = EAttackEventState::End_Reason_Complete;
+							AttackData.AttackTarget = Trace.TraceResult.IsValid() ? Trace.TraceResult : FSubjectHandle();
 							OnAttackQueue.Enqueue(AttackData);
 						}
 					}
@@ -2655,7 +2658,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					if (Subject.HasTrait<FIsSubjective>())
 					{
 						FDeathData DeathData;
-						DeathData.Self = FSubjectHandle(Subject);
+						DeathData.SelfSubject = FSubjectHandle(Subject);
 						OnDeathQueue.Enqueue(DeathData);
 					}
 
@@ -3583,9 +3586,9 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 			FAppearData Data;
 			OnAppearQueue.Dequeue(Data);
 
-			if (Data.Self.IsValid())
+			if (Data.SelfSubject.IsValid())
 			{
-				AActor* DmgActor = Data.Self.GetSubjective()->GetActor();
+				AActor* DmgActor = Data.SelfSubject.GetSubjective()->GetActor();
 
 				if (DmgActor && DmgActor->GetClass()->ImplementsInterface(UBattleFrameInterface::StaticClass()))
 				{
@@ -3599,9 +3602,9 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 			FSleepData Data;
 			OnSleepQueue.Dequeue(Data);
 
-			if (Data.Self.IsValid())
+			if (Data.SelfSubject.IsValid())
 			{
-				AActor* DmgActor = Data.Self.GetSubjective()->GetActor();
+				AActor* DmgActor = Data.SelfSubject.GetSubjective()->GetActor();
 
 				if (DmgActor && DmgActor->GetClass()->ImplementsInterface(UBattleFrameInterface::StaticClass()))
 				{
@@ -3615,9 +3618,9 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 			FPatrolData Data;
 			OnPatrolQueue.Dequeue(Data);
 
-			if (Data.Self.IsValid())
+			if (Data.SelfSubject.IsValid())
 			{
-				AActor* DmgActor = Data.Self.GetSubjective()->GetActor();
+				AActor* DmgActor = Data.SelfSubject.GetSubjective()->GetActor();
 
 				if (DmgActor && DmgActor->GetClass()->ImplementsInterface(UBattleFrameInterface::StaticClass()))
 				{
@@ -3631,9 +3634,9 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 			FTraceData Data;
 			OnTraceQueue.Dequeue(Data);
 
-			if (Data.Self.IsValid())
+			if (Data.SelfSubject.IsValid())
 			{
-				AActor* DmgActor = Data.Self.GetSubjective()->GetActor();
+				AActor* DmgActor = Data.SelfSubject.GetSubjective()->GetActor();
 
 				if (DmgActor && DmgActor->GetClass()->ImplementsInterface(UBattleFrameInterface::StaticClass()))
 				{
@@ -3647,9 +3650,9 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 			FMoveData Data;
 			OnMoveQueue.Dequeue(Data);
 
-			if (Data.Self.IsValid())
+			if (Data.SelfSubject.IsValid())
 			{
-				AActor* DmgActor = Data.Self.GetSubjective()->GetActor();
+				AActor* DmgActor = Data.SelfSubject.GetSubjective()->GetActor();
 
 				if (DmgActor && DmgActor->GetClass()->ImplementsInterface(UBattleFrameInterface::StaticClass()))
 				{
@@ -3663,9 +3666,9 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 			FAttackData Data;
 			OnAttackQueue.Dequeue(Data);
 
-			if (Data.Self.IsValid())
+			if (Data.SelfSubject.IsValid())
 			{
-				AActor* DmgActor = Data.Self.GetSubjective()->GetActor();
+				AActor* DmgActor = Data.SelfSubject.GetSubjective()->GetActor();
 
 				if (DmgActor && DmgActor->GetClass()->ImplementsInterface(UBattleFrameInterface::StaticClass()))
 				{
@@ -3679,9 +3682,9 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 			FHitData Data;
 			OnHitQueue.Dequeue(Data);
 
-			if (Data.Self.IsValid())
+			if (Data.SelfSubject.IsValid())
 			{
-				AActor* DmgActor = Data.Self.GetSubjective()->GetActor();
+				AActor* DmgActor = Data.SelfSubject.GetSubjective()->GetActor();
 
 				if (DmgActor && DmgActor->GetClass()->ImplementsInterface(UBattleFrameInterface::StaticClass()))
 				{
@@ -3695,9 +3698,9 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 			FDeathData Data;
 			OnDeathQueue.Dequeue(Data);
 
-			if (Data.Self.IsValid())
+			if (Data.SelfSubject.IsValid())
 			{
-				AActor* DmgActor = Data.Self.GetSubjective()->GetActor();
+				AActor* DmgActor = Data.SelfSubject.GetSubjective()->GetActor();
 
 				if (DmgActor && DmgActor->GetClass()->ImplementsInterface(UBattleFrameInterface::StaticClass()))
 				{
@@ -4193,8 +4196,8 @@ void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subje
 		if (bHasIsSubjective)
 		{
 			FHitData HitData;
-			HitData.Self = DmgResult.DamagedSubject;
-			HitData.Instigator = DmgResult.InstigatorSubject;
+			HitData.SelfSubject = DmgResult.DamagedSubject;
+			HitData.InstigatorSubject = DmgResult.InstigatorSubject;
 			HitData.IsCritical = DmgResult.IsCritical;
 			HitData.IsKill = DmgResult.IsKill;
 			HitData.DmgDealt = DmgResult.DmgDealt;
@@ -4537,8 +4540,8 @@ void ABattleFrameBattleControl::ApplyDamageToSubjects(const FSubjectArray& Subje
 		if (bHasIsSubjective)
 		{
 			FHitData HitData;
-			HitData.Self = DmgResult.DamagedSubject;
-			HitData.Instigator = DmgResult.InstigatorSubject;
+			HitData.SelfSubject = DmgResult.DamagedSubject;
+			HitData.InstigatorSubject = DmgResult.InstigatorSubject;
 			HitData.IsCritical = DmgResult.IsCritical;
 			HitData.IsKill = DmgResult.IsKill;
 			HitData.DmgDealt = DmgResult.DmgDealt;
@@ -4882,8 +4885,8 @@ void ABattleFrameBattleControl::ApplyDamageToSubjectsDeferred(const FSubjectArra
 		if (bHasIsSubjective)
 		{
 			FHitData HitData;
-			HitData.Self = DmgResult.DamagedSubject;
-			HitData.Instigator = DmgResult.InstigatorSubject;
+			HitData.SelfSubject = DmgResult.DamagedSubject;
+			HitData.InstigatorSubject = DmgResult.InstigatorSubject;
 			HitData.IsCritical = DmgResult.IsCritical;
 			HitData.IsKill = DmgResult.IsKill;
 			HitData.DmgDealt = DmgResult.DmgDealt;
@@ -5226,8 +5229,8 @@ void ABattleFrameBattleControl::ApplyDamageToSubjectsDeferred(const FSubjectArra
 		if (bHasIsSubjective)
 		{
 			FHitData HitData;
-			HitData.Self = DmgResult.DamagedSubject;
-			HitData.Instigator = DmgResult.InstigatorSubject;
+			HitData.SelfSubject = DmgResult.DamagedSubject;
+			HitData.InstigatorSubject = DmgResult.InstigatorSubject;
 			HitData.IsCritical = DmgResult.IsCritical;
 			HitData.IsKill = DmgResult.IsKill;
 			HitData.DmgDealt = DmgResult.DmgDealt;

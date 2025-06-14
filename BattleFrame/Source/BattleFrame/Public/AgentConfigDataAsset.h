@@ -66,20 +66,17 @@ public:
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "动画"))
     FAnimation Animation;
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "曲线"))
-    FCurves Curves;
-
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "出生"))
     FAppear Appear;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "索敌"))
+    FTrace Trace;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "休眠"))
     FSleep Sleep;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "巡逻"))
     FPatrol Patrol;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "索敌"))
-    FTrace Trace;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "追逐"))
     FChase Chase;
@@ -90,7 +87,7 @@ public:
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "导航"))
     FNavigation Navigation;
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "避障/碰撞"))
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "避障"))
     FAvoidance Avoidance;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "攻击"))
@@ -117,10 +114,13 @@ public:
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "死亡"))
     FDeath Death;
 
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "曲线"))
+    FCurves Curves;
+
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "数据统计"))
     FStatistics Statistics;
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "自定义数据"))
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "自定义特征"))
     FSubjectRecord ExtraTraits;
 
     UAgentConfigDataAsset() {};

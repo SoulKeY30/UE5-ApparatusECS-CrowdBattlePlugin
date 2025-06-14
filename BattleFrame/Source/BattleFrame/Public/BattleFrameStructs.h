@@ -14,10 +14,10 @@ struct BATTLEFRAME_API FTraceResult
 
 public:
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
     FSubjectHandle Subject = FSubjectHandle();
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
     FVector Location = FVector::ZeroVector;
 
     float CachedDistSq = -1.0f;
@@ -185,7 +185,7 @@ struct BATTLEFRAME_API FAppearData
 public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	FSubjectHandle Self = FSubjectHandle();
+	FSubjectHandle SelfSubject = FSubjectHandle();
 
 };
 
@@ -197,10 +197,11 @@ struct BATTLEFRAME_API FSleepData
 public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	FSubjectHandle Self = FSubjectHandle();
+	FSubjectHandle SelfSubject = FSubjectHandle();
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	ESleepState State = ESleepState::End;
+	ESleepEventState State = ESleepEventState::End;
+
 };
 
 USTRUCT(BlueprintType)
@@ -211,10 +212,10 @@ struct BATTLEFRAME_API FPatrolData
 public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	FSubjectHandle Self = FSubjectHandle();
+	FSubjectHandle SelfSubject = FSubjectHandle();
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	EPatrolState State = EPatrolState::Begin;
+	EPatrolEventState State = EPatrolEventState::Begin;
 
 };
 
@@ -226,10 +227,10 @@ struct BATTLEFRAME_API FTraceData
 public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	FSubjectHandle Self = FSubjectHandle();
+	FSubjectHandle SelfSubject = FSubjectHandle();
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	ETraceState State = ETraceState::Succeed;
+	ETraceEventState State = ETraceEventState::Succeed;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	FSubjectHandle TraceResult = FSubjectHandle();
@@ -244,7 +245,7 @@ struct BATTLEFRAME_API FMoveData
 public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	FSubjectHandle Self = FSubjectHandle();
+	FSubjectHandle SelfSubject = FSubjectHandle();
 
 };
 
@@ -256,10 +257,10 @@ struct BATTLEFRAME_API FAttackData
 public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	FSubjectHandle Self = FSubjectHandle();
+	FSubjectHandle SelfSubject = FSubjectHandle();
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	EAttackState State = EAttackState::Aim;
+	EAttackEventState State = EAttackEventState::Aim;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	FSubjectHandle AttackTarget = FSubjectHandle();
@@ -277,10 +278,10 @@ struct BATTLEFRAME_API FHitData
 public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	FSubjectHandle Self = FSubjectHandle();
+	FSubjectHandle SelfSubject = FSubjectHandle();
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	FSubjectHandle Instigator = FSubjectHandle();
+	FSubjectHandle InstigatorSubject = FSubjectHandle();
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	bool IsCritical = false;
@@ -301,7 +302,7 @@ struct BATTLEFRAME_API FDeathData
 public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	FSubjectHandle Self = FSubjectHandle();
+	FSubjectHandle SelfSubject = FSubjectHandle();
 
 };
 
