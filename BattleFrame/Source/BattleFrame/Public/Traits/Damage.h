@@ -10,6 +10,7 @@ enum class EDmgType : uint8
 	Fire UMETA(DisplayName = "Fire Damage", Tooltip = "火伤"),
 	Ice UMETA(DisplayName = "Ice Damage", Tooltip = "冰伤"),
 	Poison UMETA(DisplayName = "Poison Damage", Tooltip = "毒伤")
+	//Heal UMETA(DisplayName = "Heal", Tooltip = "治疗")
 };
 
 USTRUCT(BlueprintType)

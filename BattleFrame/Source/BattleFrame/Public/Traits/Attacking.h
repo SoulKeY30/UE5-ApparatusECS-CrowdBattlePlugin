@@ -1,16 +1,10 @@
 #pragma once
  
 #include "CoreMinimal.h"
+#include "BattleFrameEnums.h"
 #include "Attacking.generated.h"
 
-UENUM(BlueprintType)
-enum class EAttackState : uint8
-{
-	Aim UMETA(DisplayName = "Aim"),
-	PreCast UMETA(DisplayName = "PreCast"),
-	PostCast UMETA(DisplayName = "PostCast"),
-	Cooling UMETA(DisplayName = "Cooling")
-};
+
 
 USTRUCT(BlueprintType)
 struct BATTLEFRAME_API FAttacking

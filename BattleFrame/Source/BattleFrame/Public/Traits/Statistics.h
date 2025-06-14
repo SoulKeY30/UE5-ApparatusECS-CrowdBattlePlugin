@@ -38,16 +38,19 @@ public:
 	//UTexture2DDynamic* PlayerProfileImage = nullptr;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "总伤害"))
-	float totalDamage = 0;
+	float TotalDamage = 0;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "总伤害"))
+	float TotalHeal = 0;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "总击杀"))
-	int32 totalKills = 0;
+	int32 TotalKills = 0;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "总分值"))
-	int32 totalScore = 0;
+	int32 TotalScore = 0;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "总存活时长"))
-	float totalTime = 0;
+	float TotalTime = 0;
 
 	//UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	//TArray<FSubjectHandle> bossFightHandle;
@@ -65,10 +68,10 @@ public:
 		//PlayerID = Statistics.PlayerID;
 		//PlayerName = Statistics.PlayerName;
 		//PlayerProfileImage = Statistics.PlayerProfileImage;
-		totalDamage = Statistics.totalDamage;
-		totalKills = Statistics.totalKills;
-		totalScore = Statistics.totalScore;
-		totalTime = Statistics.totalTime;
+		TotalDamage = Statistics.TotalDamage;
+		TotalKills = Statistics.TotalKills;
+		TotalScore = Statistics.TotalScore;
+		TotalTime = Statistics.TotalTime;
 		//bossFightHandle = Statistics.bossFightHandle;
 		//bossFightDamage = Statistics.bossFightDamage;
     }
@@ -81,10 +84,10 @@ public:
 		//PlayerID = Statistics.PlayerID;
 		//PlayerName = Statistics.PlayerName;
 		//PlayerProfileImage = Statistics.PlayerProfileImage;
-		totalDamage = Statistics.totalDamage;
-		totalKills = Statistics.totalKills;
-		totalScore = Statistics.totalScore;
-		totalTime = Statistics.totalTime;
+		TotalDamage = Statistics.TotalDamage;
+		TotalKills = Statistics.TotalKills;
+		TotalScore = Statistics.TotalScore;
+		TotalTime = Statistics.TotalTime;
 		//bossFightHandle = Statistics.bossFightHandle;
 		//bossFightDamage = Statistics.bossFightDamage;
 

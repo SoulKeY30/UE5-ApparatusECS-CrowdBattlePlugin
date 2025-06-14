@@ -25,6 +25,7 @@
 // BattleFrame
 #include "BattleFrameFunctionLibraryRT.h"
 #include "BattleFrameStructs.h"
+#include "BattleFrameEnums.h"
 
 #include "Traits/Debuff.h"
 #include "Traits/DmgSphere.h"
@@ -130,15 +131,14 @@ public:
 	EFlagmarkBit AttackingFlag = EFlagmarkBit::A;
 
 	// Event Callbacks
+	TQueue<FAppearData, EQueueMode::Mpsc> OnAppearQueue;
+	TQueue<FSleepData, EQueueMode::Mpsc> OnSleepQueue;
+	TQueue<FPatrolData, EQueueMode::Mpsc> OnPatrolQueue;
+	TQueue<FTraceData, EQueueMode::Mpsc> OnTraceQueue;
+	TQueue<FMoveData, EQueueMode::Mpsc> OnMoveQueue;
+	TQueue<FAttackData, EQueueMode::Mpsc> OnAttackQueue;
 	TQueue<FHitData, EQueueMode::Mpsc> OnHitQueue;
-	//TQueue<FHitData, EQueueMode::Mpsc> OnHitQueue;
-	//TQueue<FHitData, EQueueMode::Mpsc> OnHitQueue;
-	//TQueue<FHitData, EQueueMode::Mpsc> OnHitQueue;
-	//TQueue<FHitData, EQueueMode::Mpsc> OnHitQueue;
-	//TQueue<FHitData, EQueueMode::Mpsc> OnHitQueue;
-	//TQueue<FHitData, EQueueMode::Mpsc> OnHitQueue;
-	//TQueue<FHitData, EQueueMode::Mpsc> OnHitQueue;
-	//TQueue<FHitData, EQueueMode::Mpsc> OnHitQueue;
+	TQueue<FDeathData, EQueueMode::Mpsc> OnDeathQueue;
 
 	// Draw Debug Queue
 	TQueue<FDebugPointConfig, EQueueMode::Mpsc> DebugPointQueue;
@@ -223,21 +223,6 @@ public:
 
 	void ApplyDamageToSubjectsDeferred(const FSubjectArray& Subjects, const FSubjectArray& IgnoreSubjects, const FSubjectHandle DmgInstigator, const FVector& HitFromLocation, const FDmgSphere& DmgSphere, const FDebuff& Debuff, TArray<FDmgResult>& DamageResults);
 
-	static FVector FindNewPatrolGoalLocation(const FPatrol& Patrol, const FCollider& Collider, const FTrace& Trace, const FLocated& Located, const FScaled& Scaled, int32 MaxAttempts);
-
-	void DrawDebugSector(UWorld* World, const FVector& Center, const FVector& Direction, float Radius, float AngleDegrees, float Height, const FColor& Color, bool bPersistentLines, float LifeTime, uint8 DepthPriority, float Thickness);
-
-	//---------------------------------------------RVO2------------------------------------------------------------------
-
-	static void ComputeAvoidingVelocity(FAvoidance& Avoidance, FAvoiding& Avoiding, const TArray<FGridData>& SubjectNeighbors, const TArray<FGridData>& ObstacleNeighbors, float TimeStep);
-
-	static bool LinearProgram1(const std::vector<RVO::Line>& lines, size_t lineNo, float radius, const RVO::Vector2& optVelocity, bool directionOpt, RVO::Vector2& result);
-
-	static size_t LinearProgram2(const std::vector<RVO::Line>& lines, float radius, const RVO::Vector2& optVelocity, bool directionOpt, RVO::Vector2& result);
-
-	static void LinearProgram3(const std::vector<RVO::Line>& lines, size_t numObstLines, size_t beginLine, float radius, RVO::Vector2& result);
-
-
 	//---------------------------------------------Helpers------------------------------------------------------------------
 
 	FORCEINLINE std::pair<bool, float> ProcessCritDamage(float BaseDamage, float damageMult, float Probability)
@@ -295,7 +280,40 @@ public:
 			//UE_LOG(LogTemp, Warning, TEXT("OldTrait"));
 			PoppingText.Unlock();
 
-			Config.Owner.SetFlag(HasPoppingTextFlag,true);
+			Config.Owner.SetFlag(HasPoppingTextFlag, true);
 		}
 	}
+
+	FORCEINLINE void ResetPatrol(FPatrol& Patrol, FPatrolling& Patrolling, const FLocated& Located)
+	{
+		// Reset timer values
+		Patrolling.MoveTimeLeft = Patrol.MaxMovingTime;
+		Patrolling.WaitTimeLeft = Patrol.CoolDown;
+
+		// Reset origin based on mode
+		if (Patrol.OriginMode == EPatrolOriginMode::Previous)
+		{
+			Patrol.Origin = Located.Location; // use current location
+		}
+		else
+		{
+			Patrol.Origin = Located.InitialLocation; // use initial location
+		}
+	};
+
+	static FVector FindNewPatrolGoalLocation(const FPatrol& Patrol, const FCollider& Collider, const FTrace& Trace, const FLocated& Located, const FScaled& Scaled, int32 MaxAttempts);
+
+	void DrawDebugSector(UWorld* World, const FVector& Center, const FVector& Direction, float Radius, float AngleDegrees, float Height, const FColor& Color, bool bPersistentLines, float LifeTime, uint8 DepthPriority, float Thickness);
+
+
+	//---------------------------------------------RVO2------------------------------------------------------------------
+
+	static void ComputeAvoidingVelocity(FAvoidance& Avoidance, FAvoiding& Avoiding, const TArray<FGridData>& SubjectNeighbors, const TArray<FGridData>& ObstacleNeighbors, float TimeStep);
+
+	static bool LinearProgram1(const std::vector<RVO::Line>& lines, size_t lineNo, float radius, const RVO::Vector2& optVelocity, bool directionOpt, RVO::Vector2& result);
+
+	static size_t LinearProgram2(const std::vector<RVO::Line>& lines, float radius, const RVO::Vector2& optVelocity, bool directionOpt, RVO::Vector2& result);
+
+	static void LinearProgram3(const std::vector<RVO::Line>& lines, size_t numObstLines, size_t beginLine, float radius, RVO::Vector2& result);
+
 };

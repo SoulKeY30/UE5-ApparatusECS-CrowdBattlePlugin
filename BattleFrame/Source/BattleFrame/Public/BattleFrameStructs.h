@@ -2,7 +2,10 @@
 
 #include "CoreMinimal.h"
 #include "SubjectHandle.h"
+#include "BattleFrameEnums.h"
 #include "BattleFrameStructs.generated.h" 
+
+
 
 USTRUCT(BlueprintType)
 struct BATTLEFRAME_API FTraceResult
@@ -18,6 +21,29 @@ public:
     FVector Location = FVector::ZeroVector;
 
     float CachedDistSq = -1.0f;
+};
+
+USTRUCT(BlueprintType)
+struct BATTLEFRAME_API FDmgResult
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FSubjectHandle DamagedSubject = FSubjectHandle();
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FSubjectHandle InstigatorSubject = FSubjectHandle();
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	bool IsCritical = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	bool IsKill = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	float DmgDealt = 0;
 };
 
 USTRUCT(BlueprintType)
@@ -114,52 +140,6 @@ public:
 };
 
 USTRUCT(BlueprintType)
-struct BATTLEFRAME_API FDmgResult
-{
-	GENERATED_BODY()
-
-public:
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	FSubjectHandle DamagedSubject = FSubjectHandle();
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	FSubjectHandle InstigatorSubject = FSubjectHandle();
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	bool IsCritical = false;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	bool IsKill = false;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	float DmgDealt = 0;
-};
-
-USTRUCT(BlueprintType)
-struct BATTLEFRAME_API FHitData
-{
-	GENERATED_BODY()
-
-public:
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	FSubjectHandle DamagedSubject = FSubjectHandle();
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	FSubjectHandle InstigatorSubject = FSubjectHandle();
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	bool IsCritical = false;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	bool IsKill = false;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	float DmgDealt = 0;
-};
-
-USTRUCT(BlueprintType)
 struct BATTLEFRAME_API FSubjectArray
 {
 	GENERATED_BODY()
@@ -193,6 +173,140 @@ public:
 	// 默认构造函数（必须）
 	FSpawnerMult() = default;
 };
+
+
+//------------------Event Callback Data--------------------
+
+USTRUCT(BlueprintType)
+struct BATTLEFRAME_API FAppearData
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FSubjectHandle Self = FSubjectHandle();
+
+};
+
+USTRUCT(BlueprintType)
+struct BATTLEFRAME_API FSleepData
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FSubjectHandle Self = FSubjectHandle();
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	ESleepState State = ESleepState::End;
+};
+
+USTRUCT(BlueprintType)
+struct BATTLEFRAME_API FPatrolData
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FSubjectHandle Self = FSubjectHandle();
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	EPatrolState State = EPatrolState::Begin;
+
+};
+
+USTRUCT(BlueprintType)
+struct BATTLEFRAME_API FTraceData
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FSubjectHandle Self = FSubjectHandle();
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	ETraceState State = ETraceState::Succeed;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FSubjectHandle TraceResult = FSubjectHandle();
+
+};
+
+USTRUCT(BlueprintType)
+struct BATTLEFRAME_API FMoveData
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FSubjectHandle Self = FSubjectHandle();
+
+};
+
+USTRUCT(BlueprintType)
+struct BATTLEFRAME_API FAttackData
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FSubjectHandle Self = FSubjectHandle();
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	EAttackState State = EAttackState::Aim;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FSubjectHandle AttackTarget = FSubjectHandle();
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	TArray<FDmgResult> DmgResults;
+
+};
+
+USTRUCT(BlueprintType)
+struct BATTLEFRAME_API FHitData
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FSubjectHandle Self = FSubjectHandle();
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FSubjectHandle Instigator = FSubjectHandle();
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	bool IsCritical = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	bool IsKill = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	float DmgDealt = 0;
+
+};
+
+USTRUCT(BlueprintType)
+struct BATTLEFRAME_API FDeathData
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FSubjectHandle Self = FSubjectHandle();
+
+};
+
+
+//------------------Debug Draw Configs--------------------
 
 USTRUCT(BlueprintType)
 struct BATTLEFRAME_API FDebugPointConfig

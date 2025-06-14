@@ -12,13 +12,6 @@ enum class ESortMode : uint8
 };
 
 UENUM(BlueprintType)
-enum class EMoveStyle : uint8
-{
-    Creature UMETA(DisplayName = "Creature", ToolTip = "生物先向任意方向移动，然后转身朝向移动的方向"),
-    Vehicle UMETA(DisplayName = "Vehicle", ToolTip = "车辆先转向，然后按当前朝向前进或后退")
-};
-
-UENUM(BlueprintType)
 enum class ESpawnOrigin : uint8
 {
     AtSelf UMETA(DisplayName = "AtSelf", Tooltip = "在自身位置"),
@@ -55,4 +48,69 @@ enum class EInitialDirection : uint8
 			DisplayName = "CustomDirection",
 			Tooltip = "自定义朝向"
 		)
+};
+
+// Event State
+UENUM(BlueprintType)
+enum class EAppearState : uint8
+{
+	Delay UMETA(DisplayName = "Delay", ToolTip = "延时"),
+	Begin UMETA(DisplayName = "Begin", ToolTip = "开始"),
+	End UMETA(DisplayName = "End", ToolTip = "结束")
+};
+
+UENUM(BlueprintType)
+enum class ESleepState : uint8
+{
+	End UMETA(DisplayName = "End", ToolTip = "结束(惊醒)")
+};
+
+UENUM(BlueprintType)
+enum class EPatrolState : uint8
+{
+	Begin UMETA(DisplayName = "Begin", ToolTip = "开始"),
+	Wait UMETA(DisplayName = "Wait", ToolTip = "在目的地等待"),
+	End UMETA(DisplayName = "End", ToolTip = "结束")
+};
+
+UENUM(BlueprintType)
+enum class ETraceState : uint8
+{
+	Succeed UMETA(DisplayName = "Succeed", ToolTip = "成功"),
+	Fail UMETA(DisplayName = "Fail", ToolTip = "失败")
+};
+
+UENUM(BlueprintType)
+enum class EMoveState : uint8
+{
+	Idle UMETA(DisplayName = "Idle", ToolTip = ""),
+	Moving UMETA(DisplayName = "Moving", ToolTip = ""),
+	Chasing UMETA(DisplayName = "Chasing", ToolTip = ""),
+	Falling UMETA(DisplayName = "Falling", ToolTip = ""),
+	Launched UMETA(DisplayName = "Launched", ToolTip = ""),
+	Pushed UMETA(DisplayName = "Pushed", ToolTip = "")
+};
+
+UENUM(BlueprintType)
+enum class EAttackState : uint8
+{
+	Aim UMETA(DisplayName = "Aim", ToolTip = "瞄准(开始)"),
+	PreCast UMETA(DisplayName = "PreCast", ToolTip = "前摇"),
+	Hit UMETA(DisplayName = "Hit", ToolTip = "击中"),
+	PostCast UMETA(DisplayName = "PostCast", ToolTip = "后摇"),
+	Cooling UMETA(DisplayName = "Cooling", ToolTip = "冷却"),
+	End UMETA(DisplayName = "End", ToolTip = "结束")
+};
+
+UENUM(BlueprintType)
+enum class EHitState : uint8
+{
+	Begin UMETA(DisplayName = "Begin", ToolTip = "")
+};
+
+UENUM(BlueprintType)
+enum class EDeathState : uint8
+{
+	Begin UMETA(DisplayName = "Begin", ToolTip = "开始"),
+	End UMETA(DisplayName = "End", ToolTip = "结束")
 };
