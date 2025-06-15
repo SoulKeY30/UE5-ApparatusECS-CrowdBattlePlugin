@@ -23,12 +23,6 @@ public:
     void OnAppear(const FAppearData& Data);
 
     UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
-    void OnSleep(const FSleepData& Data);
-
-    UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
-    void OnPatrol(const FPatrolData& Data);
-
-    UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
     void OnTrace(const FTraceData& Data);
 
     UFUNCTION(BlueprintCallable, BlueprintNativeEvent)

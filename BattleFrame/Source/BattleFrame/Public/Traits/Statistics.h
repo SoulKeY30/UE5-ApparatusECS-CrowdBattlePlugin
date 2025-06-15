@@ -40,7 +40,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "总伤害"))
 	float TotalDamage = 0;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "总伤害"))
+	//UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "总伤害"))
 	float TotalHeal = 0;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "总击杀"))

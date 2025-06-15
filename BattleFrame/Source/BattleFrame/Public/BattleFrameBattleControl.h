@@ -87,6 +87,7 @@
 #include "Traits/Patrol.h"
 #include "Traits/TextPopConfig.h"
 #include "Traits/MayDie.h"
+#include "Traits/Tracing.h"
 
 #include "BattleFrameBattleControl.generated.h"
 
@@ -132,8 +133,6 @@ public:
 
 	// Event Callbacks
 	TQueue<FAppearData, EQueueMode::Mpsc> OnAppearQueue;
-	TQueue<FSleepData, EQueueMode::Mpsc> OnSleepQueue;
-	TQueue<FPatrolData, EQueueMode::Mpsc> OnPatrolQueue;
 	TQueue<FTraceData, EQueueMode::Mpsc> OnTraceQueue;
 	TQueue<FMoveData, EQueueMode::Mpsc> OnMoveQueue;
 	TQueue<FAttackData, EQueueMode::Mpsc> OnAttackQueue;
@@ -173,6 +172,7 @@ private:
 	FFilter AgentDeathDissolveFilter;
 	FFilter AgentDeathAnimFilter;
 	FFilter SpeedLimitOverrideFilter;
+	FFilter AgentSleepFilter;
 	FFilter AgentPatrolFilter;
 	FFilter AgentMoveFilter;
 	FFilter IdleToMoveAnimFilter;
@@ -301,7 +301,7 @@ public:
 		}
 	};
 
-	static FVector FindNewPatrolGoalLocation(const FPatrol& Patrol, const FCollider& Collider, const FTrace& Trace, const FLocated& Located, const FScaled& Scaled, int32 MaxAttempts);
+	static FVector FindNewPatrolGoalLocation(const FPatrol Patrol, const FCollider Collider, const FTrace Trace, const FTracing Tracing, const FLocated Located, const FScaled Scaled, int32 MaxAttempts);
 
 	void DrawDebugSector(UWorld* World, const FVector& Center, const FVector& Direction, float Radius, float AngleDegrees, float Height, const FColor& Color, bool bPersistentLines, float LifeTime, uint8 DepthPriority, float Thickness);
 

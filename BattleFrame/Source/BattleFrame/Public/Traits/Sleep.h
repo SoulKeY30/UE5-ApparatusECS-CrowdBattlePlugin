@@ -11,16 +11,13 @@ struct BATTLEFRAME_API FSleep
 
 public:
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "启用休眠行为"))
 	bool bEnable = false;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "是否索敌"))
+	bool bCanTrace = true;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "击中后唤醒"))
 	bool bWakeOnHit = true;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "Sleep专用索敌扇形视野的尺寸"))
-	FSectorTraceParamsSpecific SectorParams = FSectorTraceParamsSpecific();
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "绘制Debug图形"))
-	bool bDrawDebugShape = false;
 
 };

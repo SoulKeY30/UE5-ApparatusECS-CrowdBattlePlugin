@@ -59,6 +59,19 @@ enum class EAttackState : uint8
 	Cooling UMETA(DisplayName = "Cooling", ToolTip = "冷却")
 };
 
+UENUM(BlueprintType)
+enum class EMoveState : uint8
+{
+	Dirty UMETA(DisplayName = "Dirty", ToolTip = "无效数据"),
+	Sleeping UMETA(DisplayName = "Sleeping", ToolTip = "休眠中"),
+	Patrolling UMETA(DisplayName = "Patrolling", ToolTip = "巡逻中"),
+	PatrolWaiting UMETA(DisplayName = "PatrolWaiting", ToolTip = "在巡逻点位等待"),
+	ChasingTarget UMETA(DisplayName = "ChasingTarget", ToolTip = "正在追逐目标"),
+	ReachedTarget UMETA(DisplayName = "ReachedTarget", ToolTip = "已追到目标"),
+	MovingToLocation UMETA(DisplayName = "MovingToLocation", ToolTip = "移动到位置"),
+	ArrivedAtLocation UMETA(DisplayName = "ArrivedAtLocation", ToolTip = "已抵达目标位置")
+};
+
 // Event State
 UENUM(BlueprintType)
 enum class EAppearEventState : uint8
@@ -69,46 +82,33 @@ enum class EAppearEventState : uint8
 };
 
 UENUM(BlueprintType)
-enum class ESleepEventState : uint8
-{
-	End UMETA(DisplayName = "End", ToolTip = "结束(惊醒)")
-};
-
-UENUM(BlueprintType)
-enum class EPatrolEventState : uint8
-{
-	Begin UMETA(DisplayName = "Begin", ToolTip = "开始"),
-	Wait UMETA(DisplayName = "Wait", ToolTip = "在目的地等待"),
-	End UMETA(DisplayName = "End", ToolTip = "结束")
-};
-
-UENUM(BlueprintType)
 enum class ETraceEventState : uint8
 {
-	Succeed UMETA(DisplayName = "Succeed", ToolTip = "成功"),
-	Fail UMETA(DisplayName = "Fail", ToolTip = "失败")
+	Begin UMETA(DisplayName = "Begin", ToolTip = "开始"),
+	End_Reason_Succeed UMETA(DisplayName = "End_Reason_Succeed", ToolTip = "成功"),
+	End_Reason_Fail UMETA(DisplayName = "End_Reason_Fail", ToolTip = "失败")
 };
 
 UENUM(BlueprintType)
 enum class EMoveEventState : uint8
 {
-	Idle UMETA(DisplayName = "Idle", ToolTip = ""),
-	Moving UMETA(DisplayName = "Moving", ToolTip = ""),
-	Chasing UMETA(DisplayName = "Chasing", ToolTip = ""),
-	Falling UMETA(DisplayName = "Falling", ToolTip = ""),
-	Launched UMETA(DisplayName = "Launched", ToolTip = ""),
-	Pushed UMETA(DisplayName = "Pushed", ToolTip = "")
+	Sleeping UMETA(DisplayName = "Sleeping", ToolTip = "休眠中"),
+	Patrolling UMETA(DisplayName = "Patrolling", ToolTip = "巡逻中"),
+	PatrolWaiting UMETA(DisplayName = "PatrolWaiting", ToolTip = "在巡逻点位等待"),
+	ChasingTarget UMETA(DisplayName = "ChasingTarget", ToolTip = "正在追逐目标"),
+	ReachedTarget UMETA(DisplayName = "ReachedTarget", ToolTip = "已追到目标"),
+	MovingToLocation UMETA(DisplayName = "MovingToLocation", ToolTip = "移动到位置"),
+	ArrivedAtLocation UMETA(DisplayName = "ArrivedAtLocation", ToolTip = "已抵达目标位置")
 };
 
 UENUM(BlueprintType)
 enum class EAttackEventState : uint8
 {
-	Aim UMETA(DisplayName = "Aim", ToolTip = "瞄准"),
+	Aiming UMETA(DisplayName = "Aiming", ToolTip = "瞄准"),
 	Begin UMETA(DisplayName = "Begin", ToolTip = "开始"),
 	Hit UMETA(DisplayName = "Hit", ToolTip = "击中"),
 	Cooling UMETA(DisplayName = "Cooling", ToolTip = "冷却"),
 	End_Reason_InvalidTarget UMETA(DisplayName = "End_Reason:InvalidTarget", ToolTip = "攻击目标失效"),
-	End_Reason_Suicide UMETA(DisplayName = "End_Reason:Suicide", ToolTip = "自杀"),
 	End_Reason_Complete UMETA(DisplayName = "End_Reason:Complete", ToolTip = "完成")
 };
 
@@ -121,6 +121,8 @@ enum class EHitEventState : uint8
 UENUM(BlueprintType)
 enum class EDeathEventState : uint8
 {
-	Begin UMETA(DisplayName = "Begin", ToolTip = "开始"),
-	End UMETA(DisplayName = "End", ToolTip = "结束")
+	OutOfHealth UMETA(DisplayName = "OutOfHealth", ToolTip = "生命值归零"),
+	OutOfLifeSpan UMETA(DisplayName = "OutOfLifeSpan", ToolTip = "寿命归零"),
+	SuicideAttack UMETA(DisplayName = "SuicideAttack", ToolTip = "自杀攻击"),
+	KillZ UMETA(DisplayName = "KillZ", ToolTip = "低于强制移除高度")
 };

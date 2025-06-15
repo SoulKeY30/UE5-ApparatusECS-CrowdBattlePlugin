@@ -1063,7 +1063,7 @@ void UNeighborGridComponent::SphereSweepForObstacle
 
 		// 配置调试胶囊体参数
 		FDebugCapsuleConfig CapsuleConfig;
-		CapsuleConfig.Color = DrawDebugConfig.Color;
+		CapsuleConfig.Color = Hit ? FColor::Red : DrawDebugConfig.Color;
 		CapsuleConfig.Location = ShapeLoc;
 		CapsuleConfig.Rotation = ShapeRot;  // 修正后的旋转
 		CapsuleConfig.Radius = Radius;
@@ -1141,12 +1141,12 @@ void UNeighborGridComponent::Update()
 			FCollider& Collider,
 			FGridData& GridData)
 		{
-			if (Subject.HasTrait<FTrace>()) 
+			if (Subject.HasTrait<FTracing>()) 
 			{
-				auto& Trace = Subject.GetTraitRef<FTrace>();
-				Trace.Lock();
-				Trace.NeighborGrid = this;
-				Trace.Unlock();
+				auto& Tracing = Subject.GetTraitRef<FTracing>();
+				Tracing.Lock();
+				Tracing.NeighborGrid = this;
+				Tracing.Unlock();
 			}
 
 			const FVector& Location = Located.Location;

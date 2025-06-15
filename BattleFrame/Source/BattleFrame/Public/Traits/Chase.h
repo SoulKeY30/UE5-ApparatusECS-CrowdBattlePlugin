@@ -10,19 +10,18 @@ struct BATTLEFRAME_API FChase
 
 public:
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "是否启用索敌功能(WIP)"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "启用追逐行为"))
 	bool bEnable = true;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "与攻击目标距离低于该值时停止移动"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "是否索敌"))
+	bool bCanTrace = true;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "与攻击目标距离低于该值时结束追逐"))
 	float AcceptanceRadius = 100.f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "移动速度乘数(WIP)"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "移动速度乘数"))
 	float MoveSpeedMult = 1;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "Chase专用索敌扇形视野的尺寸"))
-	FSectorTraceParamsSpecific SectorParams = FSectorTraceParamsSpecific();
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "绘制Debug图形"))
-	bool bDrawDebugShape = false;
-
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "距离超过该值丢失仇恨"))
+	float MaxDistance = 10000;
 };

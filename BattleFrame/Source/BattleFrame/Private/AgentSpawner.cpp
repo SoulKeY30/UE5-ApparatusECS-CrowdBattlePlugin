@@ -163,7 +163,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     ScaledTrait.RenderScale *= Multipliers.ScaleMult;
 
     auto& MoveTrait = AgentConfig.GetTraitRef<FMove>();
-    MoveTrait.MoveSpeed *= Multipliers.MoveSpeedMult;
+    MoveTrait.XY.MoveSpeed *= Multipliers.MoveSpeedMult;
 
 
     while (SpawnedAgents.Num() < Quantity)// the following traits varies from agent to agent
@@ -183,9 +183,9 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
 
         FVector SpawnPoint3D = Origin + FVector(RandomX, RandomY, 0);
 
-        if (Move.bCanFly)
+        if (Move.Z.bCanFly)
         {
-            Moving.FlyingHeight = FMath::RandRange(Move.FlyHeightRange.X, Move.FlyHeightRange.Y);
+            Moving.FlyingHeight = FMath::RandRange(Move.Z.FlyHeightRange.X, Move.Z.FlyHeightRange.Y);
             SpawnPoint3D = FVector(SpawnPoint3D.X, SpawnPoint3D.Y, SpawnPoint3D.Z + Moving.FlyingHeight);
         }
         else
@@ -359,7 +359,7 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsByConfigRectangular
     ScaledTrait.RenderScale *= Multipliers.ScaleMult;
 
     auto& MoveTrait = AgentRecord.GetTraitRef<FMove>();
-    MoveTrait.MoveSpeed *= Multipliers.MoveSpeedMult;
+    MoveTrait.XY.MoveSpeed *= Multipliers.MoveSpeedMult;
 
     while (SpawnedAgents.Num() < Quantity)// the following traits varies from agent to agent
     {
@@ -378,9 +378,9 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsByConfigRectangular
 
         FVector SpawnPoint3D = Origin + FVector(RandomX, RandomY, 0);
 
-        if (Move.bCanFly)
+        if (Move.Z.bCanFly)
         {
-            Moving.FlyingHeight = FMath::RandRange(Move.FlyHeightRange.X, Move.FlyHeightRange.Y);
+            Moving.FlyingHeight = FMath::RandRange(Move.Z.FlyHeightRange.X, Move.Z.FlyHeightRange.Y);
             SpawnPoint3D = FVector(SpawnPoint3D.X, SpawnPoint3D.Y, SpawnPoint3D.Z + Moving.FlyingHeight);
         }
         else

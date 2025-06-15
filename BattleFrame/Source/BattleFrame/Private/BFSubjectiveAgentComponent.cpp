@@ -10,13 +10,9 @@
 #include "Traits/IsSubjective.h"
 #include "Traits/TemporalDamaging.h"
 #include "Traits/Slowing.h"
-#include "Traits/Directed.h"
 #include "Traits/Damage.h"
-#include "Traits/Collider.h"
-#include "Traits/Located.h"
 #include "Traits/SubType.h"
 #include "Traits/Agent.h"
-#include "Traits/Health.h"
 #include "Traits/Moving.h"
 #include "Traits/Appearing.h"
 #include "Traits/Move.h"
@@ -25,11 +21,9 @@
 #include "Traits/Animation.h"
 #include "Traits/Appear.h"
 #include "Traits/Tracing.h"
-#include "Traits/GridData.h"
 #include "Traits/RegisterMultiple.h"
 #include "Traits/Team.h"
 #include "Traits/Avoiding.h"
-#include "Traits/Activated.h"
 #include "Traits/PoppingText.h"
 #include "Traits/Sleeping.h"
 #include "Traits/Patrolling.h"
@@ -141,7 +135,7 @@ void UBFSubjectiveAgentComponent::InitializeTraits(AActor* OwnerActor)
     Scaled.RenderScale *= Multipliers.ScaleMult;
 
     auto& Move = AgentConfig.GetTraitRef<FMove>();
-    Move.MoveSpeed *= Multipliers.MoveSpeedMult;
+    Move.XY.MoveSpeed *= Multipliers.MoveSpeedMult;
 
     auto& Collider = AgentConfig.GetTraitRef<FCollider>();
     auto& Located = AgentConfig.GetTraitRef<FLocated>();
@@ -153,9 +147,9 @@ void UBFSubjectiveAgentComponent::InitializeTraits(AActor* OwnerActor)
 
     FVector SpawnPoint3D = OwnerActor->GetActorLocation();
 
-    if (Move.bCanFly)
+    if (Move.Z.bCanFly)
     {
-        Moving.FlyingHeight = FMath::RandRange(Move.FlyHeightRange.X, Move.FlyHeightRange.Y);
+        Moving.FlyingHeight = FMath::RandRange(Move.Z.FlyHeightRange.X, Move.Z.FlyHeightRange.Y);
         SpawnPoint3D = FVector(SpawnPoint3D.X, SpawnPoint3D.Y, SpawnPoint3D.Z + Moving.FlyingHeight);
     }
 

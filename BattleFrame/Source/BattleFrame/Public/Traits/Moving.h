@@ -4,9 +4,7 @@
 #include "Math/Vector.h"
 #include "Moving.generated.h"
  
-/**
- * The Moving command.
- */
+
 USTRUCT(BlueprintType)
 struct BATTLEFRAME_API FMoving
 {
@@ -30,14 +28,14 @@ public:
 
   public:
 
-	  UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "想要达成的线速度"))
-	  FVector DesiredVelocity = FVector::ZeroVector;
-
-	  UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "当前实际线速度"))
-	  FVector CurrentVelocity = FVector::ZeroVector;
-
 	  UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "当前角速度"))
 	  float CurrentAngularVelocity = 0;
+
+	  UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "当前线速度"))
+	  FVector CurrentVelocity = FVector::ZeroVector;
+
+	  UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "想要达成的线速度"))
+	  FVector DesiredVelocity = FVector::ZeroVector;
 
 	  UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (ToolTip = "想要抵达的位置"))
 	  FVector Goal = FVector::ZeroVector;
@@ -51,6 +49,7 @@ public:
 	  UPROPERTY(BlueprintReadOnly, VisibleAnywhere, meta = (Tooltip = "在被推着走？"))
 	  bool bPushedBack = false;
 
+	  EMoveState MoveState = EMoveState::Dirty;
 	  FVector LaunchVelSum = FVector::ZeroVector;
 	  float PushBackSpeedOverride = 0;
 	  float FlyingHeight = 0;
@@ -116,6 +115,7 @@ public:
 		TurnSpeedMult = Moving.TurnSpeedMult;
 		CurrentAngularVelocity = Moving.CurrentAngularVelocity;
 		Goal = Moving.Goal;
+		MoveState = Moving.MoveState;
 
 		HistoryVelocity = Moving.HistoryVelocity;
 		AverageVelocity = Moving.AverageVelocity;
@@ -142,6 +142,7 @@ public:
 		TurnSpeedMult = Moving.TurnSpeedMult;
 		CurrentAngularVelocity = Moving.CurrentAngularVelocity;
 		Goal = Moving.Goal;
+		MoveState = Moving.MoveState;
 
 		HistoryVelocity = Moving.HistoryVelocity;
 		AverageVelocity = Moving.AverageVelocity;

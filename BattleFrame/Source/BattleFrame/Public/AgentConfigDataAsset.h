@@ -35,8 +35,7 @@
 #include "Traits/Chase.h"
 #include "Traits/Statistics.h"
 #include "Traits/CustomData.h"
-#include "Traits/Statistics.h"
-#include "SubjectRecord.h"
+
 #include "AgentConfigDataAsset.generated.h"
 
 
