@@ -1985,7 +1985,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					if (Angle < Attack.AngleToleranceATK) Attacking.State = EAttackState::PreCast;
 				}
 				else
-			{					
+				{					
 					if (UNLIKELY(Attacking.Time == 0)) // First Execute
 					{
 						// Animation
@@ -2129,7 +2129,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 								{
 									if (!Tracing.TraceResult.HasTrait<FDying>())
 									{
-										if (Distance <= Attack.Range && Angle <= Attack.AngleToleranceHit)
+										if (Distance <= Attack.RangeToleranceHit && Angle <= Attack.AngleToleranceHit)
 										{
 											ApplyDamageToSubjectsDeferred(FSubjectArray{ TArray<FSubjectHandle>{Tracing.TraceResult} }, FSubjectArray(), FSubjectHandle{ Subject }, Located.Location, Damage, Debuff, DmgResults);
 											UE_LOG(LogTemp, Warning, TEXT("TryApplyDmg"));
