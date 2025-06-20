@@ -11,10 +11,11 @@ struct BATTLEFRAME_API FBindFlowField
 
 public:
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Navigation", meta = (Tooltip = "指向自己的流场"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "流场"))
 	TSoftObjectPtr<AFlowField> FlowFieldToBind;
 
-	TSoftObjectPtr<AFlowField> PreviousFlowFieldToBind;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "更换流场后要设该值为true来通知更新数据"))
+	bool bIsDirtyData = true;
 
 	AFlowField* FlowField = nullptr;
 

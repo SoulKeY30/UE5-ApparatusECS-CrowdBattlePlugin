@@ -15,8 +15,11 @@ class BATTLEFRAME_API UBFSubjectiveAgentComponent : public USubjectiveActorCompo
 public:
     UBFSubjectiveAgentComponent();
 
-    // Initialize all required traits
+    UFUNCTION(BlueprintCallable)
     void InitializeTraits(AActor* OwnerActor);
+
+    UFUNCTION(BlueprintCallable)
+    void SyncTransformSubjectToActor(AActor* OwnerActor);
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere)
     TSoftObjectPtr<UAgentConfigDataAsset> AgentConfigAsset;
@@ -30,6 +33,12 @@ public:
     UPROPERTY(BlueprintReadWrite, EditAnywhere)
     FSpawnerMult Multipliers = FSpawnerMult();
 
+    UPROPERTY(BlueprintReadWrite, EditAnywhere)
+    bool bAutoInitWithDataAsset = true;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere)
+    bool bSyncTransformSubjectToActor = true;
+
     UWorld* CurrentWorld = nullptr;
     AMechanism* Mechanism = nullptr;
     ABattleFrameBattleControl* BattleControl = nullptr;
@@ -37,9 +46,8 @@ public:
     EFlagmarkBit RegisterMultipleFlag = EFlagmarkBit::M;
 
 protected:
+
     virtual void BeginPlay() override;
     virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-private:
-    void SyncTransformSubjectToActor(AActor* OwnerActor);
 };

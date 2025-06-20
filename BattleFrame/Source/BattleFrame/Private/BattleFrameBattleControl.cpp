@@ -327,13 +327,47 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 		ValidSubjectsArray.SetNum(ThreadsCount);
 
 		// Gather all agent that need to do tracing
-		Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FTrace& Trace, FTracing& Tracing, FLocated& Located)
+		Chain->OperateConcurrently([&](FSolidSubjectHandle Subject, FLocated& Located, FTrace& Trace, FTracing& Tracing, FMoving& Moving)
 			{
 				bool bShouldTrace = false;
 
 				if (Tracing.TimeLeft <= 0)
 				{
-					Tracing.TimeLeft = Trace.CoolDown;
+					// Decide which cooldown to use
+					float CoolDown = 0;
+
+					switch (Moving.MoveState)
+					{
+					case EMoveState::Sleeping: // 休眠时索敌
+						CoolDown = Trace.SectorTrace.Sleep.CoolDown;
+						break;
+
+					case EMoveState::Patrolling: // 巡逻时索敌
+						CoolDown = Trace.SectorTrace.Patrol.CoolDown;
+						break;
+
+					case EMoveState::PatrolWaiting: // 巡逻时索敌
+						CoolDown = Trace.SectorTrace.Patrol.CoolDown;
+						break;
+
+					case EMoveState::ChasingTarget: // 追逐时索敌
+						CoolDown = Trace.SectorTrace.Chase.CoolDown;
+						break;
+
+					case EMoveState::ReachedTarget: // 追逐时索敌
+						CoolDown = Trace.SectorTrace.Chase.CoolDown;
+						break;
+
+					case EMoveState::MovingToLocation: // 一般情况
+						CoolDown = Trace.SectorTrace.Common.CoolDown;
+						break;
+
+					case EMoveState::ArrivedAtLocation: // 一般情况
+						CoolDown = Trace.SectorTrace.Common.CoolDown;
+						break;
+					}
+
+					Tracing.TimeLeft = CoolDown;
 					bShouldTrace = true;
 				}
 				else
@@ -398,7 +432,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 			ValidSubjects.Append(CurrentArray.Subjects);
 		}
 
-		// 并行处理筛选结果
+		// Do Trace
 		ParallelFor(ValidSubjects.Num(), [&](int32 Index)
 			{
 				FSolidSubjectHandle Subject = ValidSubjects[Index];
@@ -416,14 +450,14 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				FMoving& Moving = Subject.GetTraitRef<FMoving>();
 
 				// 确定用哪一套索敌参数
-				float FinalRange = Collider.Radius * Scaled.Scale;
-				float FinalAngle = 0;
-				float FinalHeight = 0;
-
 				bool bFinalCheckVisibility = false;
 				bool bFinalDrawDebugShape = Trace.bDrawDebugShape;
 				bool bIsParamsSet = false;
 				bool bCanTrace = false;
+
+				float FinalRange = Collider.Radius * Scaled.Scale;
+				float FinalAngle = 0;
+				float FinalHeight = 0;
 
 				EMoveState MoveState = Moving.MoveState;
 				FSectorTraceParamsSpecific Params;
@@ -538,6 +572,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 						break;
 				}
 
+				// 保底参数
 				if (bCanTrace && !bIsParamsSet)
 				{
 					Params_Common = Trace.SectorTrace.Common;
@@ -556,16 +591,16 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					FTraceDrawDebugConfig DebugConfig;
 					DebugConfig.bDrawDebugShape = bFinalDrawDebugShape;
 					DebugConfig.Color = FColor::Orange;
-					DebugConfig.Duration = Trace.CoolDown;
+					DebugConfig.Duration = Tracing.TimeLeft;
 					DebugConfig.LineThickness = 0.f;
+
+					//if (!Tracing.TraceResult.IsValid()) Tracing.TraceResult = FSubjectHandle();
 
 					// Do trace
 					switch (Trace.Mode)
 					{
 					case ETraceMode::TargetIsPlayer_0:
 					{
-						Tracing.TraceResult = FSubjectHandle();
-
 						if (bPlayerIsValid)
 						{
 							// 高度检查
@@ -630,8 +665,6 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 					case ETraceMode::SectorTraceByTraits:
 					{
-						Tracing.TraceResult = FSubjectHandle();
-
 						if (LIKELY(IsValid(Tracing.NeighborGrid)))
 						{
 							FFilter TargetFilter;
@@ -692,7 +725,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					}
 				}
 
-				// Keep on patrolling when no target
+				// Go back to patrol state when no target
 				const bool bShouldPatrol = !bHasValidTraceResult && !Subject.HasTrait<FPatrolling>() && Patrol.OnLostTarget == EPatrolRecoverMode::Patrol;
 
 				if (bShouldPatrol)
@@ -709,155 +742,6 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	#pragma endregion
 
 	//-----------------------移动 | Move------------------------
-
-	// 推动 | Pushed Back
-	#pragma region
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("SpeedLimitOverride");
-
-		auto Chain = Mechanism->EnchainSolid(SpeedLimitOverrideFilter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
-
-		Chain->OperateConcurrently(
-			[&](FCollider Collider,
-				FLocated Located,
-				FSphereObstacle& SphereObstacle)
-			{
-				if (UNLIKELY(!IsValid(SphereObstacle.NeighborGrid))) return;
-
-				if (!SphereObstacle.bOverrideSpeedLimit) return;
-
-				bool Hit;
-				TArray<FTraceResult> Results;
-				FTraceDrawDebugConfig DebugConfig;
-
-				SphereObstacle.NeighborGrid->SphereTraceForSubjects
-				(
-					-1,
-					Located.Location,
-					Collider.Radius,
-					false,
-					FVector::ZeroVector,
-					0,
-					ESortMode::None,
-					FVector::ZeroVector,
-					FSubjectArray(SphereObstacle.OverridingAgents.Array()),
-					FFilter::Make<FAgent, FLocated, FScaled, FCollider, FMoving, FActivated>(),
-					DebugConfig,
-					Hit,
-					Results
-				);
-
-				for (const FTraceResult& Result : Results)
-				{
-					SphereObstacle.OverridingAgents.Add(Result.Subject);
-				}
-
-				TSet<FSubjectHandle> Agents = SphereObstacle.OverridingAgents;
-
-				for (const auto& Agent : Agents)
-				{
-					if (!Agent.IsValid()) continue;
-
-					float AgentRadius = Agent.GetTrait<FGridData>().Radius;
-					float SphereObstacleRadius = Collider.Radius;
-					float CombinedRadius = AgentRadius + SphereObstacleRadius;
-					FVector AgentLocation = Agent.GetTrait<FLocated>().Location;
-					float Distance = FVector::Distance(Located.Location, AgentLocation);
-
-					FMoving& AgentMoving = Agent.GetTraitRef<FMoving, EParadigm::Unsafe>();
-
-					if (Distance < CombinedRadius)
-					{
-						AgentMoving.Lock();
-						AgentMoving.bPushedBack = true;
-						AgentMoving.PushBackSpeedOverride = SphereObstacle.NewSpeedLimit;
-						AgentMoving.Unlock();
-					}
-					else if (Distance >= CombinedRadius/* * 1.25f*/)
-					{
-						AgentMoving.Lock();
-						AgentMoving.bPushedBack = false;
-						AgentMoving.Unlock();
-						SphereObstacle.OverridingAgents.Remove(Agent);
-					}
-				}
-
-			}, ThreadsCount, BatchSize);
-	}
-	#pragma endregion
-
-	// 加载流场 | Load Flow Field
-	#pragma region
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_STR("LoadFlowfield");
-
-		FFilter Filter = FFilter::Make<FActivated>();
-		auto Chain = Mechanism->EnchainSolid(Filter);
-		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, 1, ThreadsCount, BatchSize);
-
-		// filter out those need reload and mark them
-		Chain->OperateConcurrently(
-			[&](FSolidSubjectHandle Subject)
-			{
-				Subject.SetFlag(ReloadFlowFieldFlag, false);
-
-				const bool bHasNavigation = Subject.HasTrait<FNavigation>();
-				const bool bHasBindFlowField = Subject.HasTrait<FBindFlowField>();
-
-				if (bHasNavigation)
-				{
-					auto& Navigation = Subject.GetTraitRef<FNavigation>();
-
-					if (UNLIKELY(Navigation.FlowFieldToUse != Navigation.PreviousFlowFieldToUse))
-					{
-						Navigation.PreviousFlowFieldToUse = Navigation.FlowFieldToUse;
-
-						if (Navigation.FlowFieldToUse.IsValid())
-						{
-							Subject.SetFlag(ReloadFlowFieldFlag, true);
-						}
-					}
-				}
-
-				if (bHasBindFlowField)
-				{
-					auto& BindFlowField = Subject.GetTraitRef<FBindFlowField>();
-
-					if (UNLIKELY(BindFlowField.FlowFieldToBind != BindFlowField.PreviousFlowFieldToBind))
-					{
-						BindFlowField.PreviousFlowFieldToBind = BindFlowField.FlowFieldToBind;
-
-						if (BindFlowField.FlowFieldToBind.IsValid())
-						{
-							Subject.SetFlag(ReloadFlowFieldFlag, true);
-						}
-					}
-				}
-
-			}, ThreadsCount, BatchSize);
-
-		// do reload, this only works on game thread
-		Mechanism->Operate<FUnsafeChain>(Filter.IncludeFlag(ReloadFlowFieldFlag),
-			[&](FSubjectHandle Subject)
-			{
-				const bool bHasNavigation = Subject.HasTrait<FNavigation>();
-				const bool bHasBindFlowField = Subject.HasTrait<FBindFlowField>();
-
-				if (bHasNavigation)
-				{
-					auto& Navigation = Subject.GetTraitRef<FNavigation, EParadigm::Unsafe>();
-					Navigation.FlowField = Navigation.FlowFieldToUse.LoadSynchronous();
-				}
-
-				if (bHasBindFlowField)
-				{
-					auto& BindFlowField = Subject.GetTraitRef<FBindFlowField, EParadigm::Unsafe>();
-					BindFlowField.FlowField = BindFlowField.FlowFieldToBind.LoadSynchronous();
-				}
-			});
-	}
-	#pragma endregion
 
 	// 休眠 | Sleep
 	#pragma region
@@ -957,6 +841,83 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 	}
 	#pragma endregion
 
+	// 推动 | Pushed Back
+	#pragma region
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("SpeedLimitOverride");
+
+		auto Chain = Mechanism->EnchainSolid(SpeedLimitOverrideFilter);
+		UBattleFrameFunctionLibraryRT::CalculateThreadsCountAndBatchSize(Chain->IterableNum(), MaxThreadsAllowed, MinBatchSizeAllowed, ThreadsCount, BatchSize);
+
+		Chain->OperateConcurrently(
+			[&](FCollider Collider,
+				FLocated Located,
+				FSphereObstacle& SphereObstacle)
+			{
+				if (UNLIKELY(!IsValid(SphereObstacle.NeighborGrid))) return;
+
+				if (!SphereObstacle.bOverrideSpeedLimit) return;
+
+				bool Hit;
+				TArray<FTraceResult> Results;
+				FTraceDrawDebugConfig DebugConfig;
+
+				SphereObstacle.NeighborGrid->SphereTraceForSubjects
+				(
+					-1,
+					Located.Location,
+					Collider.Radius,
+					false,
+					FVector::ZeroVector,
+					0,
+					ESortMode::None,
+					FVector::ZeroVector,
+					FSubjectArray(SphereObstacle.OverridingAgents.Array()),
+					FFilter::Make<FAgent, FLocated, FScaled, FCollider, FMoving, FActivated>(),
+					DebugConfig,
+					Hit,
+					Results
+				);
+
+				for (const FTraceResult& Result : Results)
+				{
+					SphereObstacle.OverridingAgents.Add(Result.Subject);
+				}
+
+				TSet<FSubjectHandle> Agents = SphereObstacle.OverridingAgents;
+
+				for (const auto& Agent : Agents)
+				{
+					if (!Agent.IsValid()) continue;
+
+					float AgentRadius = Agent.GetTrait<FGridData>().Radius;
+					float SphereObstacleRadius = Collider.Radius;
+					float CombinedRadius = AgentRadius + SphereObstacleRadius;
+					FVector AgentLocation = Agent.GetTrait<FLocated>().Location;
+					float Distance = FVector::Distance(Located.Location, AgentLocation);
+
+					FMoving& AgentMoving = Agent.GetTraitRef<FMoving, EParadigm::Unsafe>();
+
+					if (Distance < CombinedRadius)
+					{
+						AgentMoving.Lock();
+						AgentMoving.bPushedBack = true;
+						AgentMoving.PushBackSpeedOverride = SphereObstacle.NewSpeedLimit;
+						AgentMoving.Unlock();
+					}
+					else if (Distance >= CombinedRadius/* * 1.25f*/)
+					{
+						AgentMoving.Lock();
+						AgentMoving.bPushedBack = false;
+						AgentMoving.Unlock();
+						SphereObstacle.OverridingAgents.Remove(Agent);
+					}
+				}
+
+			}, ThreadsCount, BatchSize);
+	}
+	#pragma endregion
+
 	// 移动 | Move
 	#pragma region
 	{
@@ -980,7 +941,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				FDefence& Defence,
 				FSlowing& Slowing)
 			{
-				// 死亡区域检测
+				// 死亡区域检测			
 				if (Located.Location.Z < Move.Z.KillZ)
 				{
 					Subject.DespawnDeferred();
@@ -997,6 +958,12 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 					return;
 				}
 
+				if (Navigation.bIsDirtyData)
+				{
+					Navigation.FlowField = Navigation.FlowFieldToUse.LoadSynchronous();
+					Navigation.bIsDirtyData = false;
+				}
+
 				const bool bIsValidFF = IsValid(Navigation.FlowField);
 
 				// 必须要有一个流场
@@ -1008,8 +975,6 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 				FVector AgentLocation = Located.Location;
 				float SelfRadius = Collider.Radius * Scaled.Scale;
-				Moving.MoveSpeedMult = 1;
-				Moving.TurnSpeedMult = 1;
 
 				// 必须获取因为之后要用到地面高度
 				bool bInside_BaseFF;
@@ -1102,16 +1067,22 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 							if (bIsTraceResultHasBindFlowField)
 							{
-								AFlowField* BindFlowField = Tracing.TraceResult.GetTraitRef<FBindFlowField, EParadigm::Unsafe>().FlowField;
+								FBindFlowField BindFlowField = Tracing.TraceResult.GetTraitRef<FBindFlowField, EParadigm::Unsafe>();
 
-								if (IsValid(BindFlowField)) // 从目标获取指向目标的流场
+								if (BindFlowField.bIsDirtyData)
+								{
+									BindFlowField.FlowField = BindFlowField.FlowFieldToBind.LoadSynchronous();
+									BindFlowField.bIsDirtyData = false;
+								}
+
+								if (IsValid(BindFlowField.FlowField)) // 从目标获取指向目标的流场
 								{
 									bool bInside_TargetFF;
-									FCellStruct& Cell_TargetFF = BindFlowField->GetCellAtLocation(AgentLocation, bInside_TargetFF);
+									FCellStruct& Cell_TargetFF = BindFlowField.FlowField->GetCellAtLocation(AgentLocation, bInside_TargetFF);
 
 									if (bInside_TargetFF)
 									{
-										Moving.Goal = BindFlowField->goalLocation;
+										Moving.Goal = BindFlowField.FlowField->goalLocation;
 										DesiredMoveDirection = Cell_TargetFF.dir.GetSafeNormal2D();
 									}
 									else
@@ -1133,6 +1104,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				}
 
 				//---------------------------- 速度大小 ----------------------------//
+
+				Moving.MoveSpeedMult = 0;
 
 				// Stop when attacking and not cooling
 				const bool bIsAttackingNotColling = bIsAttacking ? Subject.GetTraitRef<FAttacking, EParadigm::Unsafe>().State != EAttackState::Cooling : false;
@@ -1238,11 +1211,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				const bool bShouldStopMoving = !Move.bEnable || Moving.bLaunching || Moving.bPushedBack || bIsAppearing || bIsSleeping || bIsDying || bIsAttackingNotColling || bIsInAcceptanceRadius;
 
 				// Cases that need to move faster or slower
-				if (UNLIKELY(bShouldStopMoving))
-				{
-					Moving.MoveSpeedMult = 0;
-				}
-				else
+				if (!bShouldStopMoving)
 				{
 					// adjust speed during patrol
 					Moving.MoveSpeedMult = bIsPatrolling ? Patrol.MoveSpeedMult : 1;
@@ -1333,6 +1302,8 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 
 				//----------------------------- 朝向 ----------------------------//
 				
+				Moving.TurnSpeedMult = 0;
+
 				bool bIsAttckingStatePrePost = false;
 				bool bIsAiming = false;
 
@@ -1346,11 +1317,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				// 不转向的情况
 				const bool bShouldStopTurning = !Move.bEnable || Moving.bFalling || Moving.bLaunching || Moving.bPushedBack || bIsAppearing || bIsSleeping || bIsAttckingStatePrePost || bIsDying;
 
-				if (bShouldStopTurning)
-				{
-					Moving.TurnSpeedMult = 0;
-				}
-				else
+				if (!bShouldStopTurning)
 				{
 					// 转向减速乘数
 					Moving.TurnSpeedMult = Slowing.CombinedSlowMult;
@@ -3053,7 +3020,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 								CopyAnimData(Anim);
 								Anim.AnimCurrentTime1 = GetGameTimeSinceCreation();
 								Anim.AnimIndex1 = Anim.IndexOfAppearAnim;
-								Anim.AnimPauseTime1 = Anim.AnimLengthArray[Anim.IndexOfAppearAnim];
+								Anim.AnimPauseTime1 = Anim.AnimLengthArray.Num() > Anim.IndexOfAppearAnim ? Anim.AnimLengthArray[Anim.IndexOfAppearAnim] : 0;
 								Anim.AnimPlayRate1 = Anim.AnimPauseTime1 / Appear.Duration;
 								Anim.AnimLerp = 1;// since appearing is definitely the first anim to play
 							}
@@ -3069,6 +3036,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 								Anim.AnimCurrentTime1 = GetGameTimeSinceCreation();
 								Anim.AnimIndex1 = Anim.IndexOfIdleAnim;
 								Anim.AnimPauseTime1 = 0;
+								Anim.AnimOffsetTime1 = FMath::RandRange(Anim.IdleRandomTimeOffset.X, Anim.IdleRandomTimeOffset.Y);
 							}
 
 							Anim.AnimPlayRate1 = Anim.IdlePlayRate * Slowing.CombinedSlowMult;
@@ -3084,6 +3052,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 								Anim.AnimCurrentTime1 = GetGameTimeSinceCreation();
 								Anim.AnimIndex1 = Anim.IndexOfMoveAnim;
 								Anim.AnimPauseTime1 = 0;
+								Anim.AnimOffsetTime1 = FMath::RandRange(Anim.MoveRandomTimeOffset.X, Anim.MoveRandomTimeOffset.Y);
 							}
 
 							Anim.AnimPlayRate1 = Anim.MovePlayRate * Slowing.CombinedSlowMult;
@@ -3100,7 +3069,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 							}
 
 							Anim.AnimIndex1 = Anim.IndexOfAttackAnim;
-							Anim.AnimPauseTime1 = Anim.AnimLengthArray[Anim.IndexOfAttackAnim];
+							Anim.AnimPauseTime1 = Anim.AnimLengthArray.Num() > Anim.IndexOfAttackAnim ? Anim.AnimLengthArray[Anim.IndexOfAttackAnim] : 0;
 							Anim.AnimPlayRate1 = Anim.AnimPauseTime1 / Attack.DurationPerRound * Slowing.CombinedSlowMult;
 
 							break;
@@ -3113,7 +3082,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 								CopyAnimData(Anim);
 								Anim.AnimCurrentTime1 = GetGameTimeSinceCreation();
 								Anim.AnimIndex1 = Anim.IndexOfDeathAnim;
-								Anim.AnimPauseTime1 = Anim.AnimLengthArray[Anim.IndexOfDeathAnim];
+								Anim.AnimPauseTime1 = Anim.AnimLengthArray.Num() > Anim.IndexOfDeathAnim ? Anim.AnimLengthArray[Anim.IndexOfDeathAnim] : 0;
 								Anim.AnimPlayRate1 = Anim.AnimPauseTime1 / Death.AnimLength;
 							}
 
@@ -3203,7 +3172,7 @@ void ABattleFrameBattleControl::Tick(float DeltaTime)
 				Data.Anim_Index0_Index1_PauseTime0_PauseTime1_Array[InstanceId] = FVector4(Anim.AnimIndex0, Anim.AnimIndex1, Anim.AnimPauseTime0, Anim.AnimPauseTime1);
 
 				// Dynamic params 1
-				Data.Anim_TimeStamp0_TimeStamp1_PlayRate0_Playrate1_Array[InstanceId] = FVector4(Anim.AnimCurrentTime0 + Anim.AnimOffsetTime0, Anim.AnimCurrentTime1 + Anim.AnimOffsetTime1, Anim.AnimPlayRate0, Anim.AnimPlayRate1);
+				Data.Anim_TimeStamp0_TimeStamp1_PlayRate0_Playrate1_Array[InstanceId] = FVector4(Anim.AnimCurrentTime0 - Anim.AnimOffsetTime0, Anim.AnimCurrentTime1 - Anim.AnimOffsetTime1, Anim.AnimPlayRate0, Anim.AnimPlayRate1);
 
 				// Dynamic params 2
 				Data.Mat_Dissolve_HitGlow_Team_Fire_Array[InstanceId] = FVector4(Anim.Dissolve, Anim.HitGlow, Anim.Team, Anim.FireFx);
@@ -4010,7 +3979,7 @@ void ABattleFrameBattleControl::DefineFilters()
 	AgentAppeaFilter = FFilter::Make<FAgent, FRendering, FLocated, FDirected, FScaled, FAppear, FAppearing, FAnimation, FActivated>();
 	AgentAppearAnimFilter = FFilter::Make<FAgent, FRendering, FAnimation, FAppear, FAppearAnim, FActivated>();
 	AgentAppearDissolveFilter = FFilter::Make<FAgent, FRendering, FAppearDissolve, FAnimation, FCurves, FActivated>();
-	AgentTraceFilter = FFilter::Make<FAgent, FLocated, FDirected, FScaled, FCollider, FSleep, FPatrol, FTrace, FTracing, FRendering, FActivated>().Exclude<FAppearing, FAttacking, FDying>();
+	AgentTraceFilter = FFilter::Make<FAgent, FLocated, FDirected, FScaled, FCollider, FSleep, FPatrol, FTrace, FTracing, FMoving, FRendering, FActivated>().Exclude<FAppearing, FAttacking, FDying>();
 	AgentAttackFilter = FFilter::Make<FAgent, FAttack, FRendering, FLocated, FDirected, FCollider, FScaled, FTrace, FActivated>().Exclude<FAppearing, FSleeping, FPatrolling, FDying>();
 	AgentAttackingFilter = FFilter::Make<FAgent, FAttack, FRendering, FLocated, FDirected, FScaled, FAnimation, FAttacking, FMove, FMoving, FTrace, FTracing, FDebuff, FDamage, FDefence, FSlowing, FActivated>().Exclude<FAppearing, FSleeping, FPatrolling, FDying>();
 	AgentHitGlowFilter = FFilter::Make<FAgent, FRendering, FHitGlow, FAnimation, FCurves, FActivated>();

@@ -48,4 +48,5 @@ public:
 		bLockHealth = Health.bLockHealth;
 		return *this;
 	}
+
 };

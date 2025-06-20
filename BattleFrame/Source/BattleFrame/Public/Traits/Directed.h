@@ -17,9 +17,10 @@ struct BATTLEFRAME_API FDirected
 
 public:
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "当钱朝向"))
 	FVector Direction = FVector::ForwardVector;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "目标朝向"))
 	FVector DesiredDirection = FVector::ForwardVector;
 
 };

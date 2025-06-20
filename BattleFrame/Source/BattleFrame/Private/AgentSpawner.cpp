@@ -165,7 +165,6 @@ TArray<FSubjectHandle> AAgentSpawner::SpawnAgentsRectangular
     auto& MoveTrait = AgentConfig.GetTraitRef<FMove>();
     MoveTrait.XY.MoveSpeed *= Multipliers.MoveSpeedMult;
 
-
     while (SpawnedAgents.Num() < Quantity)// the following traits varies from agent to agent
     {
         FSubjectRecord Config = AgentConfig;
@@ -476,6 +475,9 @@ void AAgentSpawner::ActivateAgent( FSubjectHandle Agent )// strange apparatus bu
         Animation.Dissolve = 1;
         Agent.SetTrait(FAppearing());
     }
+
+    Animation.AnimOffsetTime0 = FMath::RandRange(Animation.IdleRandomTimeOffset.X, Animation.IdleRandomTimeOffset.Y);
+    Animation.AnimOffsetTime1 = FMath::RandRange(Animation.IdleRandomTimeOffset.X, Animation.IdleRandomTimeOffset.Y);
 
     Agent.SetTrait(Animation);
 

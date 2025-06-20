@@ -39,7 +39,7 @@ public:
 
 	EFlagmarkBit RegisterMultipleFlag = EFlagmarkBit::M;
 
-	UFUNCTION(BlueprintCallable, Category = "BattleFrame | AgentSpawner", meta = (DisplayName = "SpawnAgentsByConfigIndex"))
+	UFUNCTION(BlueprintCallable, Category = "BattleFrame | AgentSpawner", meta = (DisplayName = "Spawn Agents By Config Index"))
 	TArray<FSubjectHandle> SpawnAgentsRectangular
 	(
 		bool bAutoActivate = true,
@@ -68,13 +68,13 @@ public:
 		const FSpawnerMult& Multipliers = FSpawnerMult()
 	);
 
-	UFUNCTION(BlueprintCallable, Category = "BattleFrame | AgentSpawner")
+	UFUNCTION(BlueprintCallable, Category = "BattleFrame | AgentSpawner", meta = (DisplayName = "Initialize Agent"))
 	void ActivateAgent(FSubjectHandle Agent);
 
-	UFUNCTION(BlueprintCallable, Category = "BattleFrame | AgentSpawner")
+	UFUNCTION(BlueprintCallable, Category = "BattleFrame | AgentSpawner", meta = (DisplayName = "KillAllAgents"))
 	void KillAllAgents();
 
-	UFUNCTION(BlueprintCallable, Category = "BattleFrame | AgentSpawner")
+	UFUNCTION(BlueprintCallable, Category = "BattleFrame | AgentSpawner", meta = (DisplayName = "KillAgentsBySubtype"))
 	void KillAgentsBySubtype(int32 Index);
 
 };

@@ -56,6 +56,9 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "启用"))
 	bool bEnable = true;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "检测目标是不是在障碍物后面"))
+	bool bCheckVisibility = false;
+
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "索敌视野半径", DisplayName = "Radius"))
 	float TraceRadius = 1000;
 
@@ -65,14 +68,15 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "索敌视野高度", DisplayName = "Height"))
 	float TraceHeight = 300.f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "检测目标是不是在障碍物后面"))
-	bool bCheckVisibility = false;
-
 	//UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "位置偏移"))
 	//FVector LocationOffset = FVector::ZeroVector;
 
 	//UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "朝向偏移"))
 	//float YawOffset = 0;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "每几秒索敌一次", DisplayName = "Frequency"))
+	float CoolDown = 2;
+
 
 	//FSectorTraceParamsSpecific() {};
 
@@ -107,8 +111,8 @@ struct BATTLEFRAME_API FSectorTraceParams
 
 public:
 
-	//UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "是否启用"))
-	//bool bEnable = true;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "检测目标是不是在障碍物后面"))
+	bool bCheckVisibility = false;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "索敌视野半径", DisplayName = "Radius"))
 	float TraceRadius = 1000;
@@ -119,14 +123,14 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "索敌视野高度", DisplayName = "Height"))
 	float TraceHeight = 300.f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "检测目标是不是在障碍物后面"))
-	bool bCheckVisibility = false;
-
 	//UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "位置偏移"))
 	//FVector LocationOffset = FVector::ZeroVector;
 
 	//UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "朝向偏移"))
 	//float YawOffset = 0;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "每几秒索敌一次", DisplayName = "Frequency"))
+	float CoolDown = 2;
 
 	//FSectorTraceParams() {};
 

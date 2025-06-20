@@ -63,8 +63,14 @@ public:
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "待机动画播放速度"))
     float IdlePlayRate = 1;
 
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "待机动画时间偏移"))
+    FVector2D IdleRandomTimeOffset = FVector2D(0, 0);
+
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "移动动画播放速度"))
     float MovePlayRate = 1;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "待机动画时间偏移"))
+    FVector2D MoveRandomTimeOffset = FVector2D(0, 0);
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "出生动画的索引值"))
     int32 IndexOfAppearAnim = 0;
@@ -137,6 +143,9 @@ public:
         FireFx = Anim.FireFx;
         PoisonFx = Anim.PoisonFx;
 
+        IdleRandomTimeOffset = Anim.IdleRandomTimeOffset;
+        MoveRandomTimeOffset = Anim.MoveRandomTimeOffset;
+
         AnimIndex0 = Anim.AnimIndex0;
         AnimPlayRate0 = Anim.AnimPlayRate0;
         AnimCurrentTime0 = Anim.AnimCurrentTime0;
@@ -184,6 +193,9 @@ public:
         FireFx = Anim.FireFx;
         PoisonFx = Anim.PoisonFx;
 
+        IdleRandomTimeOffset = Anim.IdleRandomTimeOffset;
+        MoveRandomTimeOffset = Anim.MoveRandomTimeOffset;
+
         AnimIndex0 = Anim.AnimIndex0;
         AnimPlayRate0 = Anim.AnimPlayRate0;
         AnimCurrentTime0 = Anim.AnimCurrentTime0;
@@ -215,5 +227,4 @@ public:
 
         return *this;
     }
-
 };

@@ -41,14 +41,14 @@ void UBFSubjectiveAgentComponent::BeginPlay()
 {
     Super::BeginPlay();
 
-    InitializeTraits(GetOwner());
+    if(bAutoInitWithDataAsset) InitializeTraits(GetOwner());
 }
 
 void UBFSubjectiveAgentComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
     Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-    SyncTransformSubjectToActor(GetOwner());
+    if (bSyncTransformSubjectToActor) SyncTransformSubjectToActor(GetOwner());
 }
 
 void UBFSubjectiveAgentComponent::InitializeTraits(AActor* OwnerActor)
@@ -189,7 +189,8 @@ void UBFSubjectiveAgentComponent::InitializeTraits(AActor* OwnerActor)
         AgentConfig.SetTrait(FAppearing());
     }
 
-    AgentConfig.SetTrait(Animation);
+    Animation.AnimOffsetTime0 = FMath::RandRange(Animation.IdleRandomTimeOffset.X, Animation.IdleRandomTimeOffset.Y);
+    Animation.AnimOffsetTime1 = FMath::RandRange(Animation.IdleRandomTimeOffset.X, Animation.IdleRandomTimeOffset.Y);
 
     if (Sleep.bEnable)
     {

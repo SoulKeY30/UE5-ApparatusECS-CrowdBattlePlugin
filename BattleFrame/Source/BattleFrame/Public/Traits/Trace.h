@@ -51,8 +51,8 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "扇形索敌参数"))
 	FSectorTraceShape SectorTrace = FSectorTraceShape();
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "索敌冷却时间（秒）"))
-	float CoolDown = 2;
+	//UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "索敌冷却时间（秒）"))
+	//float CoolDown = 2;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Tooltip = "索敌模式 (TargetIsPlayer_0: 目标为玩家, SphereTraceByTraits: 根据特征索敌)"))
 	ETraceMode Mode = ETraceMode::TargetIsPlayer_0;
